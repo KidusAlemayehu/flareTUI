@@ -1,0 +1,9 @@
+/target
+Cargo.lock
+**/*.rs.bk
+*.log
+.env
+.env.local
+config.local.toml
+cache.db
+cache.db-journal
