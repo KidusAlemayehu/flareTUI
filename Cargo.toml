@@ -24,6 +24,7 @@ futures-util = "0.3"
 # Networking & Cloudflare API
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 eventsource-stream = "0.2"
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 
 # Data, Caching & Serialization
 rusqlite = { version = "0.32", features = ["bundled"] }

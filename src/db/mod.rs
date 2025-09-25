@@ -214,4 +214,82 @@ impl CacheDb {
             .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(pages)
     }
+
+    pub fn upsert_zone(&self, zone: &Zone) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO zones (id, name, status, plan, created_on)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(id) DO UPDATE SET
+             name = excluded.name,
+             status = excluded.status,
+             plan = excluded.plan,
+             created_on = excluded.created_on",
+            params![zone.id, zone.name, zone.status, zone.plan, zone.created_on],
+        )?;
+        Ok(())
+    }
+
+    pub fn replace_zone_dns_records(&self, zone_id: &str, records: &[DnsRecord]) -> Result<()> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        tx.execute("DELETE FROM dns_records WHERE zone_id = ?", params![zone_id])?;
+        for r in records {
+            let proxied_int = if r.proxied { 1 } else { 0 };
+            tx.execute(
+                "INSERT INTO dns_records (id, zone_id, record_type, name, content, proxied, ttl)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![r.id, r.zone_id, r.record_type, r.name, r.content, proxied_int, r.ttl],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn upsert_worker(&self, worker: &WorkerScript) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO workers (id, name, routes, last_deployed, compatibility_date, status)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT(id) DO UPDATE SET
+             name = excluded.name,
+             routes = excluded.routes,
+             last_deployed = excluded.last_deployed,
+             compatibility_date = excluded.compatibility_date,
+             status = excluded.status",
+            params![
+                worker.id,
+                worker.name,
+                worker.routes,
+                worker.last_deployed,
+                worker.compatibility_date,
+                worker.status
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn upsert_page(&self, page: &PagesProject) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO pages (id, name, subdomain, production_branch, latest_deployment_status, updated_on)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT(id) DO UPDATE SET
+             name = excluded.name,
+             subdomain = excluded.subdomain,
+             production_branch = excluded.production_branch,
+             latest_deployment_status = excluded.latest_deployment_status,
+             updated_on = excluded.updated_on",
+            params![
+                page.id,
+                page.name,
+                page.subdomain,
+                page.production_branch,
+                page.latest_deployment_status,
+                page.updated_on
+            ],
+        )?;
+        Ok(())
+    }
 }
+
