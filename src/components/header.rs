@@ -12,6 +12,7 @@ pub struct Header {
     pub active_tab: usize,
     pub tabs: Vec<&'static str>,
     pub account_name: String,
+    pub is_live: bool,
 }
 
 impl Header {
@@ -26,6 +27,7 @@ impl Header {
                 "5: Live Tail",
             ],
             account_name: "Personal (kidus)".to_string(),
+            is_live: false,
         }
     }
 
@@ -40,7 +42,7 @@ impl Header {
             .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Length(14),
-                Constraint::Min(20),
+                Constraint::Min(25),
                 Constraint::Length(28),
             ])
             .split(chunks[0]);
@@ -53,11 +55,17 @@ impl Header {
         f.render_widget(logo, top_chunks[0]);
 
         // Account / Environment badge
+        let live_badge = if self.is_live {
+            Span::styled("● Cloudflare Live", Style::default().fg(theme.success).add_modifier(Modifier::BOLD))
+        } else {
+            Span::styled("○ Cached Mode (Press 'a' to auth)", Style::default().fg(theme.warning))
+        };
+
         let badge = Paragraph::new(Line::from(vec![
             Span::styled("👤 Account: ", Style::default().fg(theme.text_dim)),
             Span::styled(&self.account_name, Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
-            Span::raw(" "),
-            Span::styled("● Cloudflare v4", Style::default().fg(theme.success)),
+            Span::raw("  "),
+            live_badge,
         ]));
         f.render_widget(badge, top_chunks[1]);
 

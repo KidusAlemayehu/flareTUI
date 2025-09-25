@@ -1,5 +1,6 @@
 pub mod action;
 pub mod app;
+pub mod cloudflare;
 pub mod components;
 pub mod db;
 pub mod event;
@@ -9,6 +10,7 @@ pub mod tui;
 use std::path::PathBuf;
 use color_eyre::Result;
 use directories::ProjectDirs;
+use tokio::sync::mpsc;
 
 use crate::action::Action;
 use crate::app::App;
@@ -37,31 +39,40 @@ async fn main() -> Result<()> {
         CacheDb::open_in_memory().expect("Failed to initialize in-memory SQLite cache")
     });
 
-    // 2. Initialize TUI Terminal & Event Stream
+    // 2. Action channel for background tasks (sync, auth validation, log streams)
+    let (action_tx, mut action_rx) = mpsc::unbounded_channel();
+
+    // 3. Initialize TUI Terminal & Event Stream
     let mut tui = Tui::new()?;
     tui.enter()?;
 
     let mut event_handler = EventHandler::new(200); // 200ms tick for responsive UI & logs
-    let mut app = App::new(db);
+    let mut app = App::new(db, action_tx.clone());
 
-    // 3. Main Application Loop
+    // 4. Main Application Loop
     loop {
         tui.terminal.draw(|f| app.render(f))?;
 
-        if let Some(event) = event_handler.rx.recv().await {
-            match event {
-                Event::Tick => {
-                    app.update(Action::Tick)?;
-                }
-                Event::Resize(_, _) => {
-                    app.update(Action::Render)?;
-                }
-                Event::Key(key) => {
-                    let search_active = app.is_search_active();
-                    if let Some(action) = EventHandler::map_key_to_action(key, search_active) {
-                        app.update(action)?;
+        tokio::select! {
+            Some(event) = event_handler.rx.recv() => {
+                match event {
+                    Event::Tick => {
+                        app.update(Action::Tick)?;
+                    }
+                    Event::Resize(_, _) => {
+                        app.update(Action::Render)?;
+                    }
+                    Event::Key(key) => {
+                        let search_active = app.is_search_active();
+                        let auth_active = app.is_auth_active();
+                        if let Some(action) = EventHandler::map_key_to_action(key, search_active, auth_active) {
+                            app.update(action)?;
+                        }
                     }
                 }
+            }
+            Some(action) = action_rx.recv() => {
+                app.update(action)?;
             }
         }
 
@@ -70,7 +81,7 @@ async fn main() -> Result<()> {
         }
     }
 
-    // 4. Graceful Cleanup
+    // 5. Graceful Cleanup
     tui.exit()?;
     println!("Exited flareTUI cleanly. See you at the edge!");
     Ok(())

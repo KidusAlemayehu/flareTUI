@@ -59,7 +59,17 @@ impl EventHandler {
         Self { rx, _tx: tx }
     }
 
-    pub fn map_key_to_action(key: KeyEvent, search_active: bool) -> Option<Action> {
+    pub fn map_key_to_action(key: KeyEvent, search_active: bool, auth_active: bool) -> Option<Action> {
+        if auth_active {
+            return match key.code {
+                KeyCode::Esc => Some(Action::ToggleAuth),
+                KeyCode::Enter => Some(Action::AuthSubmit),
+                KeyCode::Backspace => Some(Action::AuthInputBackspace),
+                KeyCode::Char(c) => Some(Action::AuthInputChar(c)),
+                _ => None,
+            };
+        }
+
         if search_active {
             return match key.code {
                 KeyCode::Esc => Some(Action::ToggleSearch),
@@ -89,6 +99,7 @@ impl EventHandler {
             (KeyModifiers::NONE, KeyCode::Char('r')) => Some(Action::Refresh),
             (KeyModifiers::NONE, KeyCode::Char('?')) => Some(Action::ToggleHelp),
             (KeyModifiers::NONE, KeyCode::Char('/')) => Some(Action::ToggleSearch),
+            (KeyModifiers::NONE, KeyCode::Char('a')) | (KeyModifiers::CONTROL, KeyCode::Char('a')) => Some(Action::ToggleAuth),
             _ => None,
         }
     }

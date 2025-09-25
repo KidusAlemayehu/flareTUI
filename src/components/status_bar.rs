@@ -39,11 +39,11 @@ impl StatusBar {
 
         // Dynamic hotkeys based on tab
         let key_hints = match active_tab {
-            0 => " [q] Quit  [Tab] View  [j/k] Nav  [s] Switch Pane  [p] Proxy  [/] Filter  [r] Refresh ",
-            1 => " [q] Quit  [Tab] View  [j/k] Nav  [l] Live Logs  [r] Refresh  [?] Help ",
-            2 => " [q] Quit  [Tab] View  [j/k] Nav  [Enter] Deployments  [r] Refresh ",
-            3 => " [q] Quit  [Tab] View  [j/k] Nav  [Enter] Query/Inspect  [r] Refresh ",
-            _ => " [q] Quit  [Tab] View  [Space] Pause  [c] Clear  [?] Help ",
+            0 => " [q] Quit  [Tab] View  [j/k] Nav  [s] Pane  [p] Proxy  [/] Filter  [r] Sync  [a] Auth ",
+            1 => " [q] Quit  [Tab] View  [j/k] Nav  [l] Live Logs  [r] Sync  [a] Auth  [?] Help ",
+            2 => " [q] Quit  [Tab] View  [j/k] Nav  [Enter] Deployments  [r] Sync  [a] Auth ",
+            3 => " [q] Quit  [Tab] View  [j/k] Nav  [Enter] Query  [r] Sync  [a] Auth ",
+            _ => " [q] Quit  [Tab] View  [Space] Pause  [c] Clear  [a] Auth  [?] Help ",
         };
 
         let hints_widget = Paragraph::new(Line::from(vec![

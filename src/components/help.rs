@@ -40,7 +40,8 @@ impl HelpModal {
             Row::new(vec!["p", "Toggle Cloudflare Proxy (🟠 Proxied / ⚪ DNS Only)"]),
             Row::new(vec!["/", "Open fuzzy search filter on active view"]),
             Row::new(vec!["Esc", "Exit search filter or close modal"]),
-            Row::new(vec!["r", "Force refresh data from cache/API"]),
+            Row::new(vec!["r", "Force refresh data / sync from Cloudflare API"]),
+            Row::new(vec!["a / Ctrl+A", "Connect Cloudflare Account via API Token"]),
             Row::new(vec!["?", "Toggle this Help overlay"]),
             Row::new(vec!["q / Ctrl+C", "Quit flareTUI"]),
         ];
