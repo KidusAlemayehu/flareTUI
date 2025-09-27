@@ -55,25 +55,11 @@ impl StorageView {
         // D1 Databases Table
         let d1_rows = vec![
             Row::new(vec![
-                Cell::from(if self.selected_d1_idx == 0 && !self.is_kv_focused { "▶ prod-customer-db" } else { "  prod-customer-db" }),
-                Cell::from("0f8821ad-44b2-4d56-a67b-401cf69be201"),
-                Cell::from("14 tables"),
-                Cell::from("4.8 MB"),
-                Cell::from("Active"),
-            ]),
-            Row::new(vec![
-                Cell::from(if self.selected_d1_idx == 1 && !self.is_kv_focused { "▶ auth-sessions-d1" } else { "  auth-sessions-d1" }),
-                Cell::from("c34891ff-12a8-4e12-b789-9821bb44a102"),
-                Cell::from("3 tables"),
-                Cell::from("1.2 MB"),
-                Cell::from("Active"),
-            ]),
-            Row::new(vec![
-                Cell::from(if self.selected_d1_idx == 2 && !self.is_kv_focused { "▶ telemetry-analytics" } else { "  telemetry-analytics" }),
-                Cell::from("e91452ca-34e8-4691-8fa3-7153aef11890"),
-                Cell::from("8 tables"),
-                Cell::from("18.4 MB"),
-                Cell::from("Active"),
+                Cell::from("  (No D1 databases provisioned on this account)"),
+                Cell::from("-"),
+                Cell::from("-"),
+                Cell::from("-"),
+                Cell::from("Inactive"),
             ]),
         ];
 
@@ -81,8 +67,8 @@ impl StorageView {
         let d1_table = Table::new(
             d1_rows,
             [
-                Constraint::Length(24),
-                Constraint::Length(38),
+                Constraint::Length(45),
+                Constraint::Length(20),
                 Constraint::Length(12),
                 Constraint::Length(12),
                 Constraint::Length(10),
@@ -106,22 +92,10 @@ impl StorageView {
         // KV Namespaces Table
         let kv_rows = vec![
             Row::new(vec![
-                Cell::from(if self.selected_kv_idx == 0 && self.is_kv_focused { "▶ AUTH_STORE" } else { "  AUTH_STORE" }),
-                Cell::from("6b74e449266144e1837a7f457ecaa87b"),
-                Cell::from("1,420 keys"),
-                Cell::from("Active"),
-            ]),
-            Row::new(vec![
-                Cell::from(if self.selected_kv_idx == 1 && self.is_kv_focused { "▶ RATE_LIMIT_CACHE" } else { "  RATE_LIMIT_CACHE" }),
-                Cell::from("3fa85f64-5717-4562-b3fc-2c963f66afa6"),
-                Cell::from("8,940 keys"),
-                Cell::from("Active"),
-            ]),
-            Row::new(vec![
-                Cell::from(if self.selected_kv_idx == 2 && self.is_kv_focused { "▶ FEATURE_FLAGS" } else { "  FEATURE_FLAGS" }),
-                Cell::from("9bb82410-1882-4112-9ab2-8812cfa55912"),
-                Cell::from("48 keys"),
-                Cell::from("Active"),
+                Cell::from("  (No KV namespaces provisioned on this account)"),
+                Cell::from("-"),
+                Cell::from("-"),
+                Cell::from("Inactive"),
             ]),
         ];
 

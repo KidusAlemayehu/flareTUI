@@ -26,45 +26,10 @@ pub struct LogEntry {
 
 impl TailView {
     pub fn new() -> Self {
-        let initial_logs = vec![
-            LogEntry {
-                timestamp: "03:14:02.102".to_string(),
-                method: "GET".to_string(),
-                url: "/v1/auth/session".to_string(),
-                status: 200,
-                duration_ms: 12,
-                message: "Session token validated successfully [cache-hit: true]".to_string(),
-            },
-            LogEntry {
-                timestamp: "03:14:05.441".to_string(),
-                method: "POST".to_string(),
-                url: "/v1/auth/login".to_string(),
-                status: 200,
-                duration_ms: 48,
-                message: "User authentication succeeded: kidusalemayehu705@gmail.com".to_string(),
-            },
-            LogEntry {
-                timestamp: "03:14:09.890".to_string(),
-                method: "GET".to_string(),
-                url: "/v1/auth/unknown".to_string(),
-                status: 404,
-                duration_ms: 4,
-                message: "Route not matched in worker router".to_string(),
-            },
-            LogEntry {
-                timestamp: "03:14:14.215".to_string(),
-                method: "POST".to_string(),
-                url: "/v1/auth/refresh".to_string(),
-                status: 200,
-                duration_ms: 22,
-                message: "Rotated refresh token for session s-9841".to_string(),
-            },
-        ];
-
         Self {
-            logs: initial_logs,
+            logs: Vec::new(),
             is_paused: false,
-            target_worker: "edge-auth-guard".to_string(),
+            target_worker: "Live Stream".to_string(),
         }
     }
 
@@ -76,42 +41,28 @@ impl TailView {
         self.logs.clear();
     }
 
-    pub fn add_tick_log(&mut self, tick_count: usize) {
-        if self.is_paused {
-            return;
-        }
-
-        // Add periodic realistic tail entry
-        if tick_count % 8 == 0 {
-            let methods = ["GET", "POST", "PUT"];
-            let paths = ["/api/health", "/v1/auth/session", "/v1/users/me", "/static/asset.js"];
-            let m = methods[tick_count % methods.len()];
-            let p = paths[tick_count % paths.len()];
-
-            self.logs.push(LogEntry {
-                timestamp: format!("03:14:{:02}.{:03}", (tick_count % 60), (tick_count * 13) % 1000),
-                method: m.to_string(),
-                url: p.to_string(),
-                status: 200,
-                duration_ms: (15 + (tick_count % 35)) as u32,
-                message: format!("Worker invocation completed [trace: cf-trace-{tick_count}]"),
-            });
-
-            if self.logs.len() > 100 {
-                self.logs.remove(0);
-            }
-        }
+    pub fn add_tick_log(&mut self, _tick_count: usize) {
+        // Real-time logs are pushed via WebSocket events
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
         let stream_status = if self.is_paused {
             Span::styled("⏸ PAUSED", Style::default().fg(theme.warning).add_modifier(Modifier::BOLD))
         } else {
-            Span::styled("● LIVE STREAMING", Style::default().fg(theme.success).add_modifier(Modifier::BOLD))
+            Span::styled("● LISTENING", Style::default().fg(theme.success).add_modifier(Modifier::BOLD))
         };
 
-        let lines: Vec<Line> = self
-            .logs
+        let lines: Vec<Line> = if self.logs.is_empty() {
+            vec![
+                Line::from(vec![
+                    Span::styled(" ⏳ Waiting for incoming Worker requests...", Style::default().fg(theme.info)),
+                ]),
+                Line::from(vec![
+                    Span::styled("    Live HTTP requests, console.log outputs, and error traces will appear here automatically.", Style::default().fg(theme.text_dim)),
+                ]),
+            ]
+        } else {
+            self.logs
             .iter()
             .map(|entry| {
                 let status_style = match entry.status {
@@ -136,7 +87,8 @@ impl TailView {
                     Span::styled(&entry.message, Style::default().fg(theme.text)),
                 ])
             })
-            .collect();
+            .collect()
+        };
 
         let title = Line::from(vec![
             Span::raw(" Live Tail Console: "),

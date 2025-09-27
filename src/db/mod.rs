@@ -60,8 +60,8 @@ impl CacheDb {
             conn: Arc::new(Mutex::new(conn)),
         };
 
-        // Seed with demo initial data if empty
-        db.seed_if_empty()?;
+        // Purge any legacy sample data
+        db.purge_mock_data()?;
         Ok(db)
     }
 
@@ -71,57 +71,16 @@ impl CacheDb {
         let db = Self {
             conn: Arc::new(Mutex::new(conn)),
         };
-        db.seed_if_empty()?;
+        db.purge_mock_data()?;
         Ok(db)
     }
 
-    fn seed_if_empty(&self) -> Result<()> {
+    pub fn purge_mock_data(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
-        let count: i64 = conn.query_row("SELECT count(*) FROM zones", [], |row| row.get(0))?;
-
-        if count == 0 {
-            // Seed sample zones
-            conn.execute(
-                "INSERT INTO zones (id, name, status, plan, created_on) VALUES 
-                ('z1', 'example.com', 'active', 'Enterprise', '2023-01-15'),
-                ('z2', 'cloud-infra.dev', 'active', 'Pro', '2023-06-20'),
-                ('z3', 'personal-blog.org', 'active', 'Free', '2024-02-10')",
-                [],
-            )?;
-
-            // Seed sample DNS records
-            conn.execute(
-                "INSERT INTO dns_records (id, zone_id, record_type, name, content, proxied, ttl) VALUES
-                ('d1', 'z1', 'A', 'example.com', '192.0.2.1', 1, 1),
-                ('d2', 'z1', 'AAAA', 'example.com', '2001:db8::1', 1, 1),
-                ('d3', 'z1', 'CNAME', 'api.example.com', 'workers.dev', 1, 1),
-                ('d4', 'z1', 'CNAME', 'status.example.com', 'statuspage.io', 0, 300),
-                ('d5', 'z1', 'TXT', 'example.com', 'v=spf1 include:_spf.mx.cloudflare.net ~all', 0, 3600),
-                ('d6', 'z2', 'A', 'cloud-infra.dev', '198.51.100.24', 1, 1),
-                ('d7', 'z2', 'CNAME', 'auth.cloud-infra.dev', 'auth0.com', 0, 300),
-                ('d8', 'z3', 'CNAME', 'personal-blog.org', 'kidus.pages.dev', 1, 1)",
-                [],
-            )?;
-
-            // Seed sample workers
-            conn.execute(
-                "INSERT INTO workers (id, name, routes, last_deployed, compatibility_date, status) VALUES
-                ('w1', 'edge-auth-guard', 'api.example.com/v1/auth/*', '2025-08-30 14:22', '2024-09-23', 'Healthy'),
-                ('w2', 'image-resizer', 'images.example.com/*', '2025-09-02 09:10', '2024-11-01', 'Healthy'),
-                ('w3', 'rate-limiter-proxy', 'api.example.com/*', '2025-09-10 18:45', '2025-01-15', 'Healthy'),
-                ('w4', 'telemetry-collector', 'logs.cloud-infra.dev/*', '2025-09-11 22:05', '2025-04-01', 'Warning')",
-                [],
-            )?;
-
-            // Seed sample pages
-            conn.execute(
-                "INSERT INTO pages (id, name, subdomain, production_branch, latest_deployment_status, updated_on) VALUES
-                ('p1', 'main-portal', 'main-portal.pages.dev', 'main', 'Success', '2025-09-11 16:30'),
-                ('p2', 'developer-docs', 'developer-docs.pages.dev', 'main', 'Success', '2025-09-08 11:20'),
-                ('p3', 'admin-console', 'admin-console.pages.dev', 'production', 'Building', '2025-09-12 08:45')",
-                [],
-            )?;
-        }
+        conn.execute("DELETE FROM dns_records WHERE zone_id IN ('z1', 'z2', 'z3') OR id IN ('d1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8')", [])?;
+        conn.execute("DELETE FROM zones WHERE id IN ('z1', 'z2', 'z3')", [])?;
+        conn.execute("DELETE FROM workers WHERE id IN ('w1', 'w2', 'w3', 'w4')", [])?;
+        conn.execute("DELETE FROM pages WHERE id IN ('p1', 'p2', 'p3')", [])?;
         Ok(())
     }
 

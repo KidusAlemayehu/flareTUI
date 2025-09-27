@@ -50,36 +50,46 @@ impl PagesView {
             .constraints([Constraint::Min(10), Constraint::Length(7)])
             .split(area);
 
-        let rows: Vec<Row> = self
-            .pages
-            .iter()
-            .enumerate()
-            .map(|(i, p)| {
-                let is_selected = i == self.selected_idx;
-                let prefix = if is_selected { "▶ " } else { "  " };
-                let style = if is_selected {
-                    theme.selected_row()
-                } else {
-                    Style::default().fg(theme.text)
-                };
+        let rows: Vec<Row> = if self.pages.is_empty() {
+            vec![Row::new(vec![
+                Cell::from("  No Pages projects deployed"),
+                Cell::from("-"),
+                Cell::from("-"),
+                Cell::from("-"),
+                Cell::from("-"),
+            ])
+            .style(Style::default().fg(theme.text_dim))]
+        } else {
+            self.pages
+                .iter()
+                .enumerate()
+                .map(|(i, p)| {
+                    let is_selected = i == self.selected_idx;
+                    let prefix = if is_selected { "▶ " } else { "  " };
+                    let style = if is_selected {
+                        theme.selected_row()
+                    } else {
+                        Style::default().fg(theme.text)
+                    };
 
-                let status_style = match p.latest_deployment_status.as_str() {
-                    "Success" => Style::default().fg(theme.success).add_modifier(Modifier::BOLD),
-                    "Building" => Style::default().fg(theme.warning).add_modifier(Modifier::BOLD),
-                    _ => Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
-                };
+                    let status_style = match p.latest_deployment_status.as_str() {
+                        "Success" => Style::default().fg(theme.success).add_modifier(Modifier::BOLD),
+                        "Building" => Style::default().fg(theme.warning).add_modifier(Modifier::BOLD),
+                        _ => Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
+                    };
 
-                Row::new(vec![
-                    Cell::from(format!("{prefix}{}", p.name))
-                        .style(Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
-                    Cell::from(p.subdomain.clone()).style(Style::default().fg(theme.info)),
-                    Cell::from(p.production_branch.clone()),
-                    Cell::from(p.latest_deployment_status.clone()).style(status_style),
-                    Cell::from(p.updated_on.clone()).style(Style::default().fg(theme.text_dim)),
-                ])
-                .style(style)
-            })
-            .collect();
+                    Row::new(vec![
+                        Cell::from(format!("{prefix}{}", p.name))
+                            .style(Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+                        Cell::from(p.subdomain.clone()).style(Style::default().fg(theme.info)),
+                        Cell::from(p.production_branch.clone()),
+                        Cell::from(p.latest_deployment_status.clone()).style(status_style),
+                        Cell::from(p.updated_on.clone()).style(Style::default().fg(theme.text_dim)),
+                    ])
+                    .style(style)
+                })
+                .collect()
+        };
 
         let table = Table::new(
             rows,
@@ -117,17 +127,29 @@ impl PagesView {
                 ]),
                 Line::from(vec![
                     Span::styled("Framework: ", Style::default().fg(theme.text_dim)),
-                    Span::styled("Next.js / Static Export  |  Direct Upload: Disabled  |  Git Integration: Active", Style::default().fg(Color::White)),
-                ]),
-                Line::from(vec![
-                    Span::styled("Rollback: ", Style::default().fg(theme.secondary)),
-                    Span::styled("Press 'Enter' to view deployment history and trigger rollback", Style::default().fg(theme.primary).add_modifier(Modifier::ITALIC)),
+                    Span::styled("Git Integration / Cloudflare Pages", Style::default().fg(Color::White)),
                 ]),
             ];
 
             let details_widget = Paragraph::new(details).block(
                 Block::default()
                     .title(format!(" Project Deployment Details: {} ", p.name))
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(theme.border)),
+            );
+            f.render_widget(details_widget, chunks[1]);
+        } else {
+            let details_widget = Paragraph::new(vec![
+                Line::from(vec![
+                    Span::styled("No Cloudflare Pages projects found on this account.", Style::default().fg(theme.text_dim)),
+                ]),
+                Line::from(vec![
+                    Span::styled("Deploy web apps and static sites with Cloudflare Pages.", Style::default().fg(theme.primary)),
+                ]),
+            ]).block(
+                Block::default()
+                    .title(" Project Details ")
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
                     .border_style(Style::default().fg(theme.border)),

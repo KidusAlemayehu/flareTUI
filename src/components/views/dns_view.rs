@@ -145,32 +145,39 @@ impl DnsView {
 
         // Left Pane: Zones List
         let zones_focused = self.focus == DnsFocus::Zones;
-        let zone_rows: Vec<Row> = self
-            .zones
-            .iter()
-            .enumerate()
-            .map(|(i, z)| {
-                let is_selected = i == self.selected_zone_idx;
-                let prefix = if is_selected { "▶ " } else { "  " };
-                let style = if is_selected {
-                    theme.selected_row()
-                } else {
-                    Style::default().fg(theme.text)
-                };
+        let zone_rows: Vec<Row> = if self.zones.is_empty() {
+            vec![Row::new(vec![
+                Cell::from("  No zones on account"),
+                Cell::from("-"),
+            ])
+            .style(Style::default().fg(theme.text_dim))]
+        } else {
+            self.zones
+                .iter()
+                .enumerate()
+                .map(|(i, z)| {
+                    let is_selected = i == self.selected_zone_idx;
+                    let prefix = if is_selected { "▶ " } else { "  " };
+                    let style = if is_selected {
+                        theme.selected_row()
+                    } else {
+                        Style::default().fg(theme.text)
+                    };
 
-                let plan_style = match z.plan.as_str() {
-                    "Enterprise" => Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
-                    "Pro" => Style::default().fg(theme.info),
-                    _ => Style::default().fg(theme.text_dim),
-                };
+                    let plan_style = match z.plan.as_str() {
+                        "Enterprise" => Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
+                        "Pro" => Style::default().fg(theme.info),
+                        _ => Style::default().fg(theme.text_dim),
+                    };
 
-                Row::new(vec![
-                    Cell::from(format!("{prefix}{}", z.name)),
-                    Cell::from(z.plan.clone()).style(plan_style),
-                ])
-                .style(style)
-            })
-            .collect();
+                    Row::new(vec![
+                        Cell::from(format!("{prefix}{}", z.name)),
+                        Cell::from(z.plan.clone()).style(plan_style),
+                    ])
+                    .style(style)
+                })
+                .collect()
+        };
 
         let zones_table = Table::new(zone_rows, [Constraint::Min(18), Constraint::Length(10)])
             .header(
@@ -197,44 +204,55 @@ impl DnsView {
             .unwrap_or("None");
 
         let filtered = self.filtered_records();
-        let record_rows: Vec<Row> = filtered
-            .iter()
-            .enumerate()
-            .map(|(i, r)| {
-                let is_selected = i == self.selected_record_idx;
-                let prefix = if is_selected { "▶ " } else { "  " };
-                let style = if is_selected {
-                    theme.selected_row()
-                } else {
-                    Style::default().fg(theme.text)
-                };
+        let record_rows: Vec<Row> = if filtered.is_empty() {
+            vec![Row::new(vec![
+                Cell::from("  -"),
+                Cell::from(if self.zones.is_empty() { "No zones loaded" } else { "No records in this zone" }),
+                Cell::from("-"),
+                Cell::from("-"),
+                Cell::from("-"),
+            ])
+            .style(Style::default().fg(theme.text_dim))]
+        } else {
+            filtered
+                .iter()
+                .enumerate()
+                .map(|(i, r)| {
+                    let is_selected = i == self.selected_record_idx;
+                    let prefix = if is_selected { "▶ " } else { "  " };
+                    let style = if is_selected {
+                        theme.selected_row()
+                    } else {
+                        Style::default().fg(theme.text)
+                    };
 
-                let type_style = match r.record_type.as_str() {
-                    "A" => Style::default().fg(theme.info).add_modifier(Modifier::BOLD),
-                    "AAAA" => Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-                    "CNAME" => Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD),
-                    "TXT" => Style::default().fg(theme.text_dim),
-                    _ => Style::default().fg(Color::Magenta),
-                };
+                    let type_style = match r.record_type.as_str() {
+                        "A" => Style::default().fg(theme.info).add_modifier(Modifier::BOLD),
+                        "AAAA" => Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                        "CNAME" => Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD),
+                        "TXT" => Style::default().fg(theme.text_dim),
+                        _ => Style::default().fg(Color::Magenta),
+                    };
 
-                let proxy_span = if r.proxied {
-                    Span::styled("🟠 Proxied", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
-                } else {
-                    Span::styled("⚪ DNS Only", Style::default().fg(theme.text_dim))
-                };
+                    let proxy_span = if r.proxied {
+                        Span::styled("🟠 Proxied", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
+                    } else {
+                        Span::styled("⚪ DNS Only", Style::default().fg(theme.text_dim))
+                    };
 
-                let ttl_str = if r.ttl == 1 { "Auto".to_string() } else { format!("{}s", r.ttl) };
+                    let ttl_str = if r.ttl == 1 { "Auto".to_string() } else { format!("{}s", r.ttl) };
 
-                Row::new(vec![
-                    Cell::from(format!("{prefix}{}", r.record_type)).style(type_style),
-                    Cell::from(r.name.clone()),
-                    Cell::from(r.content.clone()),
-                    Cell::from(Line::from(proxy_span)),
-                    Cell::from(ttl_str).style(Style::default().fg(theme.text_dim)),
-                ])
-                .style(style)
-            })
-            .collect();
+                    Row::new(vec![
+                        Cell::from(format!("{prefix}{}", r.record_type)).style(type_style),
+                        Cell::from(r.name.clone()),
+                        Cell::from(r.content.clone()),
+                        Cell::from(Line::from(proxy_span)),
+                        Cell::from(ttl_str).style(Style::default().fg(theme.text_dim)),
+                    ])
+                    .style(style)
+                })
+                .collect()
+        };
 
         let records_table = Table::new(
             record_rows,

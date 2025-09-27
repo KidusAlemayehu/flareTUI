@@ -7,3 +7,6 @@ Cargo.lock
 config.local.toml
 cache.db
 cache.db-journal
+token.txt
+*token*
+*.txt

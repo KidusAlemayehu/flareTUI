@@ -134,15 +134,44 @@ impl CloudflareClient {
     }
 
     pub async fn verify_token(&self) -> Result<TokenVerifyResult> {
+        // 1. Try standard /user/tokens/verify endpoint (User API Tokens)
         let url = format!("{}/user/tokens/verify", self.base_url);
-        let resp = self.client.get(&url).send().await?.json::<ApiResponse<TokenVerifyResult>>().await?;
-        if resp.success {
-            if let Some(res) = resp.result {
-                return Ok(res);
+        if let Ok(resp) = self.client.get(&url).send().await {
+            if let Ok(json) = resp.json::<ApiResponse<TokenVerifyResult>>().await {
+                if json.success {
+                    if let Some(res) = json.result {
+                        return Ok(res);
+                    }
+                }
             }
         }
-        let err_msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Invalid token".to_string());
-        color_eyre::eyre::bail!("Token verification failed: {err_msg}")
+
+        // 2. Fallback: Test /zones or /accounts (Account API Tokens)
+        let zones_url = format!("{}/zones?per_page=1", self.base_url);
+        if let Ok(resp) = self.client.get(&zones_url).send().await {
+            if let Ok(json) = resp.json::<ApiResponse<Vec<ZoneResult>>>().await {
+                if json.success {
+                    return Ok(TokenVerifyResult {
+                        id: "account_token".to_string(),
+                        status: "active".to_string(),
+                    });
+                }
+            }
+        }
+
+        let accounts_url = format!("{}/accounts?per_page=1", self.base_url);
+        if let Ok(resp) = self.client.get(&accounts_url).send().await {
+            if let Ok(json) = resp.json::<ApiResponse<Vec<Account>>>().await {
+                if json.success {
+                    return Ok(TokenVerifyResult {
+                        id: "account_token".to_string(),
+                        status: "active".to_string(),
+                    });
+                }
+            }
+        }
+
+        color_eyre::eyre::bail!("Token verification failed: Invalid API Token or missing permissions")
     }
 
     pub async fn get_accounts(&self) -> Result<Vec<Account>> {
