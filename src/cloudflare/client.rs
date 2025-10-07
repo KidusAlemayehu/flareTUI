@@ -59,6 +59,39 @@ pub struct PatchDnsRecord {
     pub proxied: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NewDnsRecord {
+    #[serde(rename = "type")]
+    pub record_type: String,
+    pub name: String,
+    pub content: String,
+    pub ttl: u32,
+    pub proxied: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Default, PartialEq, Eq)]
+pub struct ZoneSettings {
+    pub ssl: Option<SettingValue<String>>,
+    pub development_mode: Option<SettingValue<String>>,
+    pub security_level: Option<SettingValue<String>>,
+    pub min_tls_version: Option<SettingValue<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct SettingValue<T> {
+    pub value: T,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct SettingUpdate<T> {
+    pub value: T,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct PurgeCacheRequest {
+    pub purge_everything: bool,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct WorkerScriptResult {
     pub id: String,
@@ -227,5 +260,125 @@ impl CloudflareClient {
         }
         let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to create tail session".to_string());
         color_eyre::eyre::bail!("{msg}")
+    }
+
+    pub async fn get_zone_settings(&self, zone_id: &str) -> Result<ZoneSettings> {
+        let url = format!("{}/zones/{zone_id}/settings", self.base_url);
+        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<serde_json::Value>>>().await?;
+        let mut settings = ZoneSettings::default();
+
+        if let Some(items) = resp.result {
+            for item in items {
+                if let (Some(id), Some(val)) = (item.get("id").and_then(|v| v.as_str()), item.get("value")) {
+                    match id {
+                        "ssl" => {
+                            if let Some(s) = val.as_str() {
+                                settings.ssl = Some(SettingValue { value: s.to_string() });
+                            }
+                        }
+                        "development_mode" => {
+                            if let Some(s) = val.as_str() {
+                                settings.development_mode = Some(SettingValue { value: s.to_string() });
+                            }
+                        }
+                        "security_level" => {
+                            if let Some(s) = val.as_str() {
+                                settings.security_level = Some(SettingValue { value: s.to_string() });
+                            }
+                        }
+                        "min_tls_version" => {
+                            if let Some(s) = val.as_str() {
+                                settings.min_tls_version = Some(SettingValue { value: s.to_string() });
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        Ok(settings)
+    }
+
+    pub async fn set_zone_ssl(&self, zone_id: &str, ssl_mode: &str) -> Result<()> {
+        let url = format!("{}/zones/{zone_id}/settings/ssl", self.base_url);
+        let body = SettingUpdate { value: ssl_mode };
+        let resp = self.client.patch(&url).json(&body).send().await?.json::<ApiResponse<serde_json::Value>>().await?;
+        if resp.success {
+            Ok(())
+        } else {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to update SSL".to_string());
+            color_eyre::eyre::bail!("{msg}")
+        }
+    }
+
+    pub async fn set_zone_dev_mode(&self, zone_id: &str, enabled: bool) -> Result<()> {
+        let url = format!("{}/zones/{zone_id}/settings/development_mode", self.base_url);
+        let body = SettingUpdate { value: if enabled { "on" } else { "off" } };
+        let resp = self.client.patch(&url).json(&body).send().await?.json::<ApiResponse<serde_json::Value>>().await?;
+        if resp.success {
+            Ok(())
+        } else {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to update Dev Mode".to_string());
+            color_eyre::eyre::bail!("{msg}")
+        }
+    }
+
+    pub async fn set_zone_security_level(&self, zone_id: &str, level: &str) -> Result<()> {
+        let url = format!("{}/zones/{zone_id}/settings/security_level", self.base_url);
+        let body = SettingUpdate { value: level };
+        let resp = self.client.patch(&url).json(&body).send().await?.json::<ApiResponse<serde_json::Value>>().await?;
+        if resp.success {
+            Ok(())
+        } else {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to update Security Level".to_string());
+            color_eyre::eyre::bail!("{msg}")
+        }
+    }
+
+    pub async fn purge_zone_cache(&self, zone_id: &str) -> Result<()> {
+        let url = format!("{}/zones/{zone_id}/purge_cache", self.base_url);
+        let body = PurgeCacheRequest { purge_everything: true };
+        let resp = self.client.post(&url).json(&body).send().await?.json::<ApiResponse<serde_json::Value>>().await?;
+        if resp.success {
+            Ok(())
+        } else {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to purge cache".to_string());
+            color_eyre::eyre::bail!("{msg}")
+        }
+    }
+
+    pub async fn create_dns_record(&self, zone_id: &str, record: &NewDnsRecord) -> Result<DnsRecordResult> {
+        let url = format!("{}/zones/{zone_id}/dns_records", self.base_url);
+        let resp = self.client.post(&url).json(record).send().await?.json::<ApiResponse<DnsRecordResult>>().await?;
+        if resp.success {
+            if let Some(res) = resp.result {
+                return Ok(res);
+            }
+        }
+        let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to create DNS record".to_string());
+        color_eyre::eyre::bail!("{msg}")
+    }
+
+    pub async fn update_dns_record(&self, zone_id: &str, record_id: &str, record: &NewDnsRecord) -> Result<DnsRecordResult> {
+        let url = format!("{}/zones/{zone_id}/dns_records/{record_id}", self.base_url);
+        let resp = self.client.put(&url).json(record).send().await?.json::<ApiResponse<DnsRecordResult>>().await?;
+        if resp.success {
+            if let Some(res) = resp.result {
+                return Ok(res);
+            }
+        }
+        let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to update DNS record".to_string());
+        color_eyre::eyre::bail!("{msg}")
+    }
+
+    pub async fn delete_dns_record(&self, zone_id: &str, record_id: &str) -> Result<()> {
+        let url = format!("{}/zones/{zone_id}/dns_records/{record_id}", self.base_url);
+        let resp = self.client.delete(&url).send().await?.json::<ApiResponse<serde_json::Value>>().await?;
+        if resp.success {
+            Ok(())
+        } else {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to delete DNS record".to_string());
+            color_eyre::eyre::bail!("{msg}")
+        }
     }
 }

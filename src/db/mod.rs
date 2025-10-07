@@ -138,6 +138,38 @@ impl CacheDb {
         Ok(new_proxied != 0)
     }
 
+    pub fn upsert_dns_record(&self, record: &DnsRecord) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let proxied_int = if record.proxied { 1 } else { 0 };
+        conn.execute(
+            "INSERT INTO dns_records (id, zone_id, record_type, name, content, proxied, ttl)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(id) DO UPDATE SET
+             zone_id = excluded.zone_id,
+             record_type = excluded.record_type,
+             name = excluded.name,
+             content = excluded.content,
+             proxied = excluded.proxied,
+             ttl = excluded.ttl",
+            params![
+                record.id,
+                record.zone_id,
+                record.record_type,
+                record.name,
+                record.content,
+                proxied_int,
+                record.ttl
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_dns_record(&self, record_id: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM dns_records WHERE id = ?", params![record_id])?;
+        Ok(())
+    }
+
     pub fn get_workers(&self) -> Result<Vec<WorkerScript>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare("SELECT id, name, routes, last_deployed, compatibility_date, status FROM workers ORDER BY name ASC")?;
