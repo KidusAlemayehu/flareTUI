@@ -39,7 +39,7 @@ impl StatusBar {
 
         // Dynamic hotkeys based on tab
         let key_hints = match active_tab {
-            0 => " [q] Quit  [Tab] View  [j/k] Nav  [s] Pane  [p] Proxy  [/] Filter  [r] Sync  [a] Auth ",
+            0 => " [q] Quit  [i] Inspector  [n] Add Record  [e] Edit  [d] Del  [p] Proxy  [E] Export  [s] Pane ",
             1 => " [q] Quit  [Tab] View  [j/k] Nav  [l] Live Logs  [r] Sync  [a] Auth  [?] Help ",
             2 => " [q] Quit  [Tab] View  [j/k] Nav  [Enter] Deployments  [r] Sync  [a] Auth ",
             3 => " [q] Quit  [Tab] View  [j/k] Nav  [Enter] Query  [r] Sync  [a] Auth ",

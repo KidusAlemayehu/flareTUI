@@ -108,6 +108,15 @@ impl DnsView {
         None
     }
 
+    pub fn selected_record(&self) -> Option<&DnsRecord> {
+        let filtered = self.filtered_records();
+        filtered.get(self.selected_record_idx).copied()
+    }
+
+    pub fn selected_zone(&self) -> Option<&Zone> {
+        self.zones.get(self.selected_zone_idx)
+    }
+
     fn filtered_records(&self) -> Vec<&DnsRecord> {
         if self.search_query.is_empty() {
             self.records.iter().collect()
