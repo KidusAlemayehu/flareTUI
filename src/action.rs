@@ -1,3 +1,4 @@
+use crate::cloudflare::client::ZoneSettings;
 use crate::components::views::tail_view::LogEntry;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,6 +23,34 @@ pub enum Action {
     ToggleHelp,
     ToggleSearch,
     ToggleAuth,
+
+    // Zone Inspector Actions
+    OpenZoneInspector,
+    CloseZoneInspector,
+    ZoneSettingsLoaded(ZoneSettings),
+    CycleZoneSsl,
+    ToggleZoneDevMode,
+    ToggleZoneUnderAttack,
+    PurgeZoneCache,
+
+    // DNS Modal Actions
+    OpenCreateDnsModal,
+    OpenEditDnsModal,
+    CloseDnsModal,
+    DnsModalNextField,
+    DnsModalPrevField,
+    DnsModalCycleType(bool),
+    DnsModalInputChar(char),
+    DnsModalInputBackspace,
+    DnsModalSubmit,
+
+    // Delete Confirmation Guard
+    OpenDeleteDnsModal,
+    CloseDeleteDnsModal,
+    ConfirmDeleteDns,
+
+    // Export Zone
+    ExportZoneBind,
 
     // Search input
     InputChar(char),

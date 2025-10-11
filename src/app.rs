@@ -8,24 +8,28 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::action::Action;
 use crate::cloudflare::{
     auth::AuthManager,
-    client::CloudflareClient,
+    client::{CloudflareClient, SettingValue},
+    export::ZoneExporter,
     sync::CloudflareSync,
     tail::TailStream,
 };
 use crate::components::{
     auth_modal::AuthModal,
+    confirm_modal::ConfirmDeleteModal,
+    dns_modal::DnsModal,
     header::Header,
     help::HelpModal,
     status_bar::StatusBar,
     views::{
-        dns_view::DnsView,
+        dns_view::{DnsFocus, DnsView},
         pages_view::PagesView,
         storage_view::StorageView,
         tail_view::TailView,
         workers_view::WorkersView,
     },
+    zone_inspector::ZoneInspectorModal,
 };
-use crate::db::CacheDb;
+use crate::db::{CacheDb, DnsRecord};
 use crate::theme::Theme;
 
 pub struct App {
@@ -33,6 +37,9 @@ pub struct App {
     pub header: Header,
     pub status_bar: StatusBar,
     pub auth_modal: AuthModal,
+    pub zone_inspector: Option<ZoneInspectorModal>,
+    pub dns_modal: Option<DnsModal>,
+    pub delete_modal: Option<ConfirmDeleteModal>,
     pub dns_view: DnsView,
     pub workers_view: WorkersView,
     pub pages_view: PagesView,
@@ -71,6 +78,9 @@ impl App {
             header,
             status_bar: StatusBar::new(),
             auth_modal: AuthModal::new(),
+            zone_inspector: None,
+            dns_modal: None,
+            delete_modal: None,
             dns_view: DnsView::new(db.clone()),
             workers_view: WorkersView::new(db.clone()),
             pages_view: PagesView::new(db.clone()),
@@ -92,6 +102,22 @@ impl App {
 
     pub fn is_auth_active(&self) -> bool {
         self.show_auth_modal
+    }
+
+    pub fn is_inspector_active(&self) -> bool {
+        self.zone_inspector.is_some()
+    }
+
+    pub fn is_dns_modal_active(&self) -> bool {
+        self.dns_modal.is_some()
+    }
+
+    pub fn is_delete_modal_active(&self) -> bool {
+        self.delete_modal.is_some()
+    }
+
+    pub fn is_zone_pane_focused(&self) -> bool {
+        self.header.active_tab == 0 && self.dns_view.focus == DnsFocus::Zones
     }
 
     pub fn update(&mut self, action: Action) -> Result<()> {
@@ -343,6 +369,343 @@ impl App {
                 self.auth_modal.error_msg = Some(err.clone());
                 self.status_bar.set_error(err);
             }
+
+            // Zone Inspector
+            Action::OpenZoneInspector => {
+                if self.header.active_tab == 0 {
+                    if let Some(zone) = self.dns_view.selected_zone().cloned() {
+                        let mut inspector = ZoneInspectorModal::new(zone.clone());
+                        if let Some(client) = &self.cf_client {
+                            inspector.is_loading = true;
+                            let client = client.clone();
+                            let zone_id = zone.id.clone();
+                            let tx = self.action_tx.clone();
+                            tokio::spawn(async move {
+                                match client.get_zone_settings(&zone_id).await {
+                                    Ok(settings) => {
+                                        let _ = tx.send(Action::ZoneSettingsLoaded(settings));
+                                    }
+                                    Err(e) => {
+                                        let _ = tx.send(Action::Error(format!("Zone settings error: {e}")));
+                                    }
+                                }
+                            });
+                        }
+                        self.zone_inspector = Some(inspector);
+                    }
+                }
+            }
+            Action::CloseZoneInspector => {
+                self.zone_inspector = None;
+            }
+            Action::ZoneSettingsLoaded(settings) => {
+                if let Some(inspector) = &mut self.zone_inspector {
+                    inspector.settings = settings;
+                    inspector.is_loading = false;
+                    inspector.action_feedback = Some("Live settings loaded from Cloudflare".to_string());
+                }
+            }
+            Action::CycleZoneSsl => {
+                if let Some(inspector) = &mut self.zone_inspector {
+                    let cur = inspector.settings.ssl.as_ref().map(|s| s.value.as_str()).unwrap_or("flexible");
+                    let next_mode = match cur {
+                        "off" => "flexible",
+                        "flexible" => "full",
+                        "full" => "strict",
+                        "strict" => "off",
+                        _ => "flexible",
+                    };
+                    inspector.settings.ssl = Some(SettingValue { value: next_mode.to_string() });
+                    inspector.action_feedback = Some(format!("SSL mode updated to {}", next_mode.to_uppercase()));
+                    if let Some(client) = &self.cf_client {
+                        let client = client.clone();
+                        let zone_id = inspector.zone.id.clone();
+                        let mode = next_mode.to_string();
+                        let tx = self.action_tx.clone();
+                        tokio::spawn(async move {
+                            match client.set_zone_ssl(&zone_id, &mode).await {
+                                Ok(_) => {
+                                    let _ = tx.send(Action::StatusMessage(format!("SSL mode set to {}", mode.to_uppercase())));
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(Action::Error(format!("Cloudflare API error: {e}")));
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+            Action::ToggleZoneDevMode => {
+                if let Some(inspector) = &mut self.zone_inspector {
+                    let cur = inspector.settings.development_mode.as_ref().map(|s| s.value.as_str()).unwrap_or("off");
+                    let enabled = cur != "on";
+                    let next_str = if enabled { "on" } else { "off" };
+                    inspector.settings.development_mode = Some(SettingValue { value: next_str.to_string() });
+                    inspector.action_feedback = Some(format!("Dev mode toggled {}", next_str.to_uppercase()));
+                    if let Some(client) = &self.cf_client {
+                        let client = client.clone();
+                        let zone_id = inspector.zone.id.clone();
+                        let tx = self.action_tx.clone();
+                        tokio::spawn(async move {
+                            match client.set_zone_dev_mode(&zone_id, enabled).await {
+                                Ok(_) => {
+                                    let _ = tx.send(Action::StatusMessage(format!("Dev Mode set to {}", next_str.to_uppercase())));
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(Action::Error(format!("Cloudflare API error: {e}")));
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+            Action::ToggleZoneUnderAttack => {
+                if let Some(inspector) = &mut self.zone_inspector {
+                    let cur = inspector.settings.security_level.as_ref().map(|s| s.value.as_str()).unwrap_or("medium");
+                    let next_level = if cur == "under_attack" { "medium" } else { "under_attack" };
+                    inspector.settings.security_level = Some(SettingValue { value: next_level.to_string() });
+                    let label = if next_level == "under_attack" { "UNDER ATTACK MODE ACTIVATED" } else { "Security Level: MEDIUM" };
+                    inspector.action_feedback = Some(label.to_string());
+                    if let Some(client) = &self.cf_client {
+                        let client = client.clone();
+                        let zone_id = inspector.zone.id.clone();
+                        let tx = self.action_tx.clone();
+                        tokio::spawn(async move {
+                            match client.set_zone_security_level(&zone_id, next_level).await {
+                                Ok(_) => {
+                                    let _ = tx.send(Action::StatusMessage(format!("Security level set to {}", next_level.to_uppercase())));
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(Action::Error(format!("Cloudflare API error: {e}")));
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+            Action::PurgeZoneCache => {
+                if let Some(inspector) = &mut self.zone_inspector {
+                    inspector.action_feedback = Some("Purging all edge cache...".to_string());
+                    if let Some(client) = &self.cf_client {
+                        let client = client.clone();
+                        let zone_id = inspector.zone.id.clone();
+                        let tx = self.action_tx.clone();
+                        tokio::spawn(async move {
+                            match client.purge_zone_cache(&zone_id).await {
+                                Ok(_) => {
+                                    let _ = tx.send(Action::StatusMessage("Cloudflare edge cache purged!".to_string()));
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(Action::Error(format!("Purge cache error: {e}")));
+                                }
+                            }
+                        });
+                    } else {
+                        inspector.action_feedback = Some("Purge simulated (no active Cloudflare token)".to_string());
+                    }
+                }
+            }
+
+            // DNS Record Modal Actions
+            Action::OpenCreateDnsModal => {
+                if self.header.active_tab == 0 {
+                    if let Some(zone) = self.dns_view.selected_zone() {
+                        self.dns_modal = Some(DnsModal::new_create(zone.id.clone()));
+                    }
+                }
+            }
+            Action::OpenEditDnsModal => {
+                if self.header.active_tab == 0 {
+                    if let Some(rec) = self.dns_view.selected_record() {
+                        self.dns_modal = Some(DnsModal::new_edit(
+                            rec.zone_id.clone(),
+                            rec.id.clone(),
+                            rec.record_type.clone(),
+                            rec.name.clone(),
+                            rec.content.clone(),
+                            rec.ttl as u32,
+                            rec.proxied,
+                        ));
+                    }
+                }
+            }
+            Action::CloseDnsModal => {
+                self.dns_modal = None;
+            }
+            Action::DnsModalNextField => {
+                if let Some(modal) = &mut self.dns_modal {
+                    modal.next_field();
+                }
+            }
+            Action::DnsModalPrevField => {
+                if let Some(modal) = &mut self.dns_modal {
+                    modal.prev_field();
+                }
+            }
+            Action::DnsModalCycleType(next) => {
+                if let Some(modal) = &mut self.dns_modal {
+                    modal.cycle_type(next);
+                }
+            }
+            Action::DnsModalInputChar(c) => {
+                if let Some(modal) = &mut self.dns_modal {
+                    modal.handle_char(c);
+                }
+            }
+            Action::DnsModalInputBackspace => {
+                if let Some(modal) = &mut self.dns_modal {
+                    modal.handle_backspace();
+                }
+            }
+            Action::DnsModalSubmit => {
+                if let Some(modal) = &mut self.dns_modal {
+                    if modal.name.trim().is_empty() {
+                        modal.error_msg = Some("Record name cannot be empty".to_string());
+                        return Ok(());
+                    }
+                    if modal.content.trim().is_empty() {
+                        modal.error_msg = Some("Record content/IP cannot be empty".to_string());
+                        return Ok(());
+                    }
+
+                    let new_record = modal.to_new_record();
+                    let is_edit = modal.is_edit;
+                    let record_id = modal.record_id.clone();
+                    let zone_id = modal.zone_id.clone();
+
+                    if let Some(client) = &self.cf_client {
+                        let client = client.clone();
+                        let db = self.db.clone();
+                        let tx = self.action_tx.clone();
+
+                        tokio::spawn(async move {
+                            if is_edit {
+                                if let Some(rec_id) = record_id {
+                                    match client.update_dns_record(&zone_id, &rec_id, &new_record).await {
+                                        Ok(res) => {
+                                            let local_rec = DnsRecord {
+                                                id: res.id,
+                                                zone_id: res.zone_id,
+                                                record_type: res.record_type,
+                                                name: res.name.clone(),
+                                                content: res.content,
+                                                proxied: res.proxied,
+                                                ttl: res.ttl,
+                                            };
+                                            let _ = db.upsert_dns_record(&local_rec);
+                                            let _ = tx.send(Action::StatusMessage(format!("Updated DNS record {}", res.name)));
+                                            let _ = tx.send(Action::CloseDnsModal);
+                                            let _ = tx.send(Action::SyncCompleted("Record updated".to_string()));
+                                        }
+                                        Err(e) => {
+                                            let _ = tx.send(Action::Error(format!("Cloudflare API error: {e}")));
+                                        }
+                                    }
+                                }
+                            } else {
+                                match client.create_dns_record(&zone_id, &new_record).await {
+                                    Ok(res) => {
+                                        let local_rec = DnsRecord {
+                                            id: res.id,
+                                            zone_id: res.zone_id,
+                                            record_type: res.record_type,
+                                            name: res.name.clone(),
+                                            content: res.content,
+                                            proxied: res.proxied,
+                                            ttl: res.ttl,
+                                        };
+                                        let _ = db.upsert_dns_record(&local_rec);
+                                        let _ = tx.send(Action::StatusMessage(format!("Created DNS record {}", res.name)));
+                                        let _ = tx.send(Action::CloseDnsModal);
+                                        let _ = tx.send(Action::SyncCompleted("Record created".to_string()));
+                                    }
+                                    Err(e) => {
+                                        let _ = tx.send(Action::Error(format!("Cloudflare API error: {e}")));
+                                    }
+                                }
+                            }
+                        });
+                    } else {
+                        let id = record_id.unwrap_or_else(|| {
+                            format!(
+                                "rec_{}",
+                                std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .map(|d| d.as_millis())
+                                    .unwrap_or(0)
+                            )
+                        });
+                        let local_rec = DnsRecord {
+                            id,
+                            zone_id,
+                            record_type: new_record.record_type,
+                            name: new_record.name.clone(),
+                            content: new_record.content,
+                            proxied: new_record.proxied,
+                            ttl: new_record.ttl,
+                        };
+                        let _ = self.db.upsert_dns_record(&local_rec);
+                        self.dns_modal = None;
+                        self.dns_view.reload_records();
+                        self.status_bar.set_status(format!("Saved DNS record {}", local_rec.name));
+                    }
+                }
+            }
+
+            // Delete Confirmation Guard
+            Action::OpenDeleteDnsModal => {
+                if self.header.active_tab == 0 {
+                    if let Some(rec) = self.dns_view.selected_record().cloned() {
+                        self.delete_modal = Some(ConfirmDeleteModal::new(rec));
+                    }
+                }
+            }
+            Action::CloseDeleteDnsModal => {
+                self.delete_modal = None;
+            }
+            Action::ConfirmDeleteDns => {
+                if let Some(modal) = self.delete_modal.take() {
+                    let rec = modal.record;
+                    let _ = self.db.delete_dns_record(&rec.id);
+                    self.dns_view.reload_records();
+                    self.status_bar.set_status(format!("Deleted DNS record {}", rec.name));
+
+                    if let Some(client) = &self.cf_client {
+                        let client = client.clone();
+                        let zone_id = rec.zone_id.clone();
+                        let rec_id = rec.id.clone();
+                        let name = rec.name.clone();
+                        let tx = self.action_tx.clone();
+
+                        tokio::spawn(async move {
+                            match client.delete_dns_record(&zone_id, &rec_id).await {
+                                Ok(_) => {
+                                    let _ = tx.send(Action::StatusMessage(format!("Deleted record {name} on Cloudflare edge")));
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(Action::Error(format!("Cloudflare delete failed: {e}")));
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+
+            // Export BIND Zone
+            Action::ExportZoneBind => {
+                if self.header.active_tab == 0 {
+                    if let Some(zone) = self.dns_view.selected_zone() {
+                        match ZoneExporter::export_bind_zone(&zone.name, &self.dns_view.records) {
+                            Ok(path) => {
+                                self.status_bar.set_status(format!("Exported BIND zone: {}", path.display()));
+                            }
+                            Err(e) => {
+                                self.status_bar.set_error(format!("Export error: {e}"));
+                            }
+                        }
+                    }
+                }
+            }
             Action::Render => {}
         }
         Ok(())
@@ -381,6 +744,12 @@ impl App {
             HelpModal::render(f, area, &self.theme);
         } else if self.show_auth_modal {
             self.auth_modal.render(f, area, &self.theme);
+        } else if let Some(inspector) = &self.zone_inspector {
+            inspector.render(f, area, &self.theme);
+        } else if let Some(dns_modal) = &self.dns_modal {
+            dns_modal.render(f, area, &self.theme);
+        } else if let Some(del_modal) = &self.delete_modal {
+            del_modal.render(f, area, &self.theme);
         }
     }
 }

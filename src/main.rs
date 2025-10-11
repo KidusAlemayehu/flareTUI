@@ -65,7 +65,19 @@ async fn main() -> Result<()> {
                     Event::Key(key) => {
                         let search_active = app.is_search_active();
                         let auth_active = app.is_auth_active();
-                        if let Some(action) = EventHandler::map_key_to_action(key, search_active, auth_active) {
+                        let inspector_active = app.is_inspector_active();
+                        let dns_modal_active = app.is_dns_modal_active();
+                        let delete_modal_active = app.is_delete_modal_active();
+                        let is_zone_pane_focused = app.is_zone_pane_focused();
+                        if let Some(action) = EventHandler::map_key_to_action(
+                            key,
+                            search_active,
+                            auth_active,
+                            inspector_active,
+                            dns_modal_active,
+                            delete_modal_active,
+                            is_zone_pane_focused,
+                        ) {
                             app.update(action)?;
                         }
                     }

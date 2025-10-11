@@ -59,7 +59,48 @@ impl EventHandler {
         Self { rx, _tx: tx }
     }
 
-    pub fn map_key_to_action(key: KeyEvent, search_active: bool, auth_active: bool) -> Option<Action> {
+    pub fn map_key_to_action(
+        key: KeyEvent,
+        search_active: bool,
+        auth_active: bool,
+        inspector_active: bool,
+        dns_modal_active: bool,
+        delete_modal_active: bool,
+        is_zone_pane_focused: bool,
+    ) -> Option<Action> {
+        if delete_modal_active {
+            return match key.code {
+                KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => Some(Action::ConfirmDeleteDns),
+                KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Some(Action::CloseDeleteDnsModal),
+                _ => None,
+            };
+        }
+
+        if dns_modal_active {
+            return match key.code {
+                KeyCode::Esc => Some(Action::CloseDnsModal),
+                KeyCode::Tab => Some(Action::DnsModalNextField),
+                KeyCode::BackTab => Some(Action::DnsModalPrevField),
+                KeyCode::Left => Some(Action::DnsModalCycleType(false)),
+                KeyCode::Right => Some(Action::DnsModalCycleType(true)),
+                KeyCode::Enter => Some(Action::DnsModalSubmit),
+                KeyCode::Backspace => Some(Action::DnsModalInputBackspace),
+                KeyCode::Char(c) => Some(Action::DnsModalInputChar(c)),
+                _ => None,
+            };
+        }
+
+        if inspector_active {
+            return match key.code {
+                KeyCode::Esc => Some(Action::CloseZoneInspector),
+                KeyCode::Char('s') => Some(Action::CycleZoneSsl),
+                KeyCode::Char('d') => Some(Action::ToggleZoneDevMode),
+                KeyCode::Char('u') => Some(Action::ToggleZoneUnderAttack),
+                KeyCode::Char('p') => Some(Action::PurgeZoneCache),
+                _ => None,
+            };
+        }
+
         if auth_active {
             return match key.code {
                 KeyCode::Esc => Some(Action::ToggleAuth),
@@ -100,6 +141,12 @@ impl EventHandler {
             (KeyModifiers::NONE, KeyCode::Char('?')) => Some(Action::ToggleHelp),
             (KeyModifiers::NONE, KeyCode::Char('/')) => Some(Action::ToggleSearch),
             (KeyModifiers::NONE, KeyCode::Char('a')) | (KeyModifiers::CONTROL, KeyCode::Char('a')) => Some(Action::ToggleAuth),
+            (KeyModifiers::NONE, KeyCode::Char('i')) => Some(Action::OpenZoneInspector),
+            (KeyModifiers::NONE, KeyCode::Enter) if is_zone_pane_focused => Some(Action::OpenZoneInspector),
+            (KeyModifiers::NONE, KeyCode::Char('n')) => Some(Action::OpenCreateDnsModal),
+            (KeyModifiers::NONE, KeyCode::Char('e')) => Some(Action::OpenEditDnsModal),
+            (KeyModifiers::NONE, KeyCode::Char('d')) => Some(Action::OpenDeleteDnsModal),
+            (KeyModifiers::SHIFT, KeyCode::Char('E')) => Some(Action::ExportZoneBind),
             _ => None,
         }
     }
