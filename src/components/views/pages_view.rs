@@ -44,6 +44,10 @@ impl PagesView {
         }
     }
 
+    pub fn selected_project(&self) -> Option<&PagesProject> {
+        self.pages.get(self.selected_idx)
+    }
+
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
