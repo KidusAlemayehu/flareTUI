@@ -46,6 +46,19 @@ pub struct PagesProject {
     pub updated_on: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CachedDeployment {
+    pub id: String,
+    pub project_name: String,
+    pub environment: String,
+    pub url: String,
+    pub branch: String,
+    pub commit_hash: String,
+    pub commit_message: String,
+    pub status: String,
+    pub created_on: String,
+}
+
 #[derive(Clone)]
 pub struct CacheDb {
     conn: Arc<Mutex<Connection>>,
@@ -280,6 +293,55 @@ impl CacheDb {
                 page.updated_on
             ],
         )?;
+        Ok(())
+    }
+
+    pub fn get_pages_deployments(&self, project_name: &str) -> Result<Vec<CachedDeployment>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, project_name, environment, url, branch, commit_hash, commit_message, status, created_on
+             FROM pages_deployments WHERE project_name = ? ORDER BY created_on DESC",
+        )?;
+        let deps = stmt
+            .query_map(params![project_name], |row| {
+                Ok(CachedDeployment {
+                    id: row.get(0)?,
+                    project_name: row.get(1)?,
+                    environment: row.get(2)?,
+                    url: row.get(3)?,
+                    branch: row.get(4)?,
+                    commit_hash: row.get(5)?,
+                    commit_message: row.get(6)?,
+                    status: row.get(7)?,
+                    created_on: row.get(8)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(deps)
+    }
+
+    pub fn replace_pages_deployments(&self, project_name: &str, deployments: &[CachedDeployment]) -> Result<()> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        tx.execute("DELETE FROM pages_deployments WHERE project_name = ?", params![project_name])?;
+        for d in deployments {
+            tx.execute(
+                "INSERT INTO pages_deployments (id, project_name, environment, url, branch, commit_hash, commit_message, status, created_on)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    d.id,
+                    d.project_name,
+                    d.environment,
+                    d.url,
+                    d.branch,
+                    d.commit_hash,
+                    d.commit_message,
+                    d.status,
+                    d.created_on
+                ],
+            )?;
+        }
+        tx.commit()?;
         Ok(())
     }
 }

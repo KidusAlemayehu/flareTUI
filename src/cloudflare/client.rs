@@ -116,14 +116,67 @@ pub struct PagesProjectResult {
     pub updated_on: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct PagesDeployment {
     pub latest_stage: Option<PagesStage>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct PagesStage {
     pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct PagesDeploymentResult {
+    pub id: String,
+    pub short_id: Option<String>,
+    pub project_id: Option<String>,
+    pub project_name: Option<String>,
+    pub environment: Option<String>,
+    pub url: Option<String>,
+    pub created_on: Option<String>,
+    pub modified_on: Option<String>,
+    pub latest_stage: Option<PagesStage>,
+    pub deployment_trigger: Option<PagesDeploymentTrigger>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct PagesDeploymentTrigger {
+    #[serde(rename = "type")]
+    pub trigger_type: Option<String>,
+    pub metadata: Option<PagesTriggerMetadata>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct PagesTriggerMetadata {
+    pub branch: Option<String>,
+    pub commit_hash: Option<String>,
+    pub commit_message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct PagesBuildLogResult {
+    pub total: Option<usize>,
+    pub data: Option<Vec<PagesBuildLogEntry>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct PagesBuildLogEntry {
+    pub ts: Option<String>,
+    pub line: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct PagesDomainResult {
+    pub id: String,
+    pub name: String,
+    pub status: Option<String>,
+    pub ssl: Option<PagesDomainSsl>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct PagesDomainSsl {
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -247,6 +300,36 @@ impl CloudflareClient {
     pub async fn get_pages(&self, account_id: &str) -> Result<Vec<PagesProjectResult>> {
         let url = format!("{}/accounts/{account_id}/pages/projects", self.base_url);
         let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<PagesProjectResult>>>().await?;
+        Ok(resp.result.unwrap_or_default())
+    }
+
+    pub async fn get_pages_deployments(&self, account_id: &str, project_name: &str) -> Result<Vec<PagesDeploymentResult>> {
+        let url = format!("{}/accounts/{account_id}/pages/projects/{project_name}/deployments?per_page=25", self.base_url);
+        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<PagesDeploymentResult>>>().await?;
+        Ok(resp.result.unwrap_or_default())
+    }
+
+    pub async fn rollback_pages_deployment(&self, account_id: &str, project_name: &str, deployment_id: &str) -> Result<PagesDeploymentResult> {
+        let url = format!("{}/accounts/{account_id}/pages/projects/{project_name}/deployments/{deployment_id}/rollback", self.base_url);
+        let resp = self.client.post(&url).send().await?.json::<ApiResponse<PagesDeploymentResult>>().await?;
+        if resp.success {
+            if let Some(res) = resp.result {
+                return Ok(res);
+            }
+        }
+        let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to rollback deployment".to_string());
+        color_eyre::eyre::bail!("{msg}")
+    }
+
+    pub async fn get_pages_build_logs(&self, account_id: &str, project_name: &str, deployment_id: &str) -> Result<Vec<PagesBuildLogEntry>> {
+        let url = format!("{}/accounts/{account_id}/pages/projects/{project_name}/deployments/{deployment_id}/history/logs", self.base_url);
+        let resp = self.client.get(&url).send().await?.json::<ApiResponse<PagesBuildLogResult>>().await?;
+        Ok(resp.result.and_then(|r| r.data).unwrap_or_default())
+    }
+
+    pub async fn get_pages_domains(&self, account_id: &str, project_name: &str) -> Result<Vec<PagesDomainResult>> {
+        let url = format!("{}/accounts/{account_id}/pages/projects/{project_name}/domains", self.base_url);
+        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<PagesDomainResult>>>().await?;
         Ok(resp.result.unwrap_or_default())
     }
 

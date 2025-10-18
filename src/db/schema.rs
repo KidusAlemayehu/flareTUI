@@ -35,4 +35,16 @@ CREATE TABLE IF NOT EXISTS pages (
     latest_deployment_status TEXT NOT NULL,
     updated_on TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS pages_deployments (
+    id TEXT PRIMARY KEY,
+    project_name TEXT NOT NULL,
+    environment TEXT NOT NULL,
+    url TEXT NOT NULL,
+    branch TEXT NOT NULL,
+    commit_hash TEXT NOT NULL,
+    commit_message TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_on TEXT NOT NULL
+);
 "#;
