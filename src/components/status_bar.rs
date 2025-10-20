@@ -41,7 +41,7 @@ impl StatusBar {
         let key_hints = match active_tab {
             0 => " [q] Quit  [i] Inspector  [n] Add Record  [e] Edit  [d] Del  [p] Proxy  [E] Export  [s] Pane ",
             1 => " [q] Quit  [Tab] View  [j/k] Nav  [l] Live Logs  [r] Sync  [a] Auth  [?] Help ",
-            2 => " [q] Quit  [Tab] View  [j/k] Nav  [Enter] Deployments  [r] Sync  [a] Auth ",
+            2 => " [q] Quit  [Enter/d] Deployments  [j/k] Nav  [r] Sync  [a] Auth  [?] Help ",
             3 => " [q] Quit  [Tab] View  [j/k] Nav  [Enter] Query  [r] Sync  [a] Auth ",
             _ => " [q] Quit  [Tab] View  [Space] Pause  [c] Clear  [a] Auth  [?] Help ",
         };
