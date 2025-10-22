@@ -7,6 +7,7 @@ pub struct SyncReport {
     pub records_count: usize,
     pub workers_count: usize,
     pub pages_count: usize,
+    pub warning: Option<String>,
 }
 
 pub struct CloudflareSync;
@@ -18,6 +19,7 @@ impl CloudflareSync {
             records_count: 0,
             workers_count: 0,
             pages_count: 0,
+            warning: None,
         };
 
         // 1. Sync Zones
@@ -35,21 +37,26 @@ impl CloudflareSync {
             db.upsert_zone(&zone)?;
 
             // 2. Sync DNS records for zone
-            if let Ok(cf_records) = client.get_dns_records(&z.id).await {
-                report.records_count += cf_records.len();
-                let records: Vec<DnsRecord> = cf_records
-                    .into_iter()
-                    .map(|r| DnsRecord {
-                        id: r.id,
-                        zone_id: r.zone_id,
-                        record_type: r.record_type,
-                        name: r.name,
-                        content: r.content,
-                        proxied: r.proxied,
-                        ttl: r.ttl,
-                    })
-                    .collect();
-                db.replace_zone_dns_records(&z.id, &records)?;
+            match client.get_dns_records(&z.id).await {
+                Ok(cf_records) => {
+                    report.records_count += cf_records.len();
+                    let records: Vec<DnsRecord> = cf_records
+                        .into_iter()
+                        .map(|r| DnsRecord {
+                            id: r.id,
+                            zone_id: r.zone_id,
+                            record_type: r.record_type,
+                            name: r.name,
+                            content: r.content,
+                            proxied: r.proxied,
+                            ttl: r.ttl,
+                        })
+                        .collect();
+                    db.replace_zone_dns_records(&z.id, &records)?;
+                }
+                Err(e) => {
+                    report.warning = Some(format!("DNS sync error: {e}. Token needs 'Zone -> DNS' permission"));
+                }
             }
         }
 

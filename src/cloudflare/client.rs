@@ -269,12 +269,20 @@ impl CloudflareClient {
     pub async fn get_zones(&self) -> Result<Vec<ZoneResult>> {
         let url = format!("{}/zones?per_page=50", self.base_url);
         let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<ZoneResult>>>().await?;
+        if !resp.success {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch zones".to_string());
+            color_eyre::eyre::bail!("{msg}");
+        }
         Ok(resp.result.unwrap_or_default())
     }
 
     pub async fn get_dns_records(&self, zone_id: &str) -> Result<Vec<DnsRecordResult>> {
         let url = format!("{}/zones/{zone_id}/dns_records?per_page=100", self.base_url);
         let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<DnsRecordResult>>>().await?;
+        if !resp.success {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch DNS records".to_string());
+            color_eyre::eyre::bail!("{msg}");
+        }
         Ok(resp.result.unwrap_or_default())
     }
 
@@ -294,12 +302,20 @@ impl CloudflareClient {
     pub async fn get_workers(&self, account_id: &str) -> Result<Vec<WorkerScriptResult>> {
         let url = format!("{}/accounts/{account_id}/workers/scripts", self.base_url);
         let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<WorkerScriptResult>>>().await?;
+        if !resp.success {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch workers".to_string());
+            color_eyre::eyre::bail!("{msg}");
+        }
         Ok(resp.result.unwrap_or_default())
     }
 
     pub async fn get_pages(&self, account_id: &str) -> Result<Vec<PagesProjectResult>> {
         let url = format!("{}/accounts/{account_id}/pages/projects", self.base_url);
         let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<PagesProjectResult>>>().await?;
+        if !resp.success {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch pages".to_string());
+            color_eyre::eyre::bail!("{msg}");
+        }
         Ok(resp.result.unwrap_or_default())
     }
 

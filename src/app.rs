@@ -233,10 +233,14 @@ impl App {
                     tokio::spawn(async move {
                         match CloudflareSync::sync_all(&client, &db).await {
                             Ok(rep) => {
-                                let msg = format!(
-                                    "Synced {} zones, {} records, {} workers, {} pages",
-                                    rep.zones_count, rep.records_count, rep.workers_count, rep.pages_count
-                                );
+                                let msg = if let Some(w) = &rep.warning {
+                                    format!("Synced {} zones, {} records. ⚠️ {}", rep.zones_count, rep.records_count, w)
+                                } else {
+                                    format!(
+                                        "Synced {} zones, {} records, {} workers, {} pages",
+                                        rep.zones_count, rep.records_count, rep.workers_count, rep.pages_count
+                                    )
+                                };
                                 let _ = tx.send(Action::SyncCompleted(msg));
                             }
                             Err(e) => {
@@ -303,10 +307,14 @@ impl App {
                             // Initial sync
                             match CloudflareSync::sync_all(&client, &db).await {
                                 Ok(rep) => {
-                                    let msg = format!(
-                                        "Connected! Synced {} zones, {} DNS records, {} workers",
-                                        rep.zones_count, rep.records_count, rep.workers_count
-                                    );
+                                    let msg = if let Some(w) = &rep.warning {
+                                        format!("Connected! ⚠️ {}", w)
+                                    } else {
+                                        format!(
+                                            "Connected! Synced {} zones, {} DNS records, {} workers",
+                                            rep.zones_count, rep.records_count, rep.workers_count
+                                        )
+                                    };
                                     let _ = tx.send(Action::SyncCompleted(msg));
                                 }
                                 Err(e) => {
