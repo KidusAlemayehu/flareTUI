@@ -19,6 +19,9 @@ use crate::components::{
     dns_modal::DnsModal,
     header::Header,
     help::HelpModal,
+    pages_deployments::PagesDeploymentsModal,
+    pages_logs_modal::PagesLogsModal,
+    pages_rollback_modal::ConfirmRollbackModal,
     status_bar::StatusBar,
     views::{
         dns_view::{DnsFocus, DnsView},
@@ -40,6 +43,9 @@ pub struct App {
     pub zone_inspector: Option<ZoneInspectorModal>,
     pub dns_modal: Option<DnsModal>,
     pub delete_modal: Option<ConfirmDeleteModal>,
+    pub pages_deployments: Option<PagesDeploymentsModal>,
+    pub pages_rollback_modal: Option<ConfirmRollbackModal>,
+    pub pages_logs_modal: Option<PagesLogsModal>,
     pub dns_view: DnsView,
     pub workers_view: WorkersView,
     pub pages_view: PagesView,
@@ -81,6 +87,9 @@ impl App {
             zone_inspector: None,
             dns_modal: None,
             delete_modal: None,
+            pages_deployments: None,
+            pages_rollback_modal: None,
+            pages_logs_modal: None,
             dns_view: DnsView::new(db.clone()),
             workers_view: WorkersView::new(db.clone()),
             pages_view: PagesView::new(db.clone()),
@@ -114,6 +123,18 @@ impl App {
 
     pub fn is_delete_modal_active(&self) -> bool {
         self.delete_modal.is_some()
+    }
+
+    pub fn is_pages_deployments_active(&self) -> bool {
+        self.pages_deployments.is_some()
+    }
+
+    pub fn is_rollback_modal_active(&self) -> bool {
+        self.pages_rollback_modal.is_some()
+    }
+
+    pub fn is_pages_logs_active(&self) -> bool {
+        self.pages_logs_modal.is_some()
     }
 
     pub fn is_zone_pane_focused(&self) -> bool {
@@ -691,6 +712,280 @@ impl App {
                 }
             }
 
+            // Pages Deployments, Rollback, and Logs
+            Action::OpenPagesDeployments => {
+                if self.header.active_tab == 2 {
+                    if let Some(project) = self.pages_view.selected_project().cloned() {
+                        let mut modal = PagesDeploymentsModal::new(project.name.clone());
+
+                        // 1. Load cached deployments from SQLite
+                        if let Ok(cached) = self.db.get_pages_deployments(&project.name) {
+                            if !cached.is_empty() {
+                                modal.deployments = cached
+                                    .into_iter()
+                                    .map(|c| crate::cloudflare::client::PagesDeploymentResult {
+                                        id: c.id.clone(),
+                                        short_id: Some(if c.id.len() >= 8 { c.id[..8].to_string() } else { c.id }),
+                                        project_id: None,
+                                        project_name: Some(c.project_name),
+                                        environment: Some(c.environment),
+                                        url: Some(c.url),
+                                        created_on: Some(c.created_on),
+                                        modified_on: None,
+                                        latest_stage: Some(crate::cloudflare::client::PagesStage { status: c.status }),
+                                        deployment_trigger: Some(crate::cloudflare::client::PagesDeploymentTrigger {
+                                            trigger_type: Some("push".to_string()),
+                                            metadata: Some(crate::cloudflare::client::PagesTriggerMetadata {
+                                                branch: Some(c.branch),
+                                                commit_hash: Some(c.commit_hash),
+                                                commit_message: Some(c.commit_message),
+                                            }),
+                                        }),
+                                    })
+                                    .collect();
+                            }
+                        }
+
+                        // 2. Fetch live deployments from Cloudflare if connected
+                        if let Some(client) = &self.cf_client {
+                            modal.is_loading = true;
+                            let client = client.clone();
+                            let config = AuthManager::load_config();
+                            let tx = self.action_tx.clone();
+                            let proj_name = project.name.clone();
+
+                            tokio::spawn(async move {
+                                let account_id = match config.account_id {
+                                    Some(id) => id,
+                                    None => {
+                                        let accounts = client.get_accounts().await.unwrap_or_default();
+                                        accounts.first().map(|a| a.id.clone()).unwrap_or_default()
+                                    }
+                                };
+
+                                if !account_id.is_empty() {
+                                    match client.get_pages_deployments(&account_id, &proj_name).await {
+                                        Ok(deps) => {
+                                            let _ = tx.send(Action::PagesDeploymentsLoaded(deps));
+                                        }
+                                        Err(e) => {
+                                            let _ = tx.send(Action::Error(format!("Failed to load deployments: {e}")));
+                                        }
+                                    }
+                                }
+                            });
+                        }
+
+                        self.pages_deployments = Some(modal);
+                    }
+                }
+            }
+            Action::ClosePagesDeployments => {
+                self.pages_deployments = None;
+            }
+            Action::PagesDeploymentsLoaded(deps) => {
+                if let Some(modal) = &mut self.pages_deployments {
+                    let cached_records: Vec<crate::db::CachedDeployment> = deps
+                        .iter()
+                        .map(|d| {
+                            let branch = d
+                                .deployment_trigger
+                                .as_ref()
+                                .and_then(|t| t.metadata.as_ref())
+                                .and_then(|m| m.branch.clone())
+                                .unwrap_or_else(|| "main".to_string());
+                            let commit_hash = d
+                                .deployment_trigger
+                                .as_ref()
+                                .and_then(|t| t.metadata.as_ref())
+                                .and_then(|m| m.commit_hash.clone())
+                                .unwrap_or_default();
+                            let commit_msg = d
+                                .deployment_trigger
+                                .as_ref()
+                                .and_then(|t| t.metadata.as_ref())
+                                .and_then(|m| m.commit_message.clone())
+                                .unwrap_or_default();
+                            let status = d
+                                .latest_stage
+                                .as_ref()
+                                .map(|s| s.status.clone())
+                                .unwrap_or_else(|| "active".to_string());
+
+                            crate::db::CachedDeployment {
+                                id: d.id.clone(),
+                                project_name: modal.project_name.clone(),
+                                environment: d.environment.clone().unwrap_or_else(|| "preview".to_string()),
+                                url: d.url.clone().unwrap_or_default(),
+                                branch,
+                                commit_hash,
+                                commit_message: commit_msg,
+                                status,
+                                created_on: d.created_on.clone().unwrap_or_default(),
+                            }
+                        })
+                        .collect();
+                    let _ = self.db.replace_pages_deployments(&modal.project_name, &cached_records);
+
+                    modal.deployments = deps;
+                    modal.is_loading = false;
+                    modal.action_feedback = Some("Live deployments synced from Cloudflare".to_string());
+                }
+            }
+            Action::PagesDeploymentsNavUp => {
+                if let Some(modal) = &mut self.pages_deployments {
+                    modal.nav_up();
+                }
+            }
+            Action::PagesDeploymentsNavDown => {
+                if let Some(modal) = &mut self.pages_deployments {
+                    modal.nav_down();
+                }
+            }
+            Action::OpenRollbackModal => {
+                if let Some(dep_modal) = &self.pages_deployments {
+                    if let Some(sel) = dep_modal.selected_deployment() {
+                        let short_id = sel.short_id.clone().unwrap_or_else(|| {
+                            if sel.id.len() >= 8 {
+                                sel.id[..8].to_string()
+                            } else {
+                                sel.id.clone()
+                            }
+                        });
+                        let branch = sel
+                            .deployment_trigger
+                            .as_ref()
+                            .and_then(|t| t.metadata.as_ref())
+                            .and_then(|m| m.branch.clone())
+                            .unwrap_or_else(|| "main".to_string());
+                        let msg = sel
+                            .deployment_trigger
+                            .as_ref()
+                            .and_then(|t| t.metadata.as_ref())
+                            .and_then(|m| m.commit_message.clone())
+                            .unwrap_or_else(|| "Automated build".to_string());
+
+                        self.pages_rollback_modal = Some(ConfirmRollbackModal::new(
+                            dep_modal.project_name.clone(),
+                            sel.id.clone(),
+                            short_id,
+                            branch,
+                            msg,
+                        ));
+                    }
+                }
+            }
+            Action::CloseRollbackModal => {
+                self.pages_rollback_modal = None;
+            }
+            Action::ConfirmRollback => {
+                if let Some(modal) = self.pages_rollback_modal.take() {
+                    let proj_name = modal.project_name.clone();
+                    let dep_id = modal.deployment_id.clone();
+                    let short_id = modal.short_id.clone();
+
+                    if let Some(client) = &self.cf_client {
+                        self.status_bar.set_status(format!("Rolling back {} to {}...", proj_name, short_id));
+                        let client = client.clone();
+                        let config = AuthManager::load_config();
+                        let tx = self.action_tx.clone();
+
+                        tokio::spawn(async move {
+                            let account_id = match config.account_id {
+                                Some(id) => id,
+                                None => {
+                                    let accounts = client.get_accounts().await.unwrap_or_default();
+                                    accounts.first().map(|a| a.id.clone()).unwrap_or_default()
+                                }
+                            };
+
+                            if !account_id.is_empty() {
+                                match client.rollback_pages_deployment(&account_id, &proj_name, &dep_id).await {
+                                    Ok(_) => {
+                                        let _ = tx.send(Action::StatusMessage(format!(
+                                            "🚀 Promoted build {} to LIVE production for {}!",
+                                            short_id, proj_name
+                                        )));
+                                        let _ = tx.send(Action::OpenPagesDeployments);
+                                    }
+                                    Err(e) => {
+                                        let _ = tx.send(Action::Error(format!("Rollback error: {e}")));
+                                    }
+                                }
+                            }
+                        });
+                    } else {
+                        self.status_bar.set_status(format!("Rollback simulated (no live API connection)"));
+                    }
+                }
+            }
+            Action::OpenPagesLogs => {
+                if let Some(dep_modal) = &self.pages_deployments {
+                    if let Some(sel) = dep_modal.selected_deployment() {
+                        let short_id = sel.short_id.clone().unwrap_or_else(|| {
+                            if sel.id.len() >= 8 {
+                                sel.id[..8].to_string()
+                            } else {
+                                sel.id.clone()
+                            }
+                        });
+                        let mut log_modal = PagesLogsModal::new(dep_modal.project_name.clone(), sel.id.clone(), short_id);
+
+                        if let Some(client) = &self.cf_client {
+                            let client = client.clone();
+                            let config = AuthManager::load_config();
+                            let tx = self.action_tx.clone();
+                            let proj_name = dep_modal.project_name.clone();
+                            let dep_id = sel.id.clone();
+
+                            tokio::spawn(async move {
+                                let account_id = match config.account_id {
+                                    Some(id) => id,
+                                    None => {
+                                        let accounts = client.get_accounts().await.unwrap_or_default();
+                                        accounts.first().map(|a| a.id.clone()).unwrap_or_default()
+                                    }
+                                };
+
+                                if !account_id.is_empty() {
+                                    match client.get_pages_build_logs(&account_id, &proj_name, &dep_id).await {
+                                        Ok(logs) => {
+                                            let _ = tx.send(Action::PagesLogsLoaded(logs));
+                                        }
+                                        Err(e) => {
+                                            let _ = tx.send(Action::Error(format!("Logs error: {e}")));
+                                        }
+                                    }
+                                }
+                            });
+                        } else {
+                            log_modal.is_loading = false;
+                        }
+
+                        self.pages_logs_modal = Some(log_modal);
+                    }
+                }
+            }
+            Action::ClosePagesLogs => {
+                self.pages_logs_modal = None;
+            }
+            Action::PagesLogsLoaded(logs) => {
+                if let Some(modal) = &mut self.pages_logs_modal {
+                    modal.logs = logs;
+                    modal.is_loading = false;
+                }
+            }
+            Action::PagesLogsScrollUp => {
+                if let Some(modal) = &mut self.pages_logs_modal {
+                    modal.scroll_up();
+                }
+            }
+            Action::PagesLogsScrollDown => {
+                if let Some(modal) = &mut self.pages_logs_modal {
+                    modal.scroll_down();
+                }
+            }
+
             // Export BIND Zone
             Action::ExportZoneBind => {
                 if self.header.active_tab == 0 {
@@ -744,6 +1039,12 @@ impl App {
             HelpModal::render(f, area, &self.theme);
         } else if self.show_auth_modal {
             self.auth_modal.render(f, area, &self.theme);
+        } else if let Some(logs) = &self.pages_logs_modal {
+            logs.render(f, area, &self.theme);
+        } else if let Some(rb) = &self.pages_rollback_modal {
+            rb.render(f, area, &self.theme);
+        } else if let Some(deps) = &self.pages_deployments {
+            deps.render(f, area, &self.theme);
         } else if let Some(inspector) = &self.zone_inspector {
             inspector.render(f, area, &self.theme);
         } else if let Some(dns_modal) = &self.dns_modal {

@@ -68,6 +68,10 @@ async fn main() -> Result<()> {
                         let inspector_active = app.is_inspector_active();
                         let dns_modal_active = app.is_dns_modal_active();
                         let delete_modal_active = app.is_delete_modal_active();
+                        let pages_deployments_active = app.is_pages_deployments_active();
+                        let rollback_modal_active = app.is_rollback_modal_active();
+                        let pages_logs_active = app.is_pages_logs_active();
+                        let active_tab = app.header.active_tab;
                         let is_zone_pane_focused = app.is_zone_pane_focused();
                         if let Some(action) = EventHandler::map_key_to_action(
                             key,
@@ -76,6 +80,10 @@ async fn main() -> Result<()> {
                             inspector_active,
                             dns_modal_active,
                             delete_modal_active,
+                            pages_deployments_active,
+                            rollback_modal_active,
+                            pages_logs_active,
+                            active_tab,
                             is_zone_pane_focused,
                         ) {
                             app.update(action)?;

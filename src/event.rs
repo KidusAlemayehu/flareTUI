@@ -66,8 +66,40 @@ impl EventHandler {
         inspector_active: bool,
         dns_modal_active: bool,
         delete_modal_active: bool,
+        pages_deployments_active: bool,
+        rollback_modal_active: bool,
+        pages_logs_active: bool,
+        active_tab: usize,
         is_zone_pane_focused: bool,
     ) -> Option<Action> {
+        if rollback_modal_active {
+            return match key.code {
+                KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => Some(Action::ConfirmRollback),
+                KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Some(Action::CloseRollbackModal),
+                _ => None,
+            };
+        }
+
+        if pages_logs_active {
+            return match key.code {
+                KeyCode::Esc => Some(Action::ClosePagesLogs),
+                KeyCode::Char('j') | KeyCode::Down => Some(Action::PagesLogsScrollDown),
+                KeyCode::Char('k') | KeyCode::Up => Some(Action::PagesLogsScrollUp),
+                _ => None,
+            };
+        }
+
+        if pages_deployments_active {
+            return match key.code {
+                KeyCode::Esc => Some(Action::ClosePagesDeployments),
+                KeyCode::Char('j') | KeyCode::Down => Some(Action::PagesDeploymentsNavDown),
+                KeyCode::Char('k') | KeyCode::Up => Some(Action::PagesDeploymentsNavUp),
+                KeyCode::Char('r') | KeyCode::Char('R') => Some(Action::OpenRollbackModal),
+                KeyCode::Char('l') | KeyCode::Char('L') => Some(Action::OpenPagesLogs),
+                _ => None,
+            };
+        }
+
         if delete_modal_active {
             return match key.code {
                 KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => Some(Action::ConfirmDeleteDns),
@@ -143,9 +175,11 @@ impl EventHandler {
             (KeyModifiers::NONE, KeyCode::Char('a')) | (KeyModifiers::CONTROL, KeyCode::Char('a')) => Some(Action::ToggleAuth),
             (KeyModifiers::NONE, KeyCode::Char('i')) => Some(Action::OpenZoneInspector),
             (KeyModifiers::NONE, KeyCode::Enter) if is_zone_pane_focused => Some(Action::OpenZoneInspector),
+            (KeyModifiers::NONE, KeyCode::Enter) if active_tab == 2 => Some(Action::OpenPagesDeployments),
+            (KeyModifiers::NONE, KeyCode::Char('d')) if active_tab == 2 => Some(Action::OpenPagesDeployments),
             (KeyModifiers::NONE, KeyCode::Char('n')) => Some(Action::OpenCreateDnsModal),
             (KeyModifiers::NONE, KeyCode::Char('e')) => Some(Action::OpenEditDnsModal),
-            (KeyModifiers::NONE, KeyCode::Char('d')) => Some(Action::OpenDeleteDnsModal),
+            (KeyModifiers::NONE, KeyCode::Char('d')) if active_tab == 0 => Some(Action::OpenDeleteDnsModal),
             (KeyModifiers::SHIFT, KeyCode::Char('E')) => Some(Action::ExportZoneBind),
             _ => None,
         }

@@ -1,4 +1,4 @@
-use crate::cloudflare::client::ZoneSettings;
+use crate::cloudflare::client::{PagesBuildLogEntry, PagesDeploymentResult, ZoneSettings};
 use crate::components::views::tail_view::LogEntry;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,6 +48,21 @@ pub enum Action {
     OpenDeleteDnsModal,
     CloseDeleteDnsModal,
     ConfirmDeleteDns,
+
+    // Pages Deployments, Rollback, and Logs
+    OpenPagesDeployments,
+    ClosePagesDeployments,
+    PagesDeploymentsLoaded(Vec<PagesDeploymentResult>),
+    PagesDeploymentsNavUp,
+    PagesDeploymentsNavDown,
+    OpenRollbackModal,
+    CloseRollbackModal,
+    ConfirmRollback,
+    OpenPagesLogs,
+    ClosePagesLogs,
+    PagesLogsLoaded(Vec<PagesBuildLogEntry>),
+    PagesLogsScrollUp,
+    PagesLogsScrollDown,
 
     // Export Zone
     ExportZoneBind,
