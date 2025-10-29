@@ -59,6 +59,14 @@ pub struct CachedDeployment {
     pub created_on: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CachedWorkerBinding {
+    pub script_name: String,
+    pub name: String,
+    pub binding_type: String,
+    pub details: String,
+}
+
 #[derive(Clone)]
 pub struct CacheDb {
     conn: Arc<Mutex<Connection>>,
@@ -343,6 +351,70 @@ impl CacheDb {
         }
         tx.commit()?;
         Ok(())
+    }
+
+    pub fn get_worker_bindings(&self, script_name: &str) -> Result<Vec<CachedWorkerBinding>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT script_name, name, binding_type, details FROM worker_bindings WHERE script_name = ? ORDER BY name ASC",
+        )?;
+        let bindings = stmt
+            .query_map(params![script_name], |row| {
+                Ok(CachedWorkerBinding {
+                    script_name: row.get(0)?,
+                    name: row.get(1)?,
+                    binding_type: row.get(2)?,
+                    details: row.get(3)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(bindings)
+    }
+
+    pub fn replace_worker_bindings(&self, script_name: &str, bindings: &[CachedWorkerBinding]) -> Result<()> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        tx.execute("DELETE FROM worker_bindings WHERE script_name = ?", params![script_name])?;
+        for b in bindings {
+            tx.execute(
+                "INSERT INTO worker_bindings (script_name, name, binding_type, details)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![b.script_name, b.name, b.binding_type, b.details],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_worker_bindings_cache() {
+        let db = CacheDb::open_in_memory().expect("open db");
+        let script = "test-worker";
+        let bindings = vec![
+            CachedWorkerBinding {
+                script_name: script.to_string(),
+                name: "KV_STORE".to_string(),
+                binding_type: "kv_namespace".to_string(),
+                details: "KV Namespace (kv123)".to_string(),
+            },
+            CachedWorkerBinding {
+                script_name: script.to_string(),
+                name: "DB".to_string(),
+                binding_type: "d1".to_string(),
+                details: "D1 DB (d1-uuid)".to_string(),
+            },
+        ];
+
+        db.replace_worker_bindings(script, &bindings).expect("save bindings");
+        let retrieved = db.get_worker_bindings(script).expect("get bindings");
+        assert_eq!(retrieved.len(), 2);
+        assert_eq!(retrieved[0].name, "DB");
+        assert_eq!(retrieved[1].name, "KV_STORE");
     }
 }
 

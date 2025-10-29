@@ -88,6 +88,35 @@ impl CloudflareSync {
                             status: "Healthy".to_string(),
                         };
                         db.upsert_worker(&script)?;
+
+                        // Cache worker bindings for offline inspector
+                        if let Ok(bindings) = client.get_worker_bindings(&account.id, &w.id).await {
+                            let cached: Vec<crate::db::CachedWorkerBinding> = bindings
+                                .into_iter()
+                                .map(|b| {
+                                    let details = if let Some(db_id) = b.database_id {
+                                        format!("D1 DB ({db_id})")
+                                    } else if let Some(ns_id) = b.namespace_id {
+                                        format!("KV Namespace ({ns_id})")
+                                    } else if let Some(bucket) = b.bucket_name {
+                                        format!("R2 Bucket ({bucket})")
+                                    } else if let Some(q) = b.queue_name {
+                                        format!("Queue ({q})")
+                                    } else if let Some(t) = b.text {
+                                        format!("Text: {t}")
+                                    } else {
+                                        "Configured".to_string()
+                                    };
+                                    crate::db::CachedWorkerBinding {
+                                        script_name: w.id.clone(),
+                                        name: b.name,
+                                        binding_type: b.binding_type,
+                                        details,
+                                    }
+                                })
+                                .collect();
+                            let _ = db.replace_worker_bindings(&w.id, &cached);
+                        }
                     }
                 }
 

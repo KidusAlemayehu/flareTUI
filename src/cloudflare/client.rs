@@ -92,16 +92,45 @@ pub struct PurgeCacheRequest {
     pub purge_everything: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WorkerScriptResult {
     pub id: String,
+    pub tag: Option<String>,
     pub routes: Option<Vec<WorkerRoute>>,
     pub modified_on: Option<String>,
     pub created_on: Option<String>,
     pub compatibility_date: Option<String>,
+    pub compatibility_flags: Option<Vec<String>>,
+    pub usage_model: Option<String>,
+    pub handlers: Option<Vec<String>>,
+    pub last_deployed_from: Option<String>,
+    pub logpush: Option<bool>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct WorkerBinding {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub binding_type: String,
+    pub database_id: Option<String>,
+    pub id: Option<String>,
+    pub namespace_id: Option<String>,
+    pub bucket_name: Option<String>,
+    pub queue_name: Option<String>,
+    pub text: Option<String>,
+    pub service: Option<String>,
+    pub environment: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct WorkerRouteDetail {
+    pub id: Option<String>,
+    pub pattern: String,
+    pub zone_id: Option<String>,
+    pub zone_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WorkerRoute {
     pub pattern: String,
 }
@@ -361,6 +390,36 @@ impl CloudflareClient {
         color_eyre::eyre::bail!("{msg}")
     }
 
+    pub async fn delete_worker_tail(&self, account_id: &str, script_name: &str, tail_id: &str) -> Result<()> {
+        let url = format!("{}/accounts/{account_id}/workers/scripts/{script_name}/tails/{tail_id}", self.base_url);
+        let resp = self.client.delete(&url).send().await?.json::<ApiResponse<Option<serde_json::Value>>>().await?;
+        if !resp.success {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to delete tail session".to_string());
+            color_eyre::eyre::bail!("{msg}");
+        }
+        Ok(())
+    }
+
+    pub async fn get_worker_bindings(&self, account_id: &str, script_name: &str) -> Result<Vec<WorkerBinding>> {
+        let url = format!("{}/accounts/{account_id}/workers/scripts/{script_name}/bindings", self.base_url);
+        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<WorkerBinding>>>().await?;
+        if !resp.success {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch worker bindings".to_string());
+            color_eyre::eyre::bail!("{msg}");
+        }
+        Ok(resp.result.unwrap_or_default())
+    }
+
+    pub async fn get_worker_routes(&self, account_id: &str, script_name: &str) -> Result<Vec<WorkerRouteDetail>> {
+        let url = format!("{}/accounts/{account_id}/workers/scripts/{script_name}/routes", self.base_url);
+        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<WorkerRouteDetail>>>().await?;
+        if !resp.success {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch worker routes".to_string());
+            color_eyre::eyre::bail!("{msg}");
+        }
+        Ok(resp.result.unwrap_or_default())
+    }
+
     pub async fn get_zone_settings(&self, zone_id: &str) -> Result<ZoneSettings> {
         let url = format!("{}/zones/{zone_id}/settings", self.base_url);
         let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<serde_json::Value>>>().await?;
@@ -479,5 +538,50 @@ impl CloudflareClient {
             let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to delete DNS record".to_string());
             color_eyre::eyre::bail!("{msg}")
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_worker_script_deserialization() {
+        let json = r#"{
+            "id": "my-worker",
+            "tag": "abc123tag",
+            "modified_on": "2025-10-29T10:00:00Z",
+            "compatibility_date": "2024-09-01",
+            "compatibility_flags": ["nodejs_compat"],
+            "usage_model": "standard",
+            "handlers": ["fetch", "scheduled"],
+            "last_deployed_from": "wrangler",
+            "logpush": false
+        }"#;
+
+        let script: WorkerScriptResult = serde_json::from_str(json).expect("deserialize worker");
+        assert_eq!(script.id, "my-worker");
+        assert_eq!(script.compatibility_date.as_deref(), Some("2024-09-01"));
+        assert_eq!(script.compatibility_flags, Some(vec!["nodejs_compat".to_string()]));
+        assert_eq!(script.usage_model.as_deref(), Some("standard"));
+        assert_eq!(script.handlers, Some(vec!["fetch".to_string(), "scheduled".to_string()]));
+    }
+
+    #[test]
+    fn test_worker_bindings_deserialization() {
+        let json = r#"[
+            {"name": "BOT_TOKEN", "type": "secret_text"},
+            {"name": "DB", "type": "d1", "database_id": "76632ad7-a168-49f6-b81a-90306079a5fe"},
+            {"name": "CACHE_KV", "type": "kv_namespace", "namespace_id": "kv123"}
+        ]"#;
+
+        let bindings: Vec<WorkerBinding> = serde_json::from_str(json).expect("deserialize bindings");
+        assert_eq!(bindings.len(), 3);
+        assert_eq!(bindings[0].name, "BOT_TOKEN");
+        assert_eq!(bindings[0].binding_type, "secret_text");
+        assert_eq!(bindings[1].binding_type, "d1");
+        assert_eq!(bindings[1].database_id.as_deref(), Some("76632ad7-a168-49f6-b81a-90306079a5fe"));
+        assert_eq!(bindings[2].binding_type, "kv_namespace");
+        assert_eq!(bindings[2].namespace_id.as_deref(), Some("kv123"));
     }
 }

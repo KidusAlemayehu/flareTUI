@@ -47,4 +47,12 @@ CREATE TABLE IF NOT EXISTS pages_deployments (
     status TEXT NOT NULL,
     created_on TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS worker_bindings (
+    script_name TEXT NOT NULL,
+    name TEXT NOT NULL,
+    binding_type TEXT NOT NULL,
+    details TEXT NOT NULL,
+    PRIMARY KEY (script_name, name)
+);
 "#;
