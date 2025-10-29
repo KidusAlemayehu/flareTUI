@@ -44,6 +44,10 @@ impl WorkersView {
         }
     }
 
+    pub fn selected_worker(&self) -> Option<&WorkerScript> {
+        self.workers.get(self.selected_idx)
+    }
+
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -132,7 +136,7 @@ impl WorkersView {
                 ]),
                 Line::from(vec![
                     Span::styled("Action: ", Style::default().fg(theme.secondary)),
-                    Span::styled("Press 'l' to attach Real-time Live Tail Log Console via WebSocket", Style::default().fg(theme.primary).add_modifier(Modifier::ITALIC)),
+                    Span::styled("Press 'i' to inspect bindings/routes | 't' or 'Enter' to attach Live Tail log stream", Style::default().fg(theme.primary).add_modifier(Modifier::ITALIC)),
                 ]),
             ];
 

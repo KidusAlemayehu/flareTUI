@@ -9,3 +9,4 @@ pub mod pages_rollback_modal;
 pub mod status_bar;
 pub mod views;
 pub mod zone_inspector;
+pub mod worker_inspector;
