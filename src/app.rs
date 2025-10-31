@@ -58,6 +58,9 @@ pub struct App {
     pub db: CacheDb,
     pub cf_client: Option<CloudflareClient>,
     pub action_tx: UnboundedSender<Action>,
+    pub active_tail_cancel: Option<tokio::sync::watch::Sender<bool>>,
+    pub active_tail_worker: Option<String>,
+    pub active_tail_id: Option<String>,
 }
 
 impl App {
@@ -102,6 +105,9 @@ impl App {
             db,
             cf_client,
             action_tx,
+            active_tail_cancel: None,
+            active_tail_worker: None,
+            active_tail_id: None,
         }
     }
 
@@ -322,18 +328,9 @@ impl App {
                                 }
                             }
 
-                            // Start live tail stream if possible
-                            if let (Some(acc_id), Some(worker)) = (account_id, db.get_workers().ok().and_then(|w| w.first().cloned())) {
-                                if let Ok(tail_res) = client.create_worker_tail(&acc_id, &worker.name).await {
-                                    let (tail_tx, mut tail_rx) = tokio::sync::mpsc::unbounded_channel();
-                                    let action_tx = tx.clone();
-                                    tokio::spawn(async move {
-                                        while let Some(log) = tail_rx.recv().await {
-                                            let _ = action_tx.send(Action::TailLog(log));
-                                        }
-                                    });
-                                    let _ = TailStream::start(tail_res.url, tail_tx).await;
-                                }
+                            // Automatically attach live tail stream to primary worker
+                            if let Some(worker) = db.get_workers().ok().and_then(|w| w.first().cloned()) {
+                                let _ = tx.send(Action::AttachWorkerTail(worker.name));
                             }
                         }
                         Err(e) => {
@@ -364,10 +361,132 @@ impl App {
                 self.status_bar.set_status(msg);
             }
             Action::TailLog(entry) => {
-                self.tail_view.logs.push(entry);
-                if self.tail_view.logs.len() > 200 {
-                    self.tail_view.logs.remove(0);
+                if !self.tail_view.is_paused {
+                    self.tail_view.logs.push(entry);
+                    if self.tail_view.logs.len() > 500 {
+                        self.tail_view.logs.remove(0);
+                    }
                 }
+            }
+            Action::AttachWorkerTail(worker_name) => {
+                // 1. Terminate old tail session if active
+                if let Some(cancel) = self.active_tail_cancel.take() {
+                    let _ = cancel.send(true);
+                }
+                if let (Some(client), Some(tail_id), Some(old_worker)) = (
+                    &self.cf_client,
+                    self.active_tail_id.take(),
+                    self.active_tail_worker.take(),
+                ) {
+                    let client = client.clone();
+                    let config = AuthManager::load_config();
+                    tokio::spawn(async move {
+                        let account_id = match config.account_id {
+                            Some(id) => id,
+                            None => {
+                                let accounts = client.get_accounts().await.unwrap_or_default();
+                                accounts.first().map(|a| a.id.clone()).unwrap_or_default()
+                            }
+                        };
+                        if !account_id.is_empty() {
+                            let _ = client.delete_worker_tail(&account_id, &old_worker, &tail_id).await;
+                        }
+                    });
+                }
+
+                self.tail_view.target_worker = worker_name.clone();
+                self.header.active_tab = 4;
+                self.status_bar.set_status(format!("Connecting Live Tail to {}...", worker_name));
+
+                self.tail_view.logs.push(crate::components::views::tail_view::LogEntry {
+                    timestamp: crate::cloudflare::tail::chrono_or_simple_time(),
+                    method: "ATTACH".to_string(),
+                    url: format!("/{}", worker_name),
+                    status: 101,
+                    duration_ms: 0,
+                    message: format!("Initiating live WebSocket tail session for '{worker_name}'..."),
+                    raw_json: None,
+                    exceptions: Vec::new(),
+                    log_level: Some("info".to_string()),
+                    outcome: "connecting".to_string(),
+                });
+
+                if let Some(client) = &self.cf_client {
+                    let client = client.clone();
+                    let config = AuthManager::load_config();
+                    let tx = self.action_tx.clone();
+                    let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
+                    self.active_tail_cancel = Some(cancel_tx);
+                    self.active_tail_worker = Some(worker_name.clone());
+                    let w_name = worker_name.clone();
+
+                    tokio::spawn(async move {
+                        let account_id = match config.account_id {
+                            Some(id) => id,
+                            None => {
+                                let accounts = client.get_accounts().await.unwrap_or_default();
+                                accounts.first().map(|a| a.id.clone()).unwrap_or_default()
+                            }
+                        };
+
+                        if !account_id.is_empty() {
+                            match client.create_worker_tail(&account_id, &w_name).await {
+                                Ok(tail_res) => {
+                                    let _ = tx.send(Action::TailSessionStarted {
+                                        worker: w_name.clone(),
+                                        tail_id: tail_res.id.clone(),
+                                    });
+                                    let (tail_tx, mut tail_rx) = tokio::sync::mpsc::unbounded_channel();
+                                    let action_tx = tx.clone();
+                                    tokio::spawn(async move {
+                                        while let Some(log) = tail_rx.recv().await {
+                                            let _ = action_tx.send(Action::TailLog(log));
+                                        }
+                                    });
+                                    if let Err(e) = TailStream::start(tail_res.url, tail_tx, cancel_rx).await {
+                                        let _ = tx.send(Action::Error(format!("Tail stream error: {e}")));
+                                    } else {
+                                        let _ = tx.send(Action::StatusMessage(format!("Connected to live tail for {w_name}!")));
+                                    }
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(Action::Error(format!("Failed to create tail session: {e}")));
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+            Action::TailSessionStarted { worker, tail_id } => {
+                self.active_tail_worker = Some(worker.clone());
+                self.active_tail_id = Some(tail_id);
+                self.status_bar.set_status(format!("● Live Tail streaming for {worker}"));
+            }
+            Action::StopWorkerTail => {
+                if let Some(cancel) = self.active_tail_cancel.take() {
+                    let _ = cancel.send(true);
+                }
+                if let (Some(client), Some(tail_id), Some(worker)) = (
+                    &self.cf_client,
+                    self.active_tail_id.take(),
+                    self.active_tail_worker.take(),
+                ) {
+                    let client = client.clone();
+                    let config = AuthManager::load_config();
+                    tokio::spawn(async move {
+                        let account_id = match config.account_id {
+                            Some(id) => id,
+                            None => {
+                                let accounts = client.get_accounts().await.unwrap_or_default();
+                                accounts.first().map(|a| a.id.clone()).unwrap_or_default()
+                            }
+                        };
+                        if !account_id.is_empty() {
+                            let _ = client.delete_worker_tail(&account_id, &worker, &tail_id).await;
+                        }
+                    });
+                }
+                self.status_bar.set_status("Stopped live tail session");
             }
             Action::InputChar(c) => {
                 if self.header.active_tab == 0 && self.dns_view.search_active {

@@ -82,6 +82,9 @@ pub enum Action {
     SyncStarted,
     SyncCompleted(String),
     TailLog(LogEntry),
+    AttachWorkerTail(String),
+    StopWorkerTail,
+    TailSessionStarted { worker: String, tail_id: String },
 
     // Feedback
     StatusMessage(String),

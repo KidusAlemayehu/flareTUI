@@ -14,7 +14,7 @@ pub struct TailView {
     pub target_worker: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct LogEntry {
     pub timestamp: String,
     pub method: String,
@@ -22,6 +22,10 @@ pub struct LogEntry {
     pub status: u16,
     pub duration_ms: u32,
     pub message: String,
+    pub raw_json: Option<String>,
+    pub exceptions: Vec<String>,
+    pub log_level: Option<String>,
+    pub outcome: String,
 }
 
 impl TailView {
