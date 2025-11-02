@@ -64,6 +64,8 @@ impl EventHandler {
         search_active: bool,
         auth_active: bool,
         inspector_active: bool,
+        worker_inspector_active: bool,
+        tail_log_details_active: bool,
         dns_modal_active: bool,
         delete_modal_active: bool,
         pages_deployments_active: bool,
@@ -72,6 +74,15 @@ impl EventHandler {
         active_tab: usize,
         is_zone_pane_focused: bool,
     ) -> Option<Action> {
+        if tail_log_details_active {
+            return match key.code {
+                KeyCode::Esc | KeyCode::Enter => Some(Action::CloseTailLogDetails),
+                KeyCode::Char('j') | KeyCode::Down => Some(Action::TailLogDetailsScrollDown),
+                KeyCode::Char('k') | KeyCode::Up => Some(Action::TailLogDetailsScrollUp),
+                _ => None,
+            };
+        }
+
         if rollback_modal_active {
             return match key.code {
                 KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => Some(Action::ConfirmRollback),
@@ -122,6 +133,16 @@ impl EventHandler {
             };
         }
 
+        if worker_inspector_active {
+            return match key.code {
+                KeyCode::Esc => Some(Action::CloseWorkerInspector),
+                KeyCode::Char('j') | KeyCode::Down => Some(Action::WorkerInspectorNavDown),
+                KeyCode::Char('k') | KeyCode::Up => Some(Action::WorkerInspectorNavUp),
+                KeyCode::Char('t') | KeyCode::Enter => Some(Action::AttachWorkerTail(String::new())),
+                _ => None,
+            };
+        }
+
         if inspector_active {
             return match key.code {
                 KeyCode::Esc => Some(Action::CloseZoneInspector),
@@ -163,8 +184,20 @@ impl EventHandler {
             (KeyModifiers::NONE, KeyCode::Char('3')) => Some(Action::SelectTab(2)),
             (KeyModifiers::NONE, KeyCode::Char('4')) => Some(Action::SelectTab(3)),
             (KeyModifiers::NONE, KeyCode::Char('5')) => Some(Action::SelectTab(4)),
-            (KeyModifiers::NONE, KeyCode::Char('j')) | (KeyModifiers::NONE, KeyCode::Down) => Some(Action::NavDown),
-            (KeyModifiers::NONE, KeyCode::Char('k')) | (KeyModifiers::NONE, KeyCode::Up) => Some(Action::NavUp),
+            (KeyModifiers::NONE, KeyCode::Char('j')) | (KeyModifiers::NONE, KeyCode::Down) => {
+                if active_tab == 4 {
+                    Some(Action::TailNavDown)
+                } else {
+                    Some(Action::NavDown)
+                }
+            }
+            (KeyModifiers::NONE, KeyCode::Char('k')) | (KeyModifiers::NONE, KeyCode::Up) => {
+                if active_tab == 4 {
+                    Some(Action::TailNavUp)
+                } else {
+                    Some(Action::NavUp)
+                }
+            }
             (KeyModifiers::NONE, KeyCode::Char('h')) | (KeyModifiers::NONE, KeyCode::Left) => Some(Action::NavLeft),
             (KeyModifiers::NONE, KeyCode::Char('l')) | (KeyModifiers::NONE, KeyCode::Right) => Some(Action::NavRight),
             (KeyModifiers::NONE, KeyCode::Char('s')) => Some(Action::SwitchPane),
@@ -173,9 +206,16 @@ impl EventHandler {
             (KeyModifiers::NONE, KeyCode::Char('?')) => Some(Action::ToggleHelp),
             (KeyModifiers::NONE, KeyCode::Char('/')) => Some(Action::ToggleSearch),
             (KeyModifiers::NONE, KeyCode::Char('a')) | (KeyModifiers::CONTROL, KeyCode::Char('a')) => Some(Action::ToggleAuth),
-            (KeyModifiers::NONE, KeyCode::Char('i')) => Some(Action::OpenZoneInspector),
+            (KeyModifiers::NONE, KeyCode::Char('i')) if active_tab == 0 => Some(Action::OpenZoneInspector),
+            (KeyModifiers::NONE, KeyCode::Char('i')) if active_tab == 1 => Some(Action::OpenWorkerInspector),
+            (KeyModifiers::NONE, KeyCode::Char('t')) if active_tab == 1 => Some(Action::AttachWorkerTail(String::new())),
+            (KeyModifiers::NONE, KeyCode::Char(' ')) if active_tab == 4 => Some(Action::ToggleTailPause),
+            (KeyModifiers::NONE, KeyCode::Char('f')) if active_tab == 4 => Some(Action::ToggleTailFollow),
+            (KeyModifiers::NONE, KeyCode::Char('c')) if active_tab == 4 => Some(Action::ClearTailLogs),
             (KeyModifiers::NONE, KeyCode::Enter) if is_zone_pane_focused => Some(Action::OpenZoneInspector),
+            (KeyModifiers::NONE, KeyCode::Enter) if active_tab == 1 => Some(Action::AttachWorkerTail(String::new())),
             (KeyModifiers::NONE, KeyCode::Enter) if active_tab == 2 => Some(Action::OpenPagesDeployments),
+            (KeyModifiers::NONE, KeyCode::Enter) if active_tab == 4 => Some(Action::OpenTailLogDetails),
             (KeyModifiers::NONE, KeyCode::Char('d')) if active_tab == 2 => Some(Action::OpenPagesDeployments),
             (KeyModifiers::NONE, KeyCode::Char('n')) => Some(Action::OpenCreateDnsModal),
             (KeyModifiers::NONE, KeyCode::Char('e')) => Some(Action::OpenEditDnsModal),

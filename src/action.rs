@@ -1,5 +1,6 @@
-use crate::cloudflare::client::{PagesBuildLogEntry, PagesDeploymentResult, ZoneSettings};
+use crate::cloudflare::client::{PagesBuildLogEntry, PagesDeploymentResult, WorkerRouteDetail, ZoneSettings};
 use crate::components::views::tail_view::LogEntry;
+use crate::db::CachedWorkerBinding;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
@@ -85,6 +86,28 @@ pub enum Action {
     AttachWorkerTail(String),
     StopWorkerTail,
     TailSessionStarted { worker: String, tail_id: String },
+    ToggleTailPause,
+    ClearTailLogs,
+    ToggleTailFollow,
+    OpenTailLogDetails,
+    CloseTailLogDetails,
+    TailLogDetailsScrollUp,
+    TailLogDetailsScrollDown,
+    TailNavUp,
+    TailNavDown,
+
+    // Worker Inspector Actions
+    OpenWorkerInspector,
+    CloseWorkerInspector,
+    WorkerInspectorNavUp,
+    WorkerInspectorNavDown,
+    WorkerDetailsLoaded {
+        flags: Vec<String>,
+        usage_model: String,
+        handlers: Vec<String>,
+        routes: Vec<WorkerRouteDetail>,
+        bindings: Vec<CachedWorkerBinding>,
+    },
 
     // Feedback
     StatusMessage(String),

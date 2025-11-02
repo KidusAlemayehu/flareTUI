@@ -30,6 +30,8 @@ use crate::components::{
         tail_view::TailView,
         workers_view::WorkersView,
     },
+    worker_inspector::WorkerInspectorModal,
+    tail_log_modal::TailLogModal,
     zone_inspector::ZoneInspectorModal,
 };
 use crate::db::{CacheDb, DnsRecord};
@@ -41,6 +43,8 @@ pub struct App {
     pub status_bar: StatusBar,
     pub auth_modal: AuthModal,
     pub zone_inspector: Option<ZoneInspectorModal>,
+    pub worker_inspector: Option<WorkerInspectorModal>,
+    pub tail_log_modal: Option<TailLogModal>,
     pub dns_modal: Option<DnsModal>,
     pub delete_modal: Option<ConfirmDeleteModal>,
     pub pages_deployments: Option<PagesDeploymentsModal>,
@@ -88,6 +92,8 @@ impl App {
             status_bar: StatusBar::new(),
             auth_modal: AuthModal::new(),
             zone_inspector: None,
+            worker_inspector: None,
+            tail_log_modal: None,
             dns_modal: None,
             delete_modal: None,
             pages_deployments: None,
@@ -112,7 +118,8 @@ impl App {
     }
 
     pub fn is_search_active(&self) -> bool {
-        self.header.active_tab == 0 && self.dns_view.search_active
+        (self.header.active_tab == 0 && self.dns_view.search_active)
+            || (self.header.active_tab == 4 && self.tail_view.search_active)
     }
 
     pub fn is_auth_active(&self) -> bool {
@@ -121,6 +128,14 @@ impl App {
 
     pub fn is_inspector_active(&self) -> bool {
         self.zone_inspector.is_some()
+    }
+
+    pub fn is_worker_inspector_active(&self) -> bool {
+        self.worker_inspector.is_some()
+    }
+
+    pub fn is_tail_log_details_active(&self) -> bool {
+        self.tail_log_modal.is_some()
     }
 
     pub fn is_dns_modal_active(&self) -> bool {
@@ -182,6 +197,7 @@ impl App {
                 1 => self.workers_view.nav_up(),
                 2 => self.pages_view.nav_up(),
                 3 => self.storage_view.nav_up(),
+                4 => self.tail_view.nav_up(),
                 _ => {}
             },
             Action::NavDown => match self.header.active_tab {
@@ -189,6 +205,7 @@ impl App {
                 1 => self.workers_view.nav_down(),
                 2 => self.pages_view.nav_down(),
                 3 => self.storage_view.nav_down(),
+                4 => self.tail_view.nav_down(20),
                 _ => {}
             },
             Action::NavLeft | Action::NavRight => {}
@@ -270,6 +287,8 @@ impl App {
                     if !self.dns_view.search_active {
                         self.dns_view.search_query.clear();
                     }
+                } else if self.header.active_tab == 4 {
+                    self.tail_view.toggle_search();
                 }
             }
             Action::ToggleAuth => {
@@ -368,7 +387,17 @@ impl App {
                     }
                 }
             }
-            Action::AttachWorkerTail(worker_name) => {
+            Action::AttachWorkerTail(mut worker_name) => {
+                if worker_name.is_empty() {
+                    if let Some(w) = self.workers_view.selected_worker() {
+                        worker_name = w.name.clone();
+                    } else {
+                        self.status_bar.set_status("No worker selected to attach Live Tail");
+                        return Ok(());
+                    }
+                }
+                self.worker_inspector = None;
+
                 // 1. Terminate old tail session if active
                 if let Some(cancel) = self.active_tail_cancel.take() {
                     let _ = cancel.send(true);
@@ -488,25 +517,193 @@ impl App {
                 }
                 self.status_bar.set_status("Stopped live tail session");
             }
+            Action::ToggleTailPause => {
+                self.tail_view.toggle_pause();
+                let state = if self.tail_view.is_paused { "PAUSED" } else { "RESUMED" };
+                self.status_bar.set_status(format!("Live tail stream {state}"));
+            }
+            Action::ClearTailLogs => {
+                self.tail_view.clear();
+                self.status_bar.set_status("Live tail log buffer cleared");
+            }
+            Action::ToggleTailFollow => {
+                self.tail_view.toggle_follow();
+                let mode = if self.tail_view.follow_mode { "FOLLOW (auto-scroll enabled)" } else { "MANUAL (scroll history)" };
+                self.status_bar.set_status(format!("Live tail mode: {mode}"));
+            }
+            Action::TailNavUp => {
+                self.tail_view.nav_up();
+            }
+            Action::TailNavDown => {
+                self.tail_view.nav_down(20);
+            }
+            Action::OpenTailLogDetails => {
+                if self.header.active_tab == 4 {
+                    if let Some(entry) = self.tail_view.selected_log().cloned() {
+                        self.tail_log_modal = Some(TailLogModal::new(entry));
+                    }
+                }
+            }
+            Action::CloseTailLogDetails => {
+                self.tail_log_modal = None;
+            }
+            Action::TailLogDetailsScrollUp => {
+                if let Some(modal) = &mut self.tail_log_modal {
+                    modal.scroll_up();
+                }
+            }
+            Action::TailLogDetailsScrollDown => {
+                if let Some(modal) = &mut self.tail_log_modal {
+                    modal.scroll_down();
+                }
+            }
+
+            // Worker Inspector Actions
+            Action::OpenWorkerInspector => {
+                if self.header.active_tab == 1 {
+                    if let Some(w) = self.workers_view.selected_worker().cloned() {
+                        let mut inspector = WorkerInspectorModal::new(
+                            w.name.clone(),
+                            w.status.clone(),
+                            w.compatibility_date.clone(),
+                        );
+
+                        // 1. Load cached bindings from SQLite
+                        if let Ok(cached) = self.db.get_worker_bindings(&w.name) {
+                            inspector.bindings = cached;
+                        }
+
+                        // 2. Fetch live metadata, bindings, and routes from Cloudflare if connected
+                        if let Some(client) = &self.cf_client {
+                            inspector.is_loading = true;
+                            let client = client.clone();
+                            let config = AuthManager::load_config();
+                            let tx = self.action_tx.clone();
+                            let script_name = w.name.clone();
+
+                            tokio::spawn(async move {
+                                let account_id = match config.account_id {
+                                    Some(id) => id,
+                                    None => {
+                                        let accounts = client.get_accounts().await.unwrap_or_default();
+                                        accounts.first().map(|a| a.id.clone()).unwrap_or_default()
+                                    }
+                                };
+
+                                if !account_id.is_empty() {
+                                    let bindings_res = client.get_worker_bindings(&account_id, &script_name).await.unwrap_or_default();
+                                    let routes_res = client.get_worker_routes(&account_id, &script_name).await.unwrap_or_default();
+                                    let workers_list = client.get_workers(&account_id).await.unwrap_or_default();
+                                    let worker_meta = workers_list.into_iter().find(|item| item.id == script_name);
+
+                                    let (flags, usage_model, handlers) = if let Some(meta) = worker_meta {
+                                        (
+                                            meta.compatibility_flags.unwrap_or_default(),
+                                            meta.usage_model.unwrap_or_else(|| "standard".to_string()),
+                                            meta.handlers.unwrap_or_else(|| vec!["fetch".to_string()]),
+                                        )
+                                    } else {
+                                        (vec!["nodejs_compat".to_string()], "standard".to_string(), vec!["fetch".to_string()])
+                                    };
+
+                                    let cached_bindings: Vec<crate::db::CachedWorkerBinding> = bindings_res
+                                        .into_iter()
+                                        .map(|b| {
+                                            let details = if let Some(db_id) = b.database_id {
+                                                format!("D1 DB ({db_id})")
+                                            } else if let Some(ns_id) = b.namespace_id {
+                                                format!("KV Namespace ({ns_id})")
+                                            } else if let Some(bucket) = b.bucket_name {
+                                                format!("R2 Bucket ({bucket})")
+                                            } else if let Some(q) = b.queue_name {
+                                                format!("Queue ({q})")
+                                            } else if let Some(t) = b.text {
+                                                format!("Text: {t}")
+                                            } else {
+                                                "Configured".to_string()
+                                            };
+                                            crate::db::CachedWorkerBinding {
+                                                script_name: script_name.clone(),
+                                                name: b.name,
+                                                binding_type: b.binding_type,
+                                                details,
+                                            }
+                                        })
+                                        .collect();
+
+                                    let _ = tx.send(Action::WorkerDetailsLoaded {
+                                        flags,
+                                        usage_model,
+                                        handlers,
+                                        routes: routes_res,
+                                        bindings: cached_bindings,
+                                    });
+                                }
+                            });
+                        }
+
+                        self.worker_inspector = Some(inspector);
+                    }
+                }
+            }
+            Action::CloseWorkerInspector => {
+                self.worker_inspector = None;
+            }
+            Action::WorkerInspectorNavUp => {
+                if let Some(inspector) = &mut self.worker_inspector {
+                    inspector.nav_up();
+                }
+            }
+            Action::WorkerInspectorNavDown => {
+                if let Some(inspector) = &mut self.worker_inspector {
+                    inspector.nav_down();
+                }
+            }
+            Action::WorkerDetailsLoaded {
+                flags,
+                usage_model,
+                handlers,
+                routes,
+                bindings,
+            } => {
+                if let Some(inspector) = &mut self.worker_inspector {
+                    let _ = self.db.replace_worker_bindings(&inspector.worker_name, &bindings);
+                    inspector.compatibility_flags = flags;
+                    inspector.usage_model = usage_model;
+                    inspector.handlers = handlers;
+                    inspector.routes = routes;
+                    inspector.bindings = bindings;
+                    inspector.is_loading = false;
+                    inspector.action_feedback = Some("Live metadata & bindings loaded from Cloudflare".to_string());
+                }
+            }
             Action::InputChar(c) => {
                 if self.header.active_tab == 0 && self.dns_view.search_active {
                     self.dns_view.search_query.push(c);
+                } else if self.header.active_tab == 4 && self.tail_view.search_active {
+                    self.tail_view.input_char(c);
                 }
             }
             Action::InputBackspace => {
                 if self.header.active_tab == 0 && self.dns_view.search_active {
                     self.dns_view.search_query.pop();
+                } else if self.header.active_tab == 4 && self.tail_view.search_active {
+                    self.tail_view.input_backspace();
                 }
             }
             Action::InputSubmit => {
                 if self.header.active_tab == 0 {
                     self.dns_view.search_active = false;
+                } else if self.header.active_tab == 4 {
+                    self.tail_view.search_active = false;
                 }
             }
             Action::ClearSearch => {
                 if self.header.active_tab == 0 {
                     self.dns_view.search_query.clear();
                     self.dns_view.search_active = false;
+                } else if self.header.active_tab == 4 {
+                    self.tail_view.clear_search();
                 }
             }
             Action::StatusMessage(msg) => {
@@ -1166,6 +1363,10 @@ impl App {
             HelpModal::render(f, area, &self.theme);
         } else if self.show_auth_modal {
             self.auth_modal.render(f, area, &self.theme);
+        } else if let Some(tail_log) = &self.tail_log_modal {
+            tail_log.render(f, area, &self.theme);
+        } else if let Some(worker_insp) = &self.worker_inspector {
+            worker_insp.render(f, area, &self.theme);
         } else if let Some(logs) = &self.pages_logs_modal {
             logs.render(f, area, &self.theme);
         } else if let Some(rb) = &self.pages_rollback_modal {

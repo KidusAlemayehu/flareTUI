@@ -66,6 +66,8 @@ async fn main() -> Result<()> {
                         let search_active = app.is_search_active();
                         let auth_active = app.is_auth_active();
                         let inspector_active = app.is_inspector_active();
+                        let worker_inspector_active = app.is_worker_inspector_active();
+                        let tail_log_details_active = app.is_tail_log_details_active();
                         let dns_modal_active = app.is_dns_modal_active();
                         let delete_modal_active = app.is_delete_modal_active();
                         let pages_deployments_active = app.is_pages_deployments_active();
@@ -78,6 +80,8 @@ async fn main() -> Result<()> {
                             search_active,
                             auth_active,
                             inspector_active,
+                            worker_inspector_active,
+                            tail_log_details_active,
                             dns_modal_active,
                             delete_modal_active,
                             pages_deployments_active,
