@@ -83,7 +83,7 @@ impl App {
             cf_client = Some(client);
 
             // Auto-trigger sync on startup
-            let _ = action_tx.send(Action::SyncStarted);
+            let _ = action_tx.send(Action::Refresh);
         }
 
         Self {
@@ -374,6 +374,11 @@ impl App {
 
                 // Refresh view models
                 self.dns_view.zones = self.db.get_zones().unwrap_or_default();
+                if msg.contains("⚠️") {
+                    self.dns_view.set_sync_warning(Some(msg.clone()));
+                } else {
+                    self.dns_view.set_sync_warning(None);
+                }
                 self.dns_view.reload_records();
                 self.workers_view.reload();
                 self.pages_view.reload();
@@ -712,7 +717,10 @@ impl App {
             Action::Error(err) => {
                 self.auth_modal.is_validating = false;
                 self.auth_modal.error_msg = Some(err.clone());
-                self.status_bar.set_error(err);
+                self.status_bar.set_error(err.clone());
+                if err.contains("DNS") || err.contains("Authentication") || err.contains("10000") {
+                    self.dns_view.set_sync_warning(Some(err));
+                }
             }
 
             // Zone Inspector
@@ -930,7 +938,7 @@ impl App {
                                         Ok(res) => {
                                             let local_rec = DnsRecord {
                                                 id: res.id,
-                                                zone_id: res.zone_id,
+                                                zone_id: res.zone_id.unwrap_or_else(|| zone_id.clone()),
                                                 record_type: res.record_type,
                                                 name: res.name.clone(),
                                                 content: res.content,
@@ -952,7 +960,7 @@ impl App {
                                     Ok(res) => {
                                         let local_rec = DnsRecord {
                                             id: res.id,
-                                            zone_id: res.zone_id,
+                                            zone_id: res.zone_id.unwrap_or_else(|| zone_id.clone()),
                                             record_type: res.record_type,
                                             name: res.name.clone(),
                                             content: res.content,

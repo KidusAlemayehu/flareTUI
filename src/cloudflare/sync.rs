@@ -44,7 +44,7 @@ impl CloudflareSync {
                         .into_iter()
                         .map(|r| DnsRecord {
                             id: r.id,
-                            zone_id: r.zone_id,
+                            zone_id: r.zone_id.unwrap_or_else(|| z.id.clone()),
                             record_type: r.record_type,
                             name: r.name,
                             content: r.content,
@@ -55,7 +55,16 @@ impl CloudflareSync {
                     db.replace_zone_dns_records(&z.id, &records)?;
                 }
                 Err(e) => {
-                    report.warning = Some(format!("DNS sync error: {e}. Token needs 'Zone -> DNS' permission"));
+                    let err_str = e.to_string();
+                    let hint = if err_str.to_lowercase().contains("authentication")
+                        || err_str.to_lowercase().contains("forbidden")
+                        || err_str.contains("10000")
+                    {
+                        "Token lacks 'Zone -> DNS' permission. Create a User API token with 'Edit zone DNS' template."
+                    } else {
+                        "Check network connection or token permissions."
+                    };
+                    report.warning = Some(format!("DNS sync error: {e}. {hint}"));
                 }
             }
         }

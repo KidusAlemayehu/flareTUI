@@ -24,6 +24,7 @@ pub struct DnsView {
     pub focus: DnsFocus,
     pub search_query: String,
     pub search_active: bool,
+    pub sync_warning: Option<String>,
 }
 
 impl DnsView {
@@ -38,9 +39,14 @@ impl DnsView {
             focus: DnsFocus::Records,
             search_query: String::new(),
             search_active: false,
+            sync_warning: None,
         };
         view.reload_records();
         view
+    }
+
+    pub fn set_sync_warning(&mut self, warning: Option<String>) {
+        self.sync_warning = warning;
     }
 
     pub fn reload_records(&mut self) {
@@ -214,14 +220,43 @@ impl DnsView {
 
         let filtered = self.filtered_records();
         let record_rows: Vec<Row> = if filtered.is_empty() {
-            vec![Row::new(vec![
-                Cell::from("  -"),
-                Cell::from(if self.zones.is_empty() { "No zones loaded" } else { "No records in this zone" }),
-                Cell::from("-"),
-                Cell::from("-"),
-                Cell::from("-"),
-            ])
-            .style(Style::default().fg(theme.text_dim))]
+            if let Some(warn) = &self.sync_warning {
+                vec![
+                    Row::new(vec![
+                        Cell::from("  ⚠️"),
+                        Cell::from("Sync Notice:"),
+                        Cell::from(warn.as_str()),
+                        Cell::from("-"),
+                        Cell::from("-"),
+                    ])
+                    .style(Style::default().fg(theme.warning)),
+                    Row::new(vec![
+                        Cell::from("  ℹ️"),
+                        Cell::from("Token Permission:"),
+                        Cell::from("Zone -> DNS -> Read / Edit (User API Token)"),
+                        Cell::from("-"),
+                        Cell::from("-"),
+                    ])
+                    .style(Style::default().fg(theme.info)),
+                    Row::new(vec![
+                        Cell::from("  💡"),
+                        Cell::from("Action:"),
+                        Cell::from("Create token at dash.cloudflare.com/profile/api-tokens ('Edit zone DNS')"),
+                        Cell::from("-"),
+                        Cell::from("-"),
+                    ])
+                    .style(Style::default().fg(theme.text_dim)),
+                ]
+            } else {
+                vec![Row::new(vec![
+                    Cell::from("  -"),
+                    Cell::from(if self.zones.is_empty() { "No zones loaded" } else { "No records in this zone" }),
+                    Cell::from("-"),
+                    Cell::from("-"),
+                    Cell::from("-"),
+                ])
+                .style(Style::default().fg(theme.text_dim))]
+            }
         } else {
             filtered
                 .iter()
@@ -263,6 +298,12 @@ impl DnsView {
                 .collect()
         };
 
+        let warn_suffix = if self.sync_warning.is_some() {
+            " ⚠️ [Sync Notice]"
+        } else {
+            ""
+        };
+
         let records_table = Table::new(
             record_rows,
             [
@@ -280,7 +321,7 @@ impl DnsView {
         )
         .block(
             Block::default()
-                .title(format!(" DNS Records: {active_zone_name} (Total: {}) ", filtered.len()))
+                .title(format!(" DNS Records: {active_zone_name} (Total: {}){warn_suffix} ", filtered.len()))
                 .title_style(if records_focused { theme.title() } else { Style::default().fg(theme.text_dim) })
                 .borders(Borders::ALL)
                 .border_type(if records_focused { BorderType::Thick } else { BorderType::Rounded })
@@ -313,5 +354,55 @@ impl DnsView {
             );
             f.render_widget(search_bar, main_chunks[1]);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_dns_view_sync_warning_state() {
+        let db = CacheDb::open_in_memory().expect("in-memory db");
+        let mut view = DnsView::new(db);
+        assert!(view.sync_warning.is_none());
+
+        view.set_sync_warning(Some("Token lacks 'Zone -> DNS' permission".to_string()));
+        assert_eq!(
+            view.sync_warning.as_deref(),
+            Some("Token lacks 'Zone -> DNS' permission")
+        );
+
+        view.set_sync_warning(None);
+        assert!(view.sync_warning.is_none());
+    }
+
+    #[test]
+    fn test_dns_view_preserves_records_on_reload() {
+        let db = CacheDb::open_in_memory().expect("in-memory db");
+        let zone = Zone {
+            id: "z-test".to_string(),
+            name: "example.com".to_string(),
+            status: "active".to_string(),
+            plan: "Free".to_string(),
+            created_on: "2024-01-01".to_string(),
+        };
+        db.upsert_zone(&zone).expect("upsert zone");
+
+        let rec = DnsRecord {
+            id: "r1".to_string(),
+            zone_id: "z-test".to_string(),
+            record_type: "A".to_string(),
+            name: "example.com".to_string(),
+            content: "1.2.3.4".to_string(),
+            proxied: true,
+            ttl: 1,
+        };
+        db.upsert_dns_record(&rec).expect("upsert record");
+
+        let view = DnsView::new(db);
+        assert_eq!(view.zones.len(), 1);
+        assert_eq!(view.records.len(), 1);
+        assert_eq!(view.records[0].name, "example.com");
     }
 }

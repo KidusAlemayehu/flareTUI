@@ -45,12 +45,16 @@ pub struct ZonePlan {
 #[derive(Debug, Clone, Deserialize)]
 pub struct DnsRecordResult {
     pub id: String,
-    pub zone_id: String,
+    #[serde(default)]
+    pub zone_id: Option<String>,
     #[serde(rename = "type")]
     pub record_type: String,
     pub name: String,
+    #[serde(default)]
     pub content: String,
+    #[serde(default)]
     pub proxied: bool,
+    #[serde(default)]
     pub ttl: u32,
 }
 
@@ -583,5 +587,27 @@ mod tests {
         assert_eq!(bindings[1].database_id.as_deref(), Some("76632ad7-a168-49f6-b81a-90306079a5fe"));
         assert_eq!(bindings[2].binding_type, "kv_namespace");
         assert_eq!(bindings[2].namespace_id.as_deref(), Some("kv123"));
+    }
+
+    #[test]
+    fn test_dns_record_deserialization() {
+        let json = r#"{
+            "id": "f61bab825bf5e32aef5307b4cf0f994a",
+            "name": "iamkidus.et",
+            "type": "CAA",
+            "content": "0 issue \"letsencrypt.org\"",
+            "proxiable": false,
+            "proxied": false,
+            "ttl": 1
+        }"#;
+
+        let record: DnsRecordResult = serde_json::from_str(json).expect("deserialize dns record");
+        assert_eq!(record.id, "f61bab825bf5e32aef5307b4cf0f994a");
+        assert_eq!(record.name, "iamkidus.et");
+        assert_eq!(record.record_type, "CAA");
+        assert_eq!(record.content, "0 issue \"letsencrypt.org\"");
+        assert_eq!(record.zone_id, None);
+        assert!(!record.proxied);
+        assert_eq!(record.ttl, 1);
     }
 }
