@@ -1,17 +1,249 @@
-# flareTUI
+```text
+┌───────────────────────────────────────────────────────────────────────────────────────────┐
+│  [o] [o] [x]  cloudflare.edge://flaretui.v4  ───  [Anycast DNS / HTTP3]  ───  PING: 1.2ms │
+├───────────────────────────────────────────────────────────────────────────────────────────┤
+│         .---.                                                                             │
+│        /     \            ███████╗██╗      █████╗ ██████╗ ███████╗████████╗██╗   ██╗██╗   │
+│    .--'  (*)  '--.        ██╔════╝██║     ██╔══██╗██╔══██╗██╔════╝╚══██╔══╝██║   ██║██║   │
+│   (   .---------.  )      █████╗  ██║     ███████║██████╔╝█████╗     ██║   ██║   ██║██║   │
+│  (   (   > _     )  )     ██╔══╝  ██║     ██╔══██║██╔══██╗██╔══╝     ██║   ██║   ██║██║   │
+│   (   '---------'  )      ██║     ███████╗██║  ██║██║  ██║███████╗   ██║   ╚██████╔╝██║   │
+│    '--.  (*)  .--'        ╚═╝     ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝   ╚═╝    ╚═════╝ ╚═╝   │
+│        \     /                                                                            │
+│         '---'             [ POPs: 330+ ] [ SQLite Cache: ON ] [ Live Tail: WebSockets ]   │
+└───────────────────────────────────────────────────────────────────────────────────────────┘
+```
 
-> A fast, keyboard-centric, production-grade Terminal User Interface for managing Cloudflare assets.
+<div align="center">
+
+> **A fast, keyboard-centric, production-grade Terminal User Interface for managing Cloudflare assets.**
+
+[![Rust](https://img.shields.io/badge/Rust-1.89+-DEA584.svg?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org)
+[![Ratatui](https://img.shields.io/badge/Ratatui-0.29-blue.svg?style=flat-square&logo=terminal&logoColor=white)](https://github.com/ratatui/ratatui)
+[![Tokio](https://img.shields.io/badge/Tokio-Async-8A2BE2.svg?style=flat-square&logo=tokio&logoColor=white)](https://tokio.rs)
+[![SQLite](https://img.shields.io/badge/SQLite-Local_Cache-003B57.svg?style=flat-square&logo=sqlite&logoColor=white)](https://sqlite.org)
+[![Cloudflare API](https://img.shields.io/badge/Cloudflare_API-v4-F38020.svg?style=flat-square&logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/api/)
+[![License](https://img.shields.io/badge/License-MIT%20%2F%20Apache--2.0-green.svg?style=flat-square)](LICENSE-MIT)
+
+<br />
+
+[Features](#features) • [Installation](#installation) • [Authentication](#authentication--token-permissions) • [Keybindings](#keyboard-cheatsheet) • [Architecture](#architecture) • [Roadmap](#roadmap)
+
+</div>
+
+---
 
 ## Features
-- **Zone & DNS Management**: View, filter, and edit DNS records with orange/grey cloud toggling and safety diff modals.
-- **Workers & Pages**: Inspect scripts, deployments, environment variables, and live-tail log streams over SSE.
-- **Storage Browser**: D1 SQL queries and KV namespace inspection.
-- **Offline & Cache-First**: Local SQLite write-through caching for instantaneous startup and fuzzy navigation.
-- **Vim-inspired Keybindings**: Fast navigation with `j`/`k`, `/` fuzzy search, and command palette (`Ctrl+P`).
+
+- **Offline-First & Instant Startup**: Boots in milliseconds using an embedded SQLite cache (`~/.cache/flaretui/cache.db`). Browse zones, DNS records, scripts, and bindings even when offline.
+- **Interactive DNS & Zone Management**: Instant orange/grey cloud proxy toggling (`p`), inline record creation/editing with safety checks, and single-click BIND zone export (`x`).
+- **Workers Inspector & Realtime Live Tail**: Inspect script metadata, route patterns, and active bindings (D1, KV, R2, Queues). Stream live Worker execution logs over WebSockets with exception decoding, regex filtering (`/`), and auto-follow mode (`f`).
+- **Cloudflare Pages & Instant Rollback**: Track deployment statuses across preview and production environments, inspect build stages and logs, and execute rollbacks directly from your terminal.
+- **Defensive Safety Safeguards**: Irreversible modifications (deleting records, purging edge cache, rolling back builds) are guarded by interactive confirmation dialogs.
+- **Ergonomic Vim Keybindings**: Single-stroke navigation (`j`/`k`, numeric view switching `1`-`5`, `Tab`/`s` pane toggle, and `/` search).
+
+---
+
+## Terminal Interface Preview
+
+```text
+  flareTUI    Account: dev@example.com's Account       Cloudflare Live                Cache: SQLite Local
+ 1: Zones & DNS │ 2: Workers │ 3: Pages │ 4: D1 & KV │ 5: Live Tail
+┌ Zones (Press 's' to switch) ─┐┌ DNS Records: example.com (Total: 6) ──────────────────────────────────────────┐
+│▶ example.com     Enterprise   ││ Type    Name               Content / Target            Proxy Status    TTL    │
+│  staging-edge.io Pro          ││▶ A       api.example.com    192.0.2.42                  [o] Proxied     Auto   │
+│  demo-service.dev Free        ││  CNAME   example.com        my-worker.workers.dev       [o] Proxied     Auto   │
+│                               ││  AAAA    ipv6.example.com   2606:4700:4700::1111        [o] Proxied     Auto   │
+│                               ││  MX      example.com        mail.example.com            [ ] DNS Only    Auto   │
+│                               ││  TXT     _dmarc.example.com "v=DMARC1; p=reject;..."    [ ] DNS Only    Auto   │
+│                               ││  TXT     example.com        "v=spf1 include:_spf...~all"[ ] DNS Only    3600s  │
+└───────────────────────────────┘└──────────────────────────────────────────────────────────────────────────────┘
+ [1-5] Tabs  [s/Tab] Switch Pane  [p] Proxy  [n] New  [e] Edit  [d] Delete  [i] Zone Settings  [?] Help  [q] Quit
+```
+
+---
+
+## Installation
+
+### Prerequisites
+- **Rust Toolchain**: `1.80+` (pinned to `1.89.0` via `rust-toolchain.toml`)
+- **Terminal Emulator**: Any terminal with TrueColor and Unicode support (Alacritty, Kitty, WezTerm, Ghostty, Zellij, Tmux).
+
+### Build from Source
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/KidusAlemayehu/flareTUI.git
+cd flareTUI
+
+# 2. Build the optimized release binary
+cargo build --release
+
+# 3. Launch flareTUI
+./target/release/flareTUI
+```
+
+### Install into Cargo Bin Path
+
+```bash
+cargo install --path .
+# Now launch from anywhere:
+flareTUI
+```
+
+---
+
+## Authentication & Token Permissions
+
+When launching `flareTUI` for the first time, an authentication modal appears automatically. Alternatively, press **`Ctrl+A`** at any point to configure or update your credentials.
+
+### Recommended Token Permissions
+Create a Cloudflare **User API Token** at [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens) using the **Edit zone DNS** template or with the following permissions:
+
+| Permission Group | Scope | Access Level | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Zone ➔ DNS** | All Zones (or Specific Zone) | **Edit** (or Read) | View, create, update, and toggle proxy status |
+| **Zone ➔ Zone Settings** | All Zones (or Specific Zone) | **Read / Edit** | Inspect SSL mode, Security level, Dev mode, Purge cache |
+| **Account ➔ Worker Scripts**| All Accounts | **Read** | List scripts, inspect routes and bindings |
+| **Account ➔ Worker Tail** | All Accounts | **Read** | Stream real-time WebSocket live tail logs |
+| **Account ➔ Cloudflare Pages** | All Accounts | **Read / Edit** | View deployments, build logs, and trigger rollbacks |
+
+> [!TIP]
+> Always generate a **User API Token** under **User Profile (top-right avatar) ➔ My Profile ➔ API Tokens** rather than an Account API Token to ensure zone-level DNS listing and modifications succeed.
+
+### Configuration File
+Credentials and account metadata are stored locally in `~/.config/flaretui/config.toml`:
+
+```toml
+api_token = "cfut_sample_token_abcdef1234567890"
+account_id = "0123456789abcdef0123456789abcdef"
+account_name = "Production Team"
+theme = "default"
+```
+
+---
+
+## Keyboard Cheatsheet
+
+### Global Navigation
+| Keybinding | Action |
+| :--- | :--- |
+| `1` .. `5` | Switch active tab (`1: Zones & DNS`, `2: Workers`, `3: Pages`, `4: D1 & KV`, `5: Live Tail`) |
+| `j` / `k` or `↓` / `↑` | Move row selection down / up |
+| `Tab` / `Shift+Tab` | Cycle focus between panes |
+| `r` | Hard refresh live data from Cloudflare API |
+| `?` | Toggle keybinding and shortcut help modal |
+| `Ctrl+A` | Open API token authentication modal |
+| `Esc` / `q` | Close open modal or quit application |
+
+### Zones & DNS View (`Tab 1`)
+| Keybinding | Action |
+| :--- | :--- |
+| `s` | Switch focus between **Zones List** (left) and **DNS Records** (right) |
+| `p` | Toggle Proxy status between `[o] Proxied` and `[ ] DNS Only` |
+| `n` | Create new DNS record (`A`, `AAAA`, `CNAME`, `TXT`, `MX`, etc.) |
+| `e` | Edit selected DNS record target, TTL, or proxy status |
+| `d` | Delete selected record with safety confirmation guard |
+| `i` | Open **Zone Inspector** (SSL mode, Dev mode, Security level, Purge edge cache) |
+| `x` | Export active zone DNS records to standard RFC BIND format (`.zone`) |
+| `/` | Open live search filter bar |
+
+### Workers & Live Tail View (`Tab 2` & `Tab 5`)
+| Keybinding | Action |
+| :--- | :--- |
+| `i` | Open **Worker Inspector** (detailed route patterns, D1/KV/R2 bindings, compatibility flags) |
+| `l` | Attach **Real-time Live Tail Stream** to selected Worker |
+| `f` | Toggle **Follow Mode** (auto-scroll to newest incoming logs) |
+| `c` | Clear in-memory log buffer |
+| `Space` | Pause / resume log stream ingestion |
+| `Enter` | Open full JSON log inspector modal for selected log entry |
+| `/` | In-memory log filtering by HTTP method, status code, URL, or error trace |
+
+### Pages Projects View (`Tab 3`)
+| Keybinding | Action |
+| :--- | :--- |
+| `d` | Open project **Deployments Modal** |
+| `l` | Inspect deployment **Build Logs** |
+| `b` | Trigger instant **Deployment Rollback** with safety confirmation |
+
+---
 
 ## Architecture
-- **Language**: Rust (pinned to `1.89.0` via `rust-toolchain.toml`)
-- **TUI Framework**: [Ratatui](https://github.com/ratatui/ratatui) with Crossterm backend
-- **Async Runtime**: [Tokio](https://tokio.rs/)
-- **Local Cache**: Embedded SQLite via `rusqlite`
-- **Fuzzy Matcher**: `nucleo-matcher`
+
+`flareTUI` follows an asynchronous, action-driven architecture separating terminal drawing from non-blocking Cloudflare network operations:
+
+```mermaid
+flowchart TD
+    subgraph UI ["Terminal Presentation (Ratatui + Crossterm)"]
+        Header["Header Bar (Account & Live Status)"]
+        Views["View Stack (DNS | Workers | Pages | Storage | Tail)"]
+        Modals["Modals (Auth | DNS Edit | Delete Guard | Inspector)"]
+        StatusBar["Status Bar & Diagnostics"]
+    end
+
+    subgraph Core ["State Machine & Event Loop (Tokio)"]
+        EventHandler["EventHandler (200ms Tick & Keyboard Ingestion)"]
+        ActionQueue["MPSC Action Channel"]
+        App["Central App State"]
+    end
+
+    subgraph Storage ["Offline Cache Layer (SQLite)"]
+        CacheDb["rusqlite Embedded Database (~/.cache/flaretui/cache.db)"]
+    end
+
+    subgraph Network ["Cloudflare v4 Engine (Reqwest & WebSockets)"]
+        Client["Typed Cloudflare Client"]
+        TailStream["WebSocket Live Tail Streamer"]
+        CloudflareAPI["Cloudflare Edge API"]
+    end
+
+    EventHandler -->|Key / Tick Events| ActionQueue
+    ActionQueue --> App
+    App -->|Draw Frame| UI
+    App -->|Write-Through & Read| CacheDb
+    App -->|Async Actions| Client
+    Client --> CloudflareAPI
+    CloudflareAPI -->|WS Packets| TailStream
+    TailStream -->|Log Stream Actions| ActionQueue
+```
+
+---
+
+## Roadmap
+
+- [x] **Milestone 1**: Core TUI scaffolding, Crossterm/Ratatui event loop, async Tokio architecture.
+- [x] **Milestone 2**: Cloudflare v4 typed HTTP client, token authentication, and profile persistence.
+- [x] **Milestone 3**: Offline SQLite caching layer, zone browser, and DNS management with proxy toggling.
+- [x] **Milestone 4**: Interactive DNS editing, record creation, deletion safety guards, and BIND zone exports.
+- [x] **Milestone 5**: Zone Inspector modal (SSL setting toggle, Dev mode, Security level, Edge cache purge).
+- [x] **Milestone 6**: Workers script explorer, metadata inspection, and D1/KV/R2/Queue bindings resolution.
+- [x] **Milestone 7**: Realtime Worker live tail session dispatcher over WebSockets with in-memory filtering & follow mode.
+- [x] **Milestone 8**: Pages projects overview, deployment history, build log viewer, and rollback dispatcher.
+- [ ] **Milestone 9**: Storage Browser (Interactive D1 SQL query runner and KV namespace key-value explorer).
+- [ ] **Milestone 10**: WAF & Security analytics dashboard, multi-account fuzzy command palette (`Ctrl+P`).
+
+---
+
+## Contributing
+
+Contributions, issues, and feature requests are welcome!
+Feel free to open an issue or submit a pull request on [GitHub](https://github.com/KidusAlemayehu/flareTUI).
+
+```bash
+# Run test suite
+cargo test
+
+# Check formatting and clippy lints
+cargo fmt --check
+cargo clippy -- -D warnings
+```
+
+---
+
+## License
+
+Dual-licensed under either:
+- **MIT License** ([LICENSE-MIT](LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
+- **Apache License, Version 2.0** ([LICENSE-APACHE](LICENSE-APACHE) or [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
+
+at your option.
