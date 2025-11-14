@@ -212,6 +212,53 @@ pub struct PagesDomainSsl {
     pub status: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct D1DatabaseResult {
+    pub uuid: String,
+    pub name: String,
+    pub version: Option<String>,
+    pub created_at: Option<String>,
+    pub num_tables: Option<usize>,
+    pub file_size: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct D1QueryRequest {
+    pub sql: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub params: Option<Vec<serde_json::Value>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct D1QueryResult {
+    pub results: Option<Vec<serde_json::Value>>,
+    pub success: Option<bool>,
+    pub meta: Option<D1QueryMeta>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct D1QueryMeta {
+    pub duration: Option<f64>,
+    pub rows_read: Option<u64>,
+    pub rows_written: Option<u64>,
+    pub changes: Option<u64>,
+    pub last_row_id: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct KvNamespaceResult {
+    pub id: String,
+    pub title: String,
+    pub supports_url_encoding: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct KvKeyResult {
+    pub name: String,
+    pub expiration: Option<u64>,
+    pub metadata: Option<serde_json::Value>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct TailSessionResult {
     pub id: String,
@@ -543,6 +590,66 @@ impl CloudflareClient {
             color_eyre::eyre::bail!("{msg}")
         }
     }
+
+    pub async fn get_d1_databases(&self, account_id: &str) -> Result<Vec<D1DatabaseResult>> {
+        let url = format!("{}/accounts/{account_id}/d1/database", self.base_url);
+        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<D1DatabaseResult>>>().await?;
+        if !resp.success {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch D1 databases".to_string());
+            color_eyre::eyre::bail!("{msg}");
+        }
+        Ok(resp.result.unwrap_or_default())
+    }
+
+    pub async fn execute_d1_query(&self, account_id: &str, database_id: &str, sql: &str) -> Result<Vec<D1QueryResult>> {
+        let url = format!("{}/accounts/{account_id}/d1/database/{database_id}/query", self.base_url);
+        let body = D1QueryRequest {
+            sql: sql.to_string(),
+            params: None,
+        };
+        let resp = self.client.post(&url).json(&body).send().await?.json::<ApiResponse<Vec<D1QueryResult>>>().await?;
+        if !resp.success {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to execute D1 query".to_string());
+            color_eyre::eyre::bail!("{msg}");
+        }
+        Ok(resp.result.unwrap_or_default())
+    }
+
+    pub async fn get_kv_namespaces(&self, account_id: &str) -> Result<Vec<KvNamespaceResult>> {
+        let url = format!("{}/accounts/{account_id}/storage/kv/namespaces?per_page=100", self.base_url);
+        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<KvNamespaceResult>>>().await?;
+        if !resp.success {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch KV namespaces".to_string());
+            color_eyre::eyre::bail!("{msg}");
+        }
+        Ok(resp.result.unwrap_or_default())
+    }
+
+    pub async fn get_kv_keys(&self, account_id: &str, namespace_id: &str, limit: Option<usize>, prefix: Option<&str>) -> Result<Vec<KvKeyResult>> {
+        let mut url = format!("{}/accounts/{account_id}/storage/kv/namespaces/{namespace_id}/keys?limit={}", self.base_url, limit.unwrap_or(100));
+        if let Some(p) = prefix {
+            if !p.is_empty() {
+                url.push_str(&format!("&prefix={p}"));
+            }
+        }
+        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<KvKeyResult>>>().await?;
+        if !resp.success {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch KV keys".to_string());
+            color_eyre::eyre::bail!("{msg}");
+        }
+        Ok(resp.result.unwrap_or_default())
+    }
+
+    pub async fn get_kv_value(&self, account_id: &str, namespace_id: &str, key_name: &str) -> Result<String> {
+        let url = format!("{}/accounts/{account_id}/storage/kv/namespaces/{namespace_id}/values/{key_name}", self.base_url);
+        let resp = self.client.get(&url).send().await?;
+        if resp.status().is_success() {
+            let text = resp.text().await?;
+            Ok(text)
+        } else {
+            color_eyre::eyre::bail!("Failed to fetch KV value: HTTP {}", resp.status());
+        }
+    }
 }
 
 #[cfg(test)]
@@ -609,5 +716,75 @@ mod tests {
         assert_eq!(record.zone_id, None);
         assert!(!record.proxied);
         assert_eq!(record.ttl, 1);
+    }
+
+    #[test]
+    fn test_d1_database_deserialization() {
+        let json = r#"{
+            "uuid": "76632ad7-a168-49f6-b81a-90306079a5fe",
+            "name": "prod-users-db",
+            "version": "production",
+            "created_at": "2025-10-01T08:00:00Z",
+            "num_tables": 6,
+            "file_size": 1048576
+        }"#;
+
+        let db: D1DatabaseResult = serde_json::from_str(json).expect("deserialize d1 db");
+        assert_eq!(db.uuid, "76632ad7-a168-49f6-b81a-90306079a5fe");
+        assert_eq!(db.name, "prod-users-db");
+        assert_eq!(db.num_tables, Some(6));
+        assert_eq!(db.file_size, Some(1048576));
+    }
+
+    #[test]
+    fn test_d1_query_result_deserialization() {
+        let json = r#"{
+            "results": [
+                {"id": 1, "username": "alice", "active": 1},
+                {"id": 2, "username": "bob", "active": 0}
+            ],
+            "success": true,
+            "meta": {
+                "duration": 0.0154,
+                "rows_read": 2,
+                "rows_written": 0,
+                "changes": 0,
+                "last_row_id": 0
+            }
+        }"#;
+
+        let query_res: D1QueryResult = serde_json::from_str(json).expect("deserialize d1 query");
+        assert_eq!(query_res.success, Some(true));
+        let results = query_res.results.expect("results");
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0]["username"], "alice");
+        let meta = query_res.meta.expect("meta");
+        assert_eq!(meta.rows_read, Some(2));
+        assert!(meta.duration.unwrap() > 0.0);
+    }
+
+    #[test]
+    fn test_kv_namespace_and_keys_deserialization() {
+        let ns_json = r#"{
+            "id": "0f2b23456789abcdef0123456789abcd",
+            "title": "SESSION_CACHE",
+            "supports_url_encoding": true
+        }"#;
+
+        let ns: KvNamespaceResult = serde_json::from_str(ns_json).expect("deserialize kv ns");
+        assert_eq!(ns.id, "0f2b23456789abcdef0123456789abcd");
+        assert_eq!(ns.title, "SESSION_CACHE");
+        assert_eq!(ns.supports_url_encoding, Some(true));
+
+        let key_json = r#"{
+            "name": "sess_user_9918",
+            "expiration": 1799999999,
+            "metadata": {"role": "admin"}
+        }"#;
+
+        let key: KvKeyResult = serde_json::from_str(key_json).expect("deserialize kv key");
+        assert_eq!(key.name, "sess_user_9918");
+        assert_eq!(key.expiration, Some(1799999999));
+        assert_eq!(key.metadata.unwrap()["role"], "admin");
     }
 }
