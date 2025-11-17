@@ -55,4 +55,27 @@ CREATE TABLE IF NOT EXISTS worker_bindings (
     details TEXT NOT NULL,
     PRIMARY KEY (script_name, name)
 );
+
+CREATE TABLE IF NOT EXISTS d1_databases (
+    uuid TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    version TEXT,
+    num_tables INTEGER NOT NULL DEFAULT 0,
+    file_size INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS d1_tables_cache (
+    database_id TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    schema_sql TEXT NOT NULL DEFAULT '',
+    row_count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (database_id, table_name)
+);
+
+CREATE TABLE IF NOT EXISTS kv_namespaces (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    supports_url_encoding INTEGER NOT NULL DEFAULT 0
+);
 "#;

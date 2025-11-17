@@ -259,10 +259,19 @@ impl App {
                                 let msg = if let Some(w) = &rep.warning {
                                     format!("Synced {} zones, {} records. ⚠️ {}", rep.zones_count, rep.records_count, w)
                                 } else {
-                                    format!(
-                                        "Synced {} zones, {} records, {} workers, {} pages",
-                                        rep.zones_count, rep.records_count, rep.workers_count, rep.pages_count
-                                    )
+                                    let mut details = vec![
+                                        format!("{} zones", rep.zones_count),
+                                        format!("{} records", rep.records_count),
+                                        format!("{} workers", rep.workers_count),
+                                        format!("{} pages", rep.pages_count),
+                                    ];
+                                    if rep.d1_count > 0 {
+                                        details.push(format!("{} D1 DBs", rep.d1_count));
+                                    }
+                                    if rep.kv_count > 0 {
+                                        details.push(format!("{} KV namespaces", rep.kv_count));
+                                    }
+                                    format!("Synced {}", details.join(", "))
                                 };
                                 let _ = tx.send(Action::SyncCompleted(msg));
                             }

@@ -7,6 +7,8 @@ pub struct SyncReport {
     pub records_count: usize,
     pub workers_count: usize,
     pub pages_count: usize,
+    pub d1_count: usize,
+    pub kv_count: usize,
     pub warning: Option<String>,
 }
 
@@ -19,6 +21,8 @@ impl CloudflareSync {
             records_count: 0,
             workers_count: 0,
             pages_count: 0,
+            d1_count: 0,
+            kv_count: 0,
             warning: None,
         };
 
@@ -149,6 +153,37 @@ impl CloudflareSync {
                         };
                         db.upsert_page(&project)?;
                     }
+                }
+
+                // D1 Databases
+                if let Ok(cf_d1) = client.get_d1_databases(&account.id).await {
+                    report.d1_count = cf_d1.len();
+                    let dbs: Vec<crate::db::CachedD1Database> = cf_d1
+                        .into_iter()
+                        .map(|d| crate::db::CachedD1Database {
+                            uuid: d.uuid,
+                            name: d.name,
+                            version: d.version.unwrap_or_else(|| "production".to_string()),
+                            num_tables: d.num_tables.unwrap_or(0),
+                            file_size: d.file_size.unwrap_or(0),
+                            created_at: d.created_at.unwrap_or_else(|| "Active".to_string()),
+                        })
+                        .collect();
+                    let _ = db.replace_d1_databases(&dbs);
+                }
+
+                // KV Namespaces
+                if let Ok(cf_kv) = client.get_kv_namespaces(&account.id).await {
+                    report.kv_count = cf_kv.len();
+                    let nss: Vec<crate::db::CachedKvNamespace> = cf_kv
+                        .into_iter()
+                        .map(|k| crate::db::CachedKvNamespace {
+                            id: k.id,
+                            title: k.title,
+                            supports_url_encoding: k.supports_url_encoding.unwrap_or(false),
+                        })
+                        .collect();
+                    let _ = db.replace_kv_namespaces(&nss);
                 }
             }
         }
