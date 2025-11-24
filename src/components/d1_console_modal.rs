@@ -49,11 +49,15 @@ pub struct D1ConsoleModal {
     pub selected_table_idx: usize,
     pub focus_pane: D1FocusPane,
     pub query_input: String,
+    pub query_draft: String,
     pub cursor_pos: usize,
+    pub history: Vec<String>,
+    pub history_idx: Option<usize>,
     pub query_result: Option<D1QueryResult>,
     pub is_executing: bool,
     pub error_message: Option<String>,
     pub selected_result_row: usize,
+    pub selected_col_idx: usize,
     pub result_scroll_x: usize,
     pub selected_preset_idx: usize,
 }
@@ -73,12 +77,16 @@ impl D1ConsoleModal {
             tables,
             selected_table_idx: 0,
             focus_pane: D1FocusPane::QueryEditor,
-            query_input: initial_query,
+            query_input: initial_query.clone(),
+            query_draft: initial_query,
             cursor_pos: len,
+            history: Vec::new(),
+            history_idx: None,
             query_result: None,
             is_executing: false,
             error_message: None,
             selected_result_row: 0,
+            selected_col_idx: 0,
             result_scroll_x: 0,
             selected_preset_idx: 0,
         }
@@ -86,6 +94,82 @@ impl D1ConsoleModal {
 
     pub fn selected_table(&self) -> Option<&CachedD1Table> {
         self.tables.get(self.selected_table_idx)
+    }
+
+    pub fn record_query_history(&mut self, query: &str) {
+        let trimmed = query.trim();
+        if trimmed.is_empty() {
+            return;
+        }
+        if self.history.last().map(|s| s.as_str()) != Some(trimmed) {
+            self.history.push(trimmed.to_string());
+        }
+        self.history_idx = None;
+    }
+
+    pub fn history_prev(&mut self) {
+        if self.history.is_empty() {
+            return;
+        }
+        if self.history_idx.is_none() {
+            self.query_draft = self.query_input.clone();
+            let last_idx = self.history.len() - 1;
+            self.history_idx = Some(last_idx);
+            self.set_query(&self.history[last_idx].clone());
+        } else if let Some(idx) = self.history_idx {
+            if idx > 0 {
+                let prev_idx = idx - 1;
+                self.history_idx = Some(prev_idx);
+                self.set_query(&self.history[prev_idx].clone());
+            }
+        }
+    }
+
+    pub fn history_next(&mut self) {
+        if let Some(idx) = self.history_idx {
+            if idx + 1 < self.history.len() {
+                let next_idx = idx + 1;
+                self.history_idx = Some(next_idx);
+                self.set_query(&self.history[next_idx].clone());
+            } else {
+                self.history_idx = None;
+                let draft = self.query_draft.clone();
+                self.set_query(&draft);
+            }
+        }
+    }
+
+    pub fn jump_word_left(&mut self) {
+        if self.cursor_pos == 0 {
+            return;
+        }
+        let chars: Vec<char> = self.query_input.chars().collect();
+        let mut idx = self.cursor_pos.min(chars.len());
+        while idx > 0 && chars[idx - 1].is_whitespace() {
+            idx -= 1;
+        }
+        while idx > 0 && !chars[idx - 1].is_whitespace() {
+            idx -= 1;
+        }
+        self.cursor_pos = idx;
+    }
+
+    pub fn jump_word_right(&mut self) {
+        let chars: Vec<char> = self.query_input.chars().collect();
+        let len = chars.len();
+        let mut idx = self.cursor_pos;
+        while idx < len && !chars[idx].is_whitespace() {
+            idx += 1;
+        }
+        while idx < len && chars[idx].is_whitespace() {
+            idx += 1;
+        }
+        self.cursor_pos = idx;
+    }
+
+    pub fn clear_line(&mut self) {
+        self.query_input.clear();
+        self.cursor_pos = 0;
     }
 
     pub fn switch_pane(&mut self) {
@@ -191,7 +275,9 @@ impl D1ConsoleModal {
                     self.selected_result_row -= 1;
                 }
             }
-            D1FocusPane::QueryEditor => {}
+            D1FocusPane::QueryEditor => {
+                self.history_prev();
+            }
         }
     }
 
@@ -211,7 +297,38 @@ impl D1ConsoleModal {
                     }
                 }
             }
-            D1FocusPane::QueryEditor => {}
+            D1FocusPane::QueryEditor => {
+                self.history_next();
+            }
+        }
+    }
+
+    pub fn nav_left(&mut self) {
+        match self.focus_pane {
+            D1FocusPane::QueryEditor => self.cursor_left(),
+            D1FocusPane::ResultsTable => {
+                if self.selected_col_idx > 0 {
+                    self.selected_col_idx -= 1;
+                } else {
+                    self.scroll_results_left();
+                }
+            }
+            D1FocusPane::Sidebar => {}
+        }
+    }
+
+    pub fn nav_right(&mut self) {
+        match self.focus_pane {
+            D1FocusPane::QueryEditor => self.cursor_right(),
+            D1FocusPane::ResultsTable => {
+                let col_count = self.get_columns().len();
+                if col_count > 0 && self.selected_col_idx + 1 < col_count {
+                    self.selected_col_idx += 1;
+                } else {
+                    self.scroll_results_right();
+                }
+            }
+            D1FocusPane::Sidebar => {}
         }
     }
 
@@ -463,13 +580,18 @@ impl D1ConsoleModal {
         let mut metrics_spans = Vec::new();
         if self.is_executing {
             metrics_spans.push(Span::styled(
-                " ⚡ Executing query on Cloudflare D1 edge...",
-                Style::default().fg(theme.warning).add_modifier(Modifier::BOLD),
+                " [ ⚡ EXECUTING ] ",
+                Style::default().bg(theme.warning).fg(Color::Black).add_modifier(Modifier::BOLD),
             ));
+            metrics_spans.push(Span::raw(" Running SQL query against Cloudflare D1 edge replica..."));
         } else if let Some(err) = &self.error_message {
             metrics_spans.push(Span::styled(
-                format!(" ✖ Error: {} ", err),
-                Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
+                " [ ✖ FAILED ] ",
+                Style::default().bg(theme.error).fg(Color::White).add_modifier(Modifier::BOLD),
+            ));
+            metrics_spans.push(Span::styled(
+                format!(" {} ", err),
+                Style::default().fg(theme.error),
             ));
         } else if let Some(res) = &self.query_result {
             if let Some(meta) = &res.meta {
@@ -477,28 +599,38 @@ impl D1ConsoleModal {
                 let read = meta.rows_read.unwrap_or(0);
                 let written = meta.rows_written.unwrap_or(0);
                 metrics_spans.push(Span::styled(
-                    format!(" ⚡ {:.2}ms ", dur),
-                    Style::default().fg(theme.success).add_modifier(Modifier::BOLD),
+                    format!(" [ ✔ OK {:.1}ms ] ", dur),
+                    Style::default().bg(theme.success).fg(Color::Black).add_modifier(Modifier::BOLD),
                 ));
                 metrics_spans.push(Span::raw(format!(
-                    "| Rows Read: {} | Written: {} ",
+                    " Read: {} | Written: {}",
                     read, written
                 )));
+                if let Some(changes) = meta.changes {
+                    if changes > 0 {
+                        metrics_spans.push(Span::raw(format!(" | Changes: {}", changes)));
+                    }
+                }
+                if let Some(last_id) = meta.last_row_id {
+                    metrics_spans.push(Span::raw(format!(" | Last ID: {}", last_id)));
+                }
             } else {
                 metrics_spans.push(Span::styled(
-                    " ✔ Query succeeded ",
-                    Style::default().fg(theme.success),
+                    " [ ✔ OK ] ",
+                    Style::default().bg(theme.success).fg(Color::Black).add_modifier(Modifier::BOLD),
                 ));
+                metrics_spans.push(Span::raw(" Query completed"));
             }
         } else {
             metrics_spans.push(Span::styled(
-                " Ready to execute SQL ",
-                Style::default().fg(theme.text_dim),
+                " [ READY ] ",
+                Style::default().bg(Color::Rgb(60, 60, 80)).fg(Color::White),
             ));
+            metrics_spans.push(Span::raw(" Enter query or select template"));
         }
 
         metrics_spans.push(Span::styled(
-            " | [Tab] Switch Pane  [1-4] Template  [Ctrl+Enter] Run  [Esc] Close ",
+            " | [Tab] Switch Pane  [↑/↓ History]  [1-4] Preset  [Ctrl+Enter] Run  [Esc] Close ",
             Style::default().fg(theme.text_dim),
         ));
 
@@ -519,12 +651,29 @@ impl D1ConsoleModal {
         theme: &Theme,
     ) {
         let columns = self.get_columns();
+        let row_count = self
+            .query_result
+            .as_ref()
+            .and_then(|r| r.results.as_ref())
+            .map(|rows| rows.len())
+            .unwrap_or(0);
+
+        let title_info = if row_count > 0 {
+            format!(
+                " Tabular Results Grid ({} rows, {} cols) [Row {}/{}, Col {}/{}] ",
+                row_count,
+                columns.len(),
+                self.selected_result_row + 1,
+                row_count,
+                self.selected_col_idx + 1,
+                columns.len()
+            )
+        } else {
+            format!(" Tabular Results Grid ({} cols) ", columns.len())
+        };
 
         let table_block = Block::default()
-            .title(format!(
-                " Tabular Results Grid ({} cols) ",
-                columns.len()
-            ))
+            .title(title_info)
             .title_style(if is_focused {
                 theme.title()
             } else {
@@ -583,9 +732,15 @@ impl D1ConsoleModal {
                     let is_selected = is_focused && row_idx == self.selected_result_row;
 
                     if let serde_json::Value::Object(map) = row_val {
-                        for col in &columns {
+                        for (col_idx, col) in columns.iter().enumerate() {
                             let (val_str, style) = Self::format_cell_value(map.get(col));
-                            let cell_style = if is_selected {
+                            let is_cell_focused = is_selected && col_idx == self.selected_col_idx;
+                            let cell_style = if is_cell_focused {
+                                Style::default()
+                                    .bg(Color::Rgb(70, 70, 100))
+                                    .fg(Color::Rgb(255, 220, 100))
+                                    .add_modifier(Modifier::BOLD)
+                            } else if is_selected {
                                 theme.selected_row()
                             } else {
                                 style
@@ -706,4 +861,36 @@ mod tests {
         let (bool_str, _) = D1ConsoleModal::format_cell_value(Some(&serde_json::Value::Bool(true)));
         assert_eq!(bool_str, "true");
     }
+
+    #[test]
+    fn test_d1_console_history_and_navigation() {
+        let mut modal = D1ConsoleModal::new("db-123".to_string(), "prod_db".to_string(), vec![]);
+        modal.record_query_history("SELECT 1;");
+        modal.record_query_history("SELECT 2;");
+        modal.record_query_history("SELECT 3;");
+
+        modal.set_query("SELECT current_draft;");
+        modal.history_prev();
+        assert_eq!(modal.query_input, "SELECT 3;");
+        modal.history_prev();
+        assert_eq!(modal.query_input, "SELECT 2;");
+        modal.history_next();
+        assert_eq!(modal.query_input, "SELECT 3;");
+        modal.history_next();
+        assert_eq!(modal.query_input, "SELECT current_draft;");
+
+        // Word jumping
+        modal.set_query("SELECT id FROM users;");
+        modal.cursor_home();
+        assert_eq!(modal.cursor_pos, 0);
+        modal.jump_word_right();
+        assert_eq!(modal.cursor_pos, 7); // after "SELECT "
+        modal.jump_word_left();
+        assert_eq!(modal.cursor_pos, 0);
+
+        modal.clear_line();
+        assert_eq!(modal.query_input, "");
+        assert_eq!(modal.cursor_pos, 0);
+    }
 }
+
