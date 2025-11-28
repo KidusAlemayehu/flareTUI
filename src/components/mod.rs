@@ -12,3 +12,4 @@ pub mod zone_inspector;
 pub mod worker_inspector;
 pub mod tail_log_modal;
 pub mod d1_console_modal;
+pub mod kv_modal;
