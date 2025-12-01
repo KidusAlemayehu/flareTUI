@@ -102,7 +102,7 @@ impl App {
             dns_view: DnsView::new(db.clone()),
             workers_view: WorkersView::new(db.clone()),
             pages_view: PagesView::new(db.clone()),
-            storage_view: StorageView::new(),
+            storage_view: StorageView::new(db.clone()),
             tail_view: TailView::new(),
             show_help: false,
             show_auth_modal: false,
@@ -284,6 +284,7 @@ impl App {
                     self.dns_view.reload_records();
                     self.workers_view.reload();
                     self.pages_view.reload();
+                    self.storage_view.reload();
                     self.status_bar.set_status("Cache data reloaded from SQLite");
                 }
             }
@@ -391,6 +392,7 @@ impl App {
                 self.dns_view.reload_records();
                 self.workers_view.reload();
                 self.pages_view.reload();
+                self.storage_view.reload();
                 self.status_bar.set_status(msg);
             }
             Action::TailLog(entry) => {
