@@ -73,8 +73,11 @@ async fn main() -> Result<()> {
                         let pages_deployments_active = app.is_pages_deployments_active();
                         let rollback_modal_active = app.is_rollback_modal_active();
                         let pages_logs_active = app.is_pages_logs_active();
+                        let d1_console_active = app.is_d1_console_active();
+                        let kv_modal_active = app.is_kv_modal_active();
                         let active_tab = app.header.active_tab;
                         let is_zone_pane_focused = app.is_zone_pane_focused();
+                        let is_storage_kv_focused = app.is_storage_kv_focused();
                         if let Some(action) = EventHandler::map_key_to_action(
                             key,
                             search_active,
@@ -87,8 +90,11 @@ async fn main() -> Result<()> {
                             pages_deployments_active,
                             rollback_modal_active,
                             pages_logs_active,
+                            d1_console_active,
+                            kv_modal_active,
                             active_tab,
                             is_zone_pane_focused,
+                            is_storage_kv_focused,
                         ) {
                             app.update(action)?;
                         }

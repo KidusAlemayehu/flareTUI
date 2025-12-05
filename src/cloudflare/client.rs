@@ -229,14 +229,14 @@ pub struct D1QueryRequest {
     pub params: Option<Vec<serde_json::Value>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct D1QueryResult {
     pub results: Option<Vec<serde_json::Value>>,
     pub success: Option<bool>,
     pub meta: Option<D1QueryMeta>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct D1QueryMeta {
     pub duration: Option<f64>,
     pub rows_read: Option<u64>,

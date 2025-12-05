@@ -71,9 +71,62 @@ impl EventHandler {
         pages_deployments_active: bool,
         rollback_modal_active: bool,
         pages_logs_active: bool,
+        d1_console_active: bool,
+        kv_modal_active: bool,
         active_tab: usize,
         is_zone_pane_focused: bool,
+        is_storage_kv_focused: bool,
     ) -> Option<Action> {
+        if d1_console_active {
+            return match (key.modifiers, key.code) {
+                (_, KeyCode::Esc) => Some(Action::CloseD1Console),
+                (_, KeyCode::Tab) => Some(Action::D1ConsoleSwitchPane),
+                (KeyModifiers::CONTROL, KeyCode::Enter) => Some(Action::D1ConsoleExecuteQuery),
+                (KeyModifiers::CONTROL, KeyCode::Char('u')) | (KeyModifiers::CONTROL, KeyCode::Char('k')) => {
+                    Some(Action::D1ConsoleClearQuery)
+                }
+                (KeyModifiers::CONTROL, KeyCode::Char('1')) | (KeyModifiers::ALT, KeyCode::Char('1')) => {
+                    Some(Action::D1ConsoleApplyPreset(0))
+                }
+                (KeyModifiers::CONTROL, KeyCode::Char('2')) | (KeyModifiers::ALT, KeyCode::Char('2')) => {
+                    Some(Action::D1ConsoleApplyPreset(1))
+                }
+                (KeyModifiers::CONTROL, KeyCode::Char('3')) | (KeyModifiers::ALT, KeyCode::Char('3')) => {
+                    Some(Action::D1ConsoleApplyPreset(2))
+                }
+                (KeyModifiers::CONTROL, KeyCode::Char('4')) | (KeyModifiers::ALT, KeyCode::Char('4')) => {
+                    Some(Action::D1ConsoleApplyPreset(3))
+                }
+                (_, KeyCode::Up) => Some(Action::D1ConsoleNavUp),
+                (_, KeyCode::Down) => Some(Action::D1ConsoleNavDown),
+                (_, KeyCode::Left) => Some(Action::D1ConsoleNavLeft),
+                (_, KeyCode::Right) => Some(Action::D1ConsoleNavRight),
+                (_, KeyCode::Backspace) => Some(Action::D1ConsoleInputBackspace),
+                (_, KeyCode::Delete) => Some(Action::D1ConsoleInputDelete),
+                (_, KeyCode::Enter) => Some(Action::D1ConsoleExecuteQuery),
+                (KeyModifiers::NONE, KeyCode::Char(c)) | (KeyModifiers::SHIFT, KeyCode::Char(c)) => {
+                    Some(Action::D1ConsoleInputChar(c))
+                }
+                _ => None,
+            };
+        }
+
+        if kv_modal_active {
+            return match (key.modifiers, key.code) {
+                (_, KeyCode::Esc) => Some(Action::CloseKvModal),
+                (_, KeyCode::Tab) => Some(Action::KvModalSwitchPane),
+                (KeyModifiers::CONTROL, KeyCode::Char('u')) => Some(Action::KvModalClearFilter),
+                (_, KeyCode::Up) => Some(Action::KvModalNavUp),
+                (_, KeyCode::Down) => Some(Action::KvModalNavDown),
+                (_, KeyCode::Backspace) => Some(Action::KvModalInputBackspace),
+                (_, KeyCode::Enter) | (KeyModifiers::NONE, KeyCode::Char(' ')) => Some(Action::KvModalFetchValue),
+                (KeyModifiers::NONE, KeyCode::Char(c)) | (KeyModifiers::SHIFT, KeyCode::Char(c)) => {
+                    Some(Action::KvModalInputChar(c))
+                }
+                _ => None,
+            };
+        }
+
         if tail_log_details_active {
             return match key.code {
                 KeyCode::Esc | KeyCode::Enter => Some(Action::CloseTailLogDetails),
@@ -215,7 +268,21 @@ impl EventHandler {
             (KeyModifiers::NONE, KeyCode::Enter) if is_zone_pane_focused => Some(Action::OpenZoneInspector),
             (KeyModifiers::NONE, KeyCode::Enter) if active_tab == 1 => Some(Action::AttachWorkerTail(String::new())),
             (KeyModifiers::NONE, KeyCode::Enter) if active_tab == 2 => Some(Action::OpenPagesDeployments),
+            (KeyModifiers::NONE, KeyCode::Enter) if active_tab == 3 => {
+                if is_storage_kv_focused {
+                    Some(Action::OpenKvModal)
+                } else {
+                    Some(Action::OpenD1Console)
+                }
+            }
             (KeyModifiers::NONE, KeyCode::Enter) if active_tab == 4 => Some(Action::OpenTailLogDetails),
+            (KeyModifiers::NONE, KeyCode::Char('i')) if active_tab == 3 => {
+                if is_storage_kv_focused {
+                    Some(Action::OpenKvModal)
+                } else {
+                    Some(Action::OpenD1Console)
+                }
+            }
             (KeyModifiers::NONE, KeyCode::Char('d')) if active_tab == 2 => Some(Action::OpenPagesDeployments),
             (KeyModifiers::NONE, KeyCode::Char('n')) => Some(Action::OpenCreateDnsModal),
             (KeyModifiers::NONE, KeyCode::Char('e')) => Some(Action::OpenEditDnsModal),
@@ -225,3 +292,61 @@ impl EventHandler {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_d1_console_event_mapping() {
+        let enter_key = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        let action = EventHandler::map_key_to_action(
+            enter_key, false, false, false, false, false, false, false, false, false, false,
+            true,  // d1_console_active
+            false, // kv_modal_active
+            3, false, false,
+        );
+        assert_eq!(action, Some(Action::D1ConsoleExecuteQuery));
+
+        let tab_key = KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE);
+        let action = EventHandler::map_key_to_action(
+            tab_key, false, false, false, false, false, false, false, false, false, false,
+            true, false, 3, false, false,
+        );
+        assert_eq!(action, Some(Action::D1ConsoleSwitchPane));
+
+        let esc_key = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+        let action = EventHandler::map_key_to_action(
+            esc_key, false, false, false, false, false, false, false, false, false, false,
+            true, false, 3, false, false,
+        );
+        assert_eq!(action, Some(Action::CloseD1Console));
+    }
+
+    #[test]
+    fn test_kv_modal_and_storage_view_event_mapping() {
+        let enter_key = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+
+        // Tab 3 with D1 focused
+        let action = EventHandler::map_key_to_action(
+            enter_key, false, false, false, false, false, false, false, false, false, false,
+            false, false, 3, false, false,
+        );
+        assert_eq!(action, Some(Action::OpenD1Console));
+
+        // Tab 3 with KV focused
+        let action = EventHandler::map_key_to_action(
+            enter_key, false, false, false, false, false, false, false, false, false, false,
+            false, false, 3, false, true,
+        );
+        assert_eq!(action, Some(Action::OpenKvModal));
+
+        // Inside KV modal
+        let action = EventHandler::map_key_to_action(
+            enter_key, false, false, false, false, false, false, false, false, false, false,
+            false, true, 3, false, true,
+        );
+        assert_eq!(action, Some(Action::KvModalFetchValue));
+    }
+}
+

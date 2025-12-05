@@ -33,6 +33,8 @@ use crate::components::{
     worker_inspector::WorkerInspectorModal,
     tail_log_modal::TailLogModal,
     zone_inspector::ZoneInspectorModal,
+    d1_console_modal::D1ConsoleModal,
+    kv_modal::KvModal,
 };
 use crate::db::{CacheDb, DnsRecord};
 use crate::theme::Theme;
@@ -50,6 +52,8 @@ pub struct App {
     pub pages_deployments: Option<PagesDeploymentsModal>,
     pub pages_rollback_modal: Option<ConfirmRollbackModal>,
     pub pages_logs_modal: Option<PagesLogsModal>,
+    pub d1_console_modal: Option<D1ConsoleModal>,
+    pub kv_modal: Option<KvModal>,
     pub dns_view: DnsView,
     pub workers_view: WorkersView,
     pub pages_view: PagesView,
@@ -99,6 +103,8 @@ impl App {
             pages_deployments: None,
             pages_rollback_modal: None,
             pages_logs_modal: None,
+            d1_console_modal: None,
+            kv_modal: None,
             dns_view: DnsView::new(db.clone()),
             workers_view: WorkersView::new(db.clone()),
             pages_view: PagesView::new(db.clone()),
@@ -156,6 +162,18 @@ impl App {
 
     pub fn is_pages_logs_active(&self) -> bool {
         self.pages_logs_modal.is_some()
+    }
+
+    pub fn is_d1_console_active(&self) -> bool {
+        self.d1_console_modal.is_some()
+    }
+
+    pub fn is_kv_modal_active(&self) -> bool {
+        self.kv_modal.is_some()
+    }
+
+    pub fn is_storage_kv_focused(&self) -> bool {
+        self.storage_view.is_kv_focused
     }
 
     pub fn is_zone_pane_focused(&self) -> bool {
@@ -691,6 +709,331 @@ impl App {
                     inspector.bindings = bindings;
                     inspector.is_loading = false;
                     inspector.action_feedback = Some("Live metadata & bindings loaded from Cloudflare".to_string());
+                }
+            }
+
+            // D1 SQL Console Actions
+            Action::OpenD1Console => {
+                if let Some(db) = self.storage_view.selected_d1().cloned() {
+                    let tables = self.db.get_d1_tables(&db.uuid).unwrap_or_default();
+                    let console = D1ConsoleModal::new(db.uuid.clone(), db.name.clone(), tables);
+
+                    if let Some(client) = &self.cf_client {
+                        let client = client.clone();
+                        let db_id = db.uuid.clone();
+                        let cache_db = self.db.clone();
+
+                        tokio::spawn(async move {
+                            if let Ok(accounts) = client.get_accounts().await {
+                                if let Some(acc) = accounts.first() {
+                                    let schema_query = "SELECT name, type, sql FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name;";
+                                    if let Ok(results) = client.execute_d1_query(&acc.id, &db_id, schema_query).await {
+                                        if let Some(first_res) = results.into_iter().next() {
+                                            if let Some(rows) = &first_res.results {
+                                                let mut fetched_tables = Vec::new();
+                                                for r in rows {
+                                                    if let serde_json::Value::Object(map) = r {
+                                                        if let Some(serde_json::Value::String(name)) = map.get("name") {
+                                                            let sql = map.get("sql").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                            fetched_tables.push(crate::db::CachedD1Table {
+                                                                database_id: db_id.clone(),
+                                                                table_name: name.clone(),
+                                                                schema_sql: sql,
+                                                                row_count: 0,
+                                                            });
+                                                        }
+                                                    }
+                                                }
+                                                if !fetched_tables.is_empty() {
+                                                    let _ = cache_db.replace_d1_tables(&db_id, &fetched_tables);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+
+                    self.d1_console_modal = Some(console);
+                } else {
+                    self.status_bar.set_status("No D1 database selected to open console");
+                }
+            }
+            Action::CloseD1Console => {
+                self.d1_console_modal = None;
+            }
+            Action::D1ConsoleSwitchPane => {
+                if let Some(m) = &mut self.d1_console_modal {
+                    m.switch_pane();
+                }
+            }
+            Action::D1ConsoleNavUp => {
+                if let Some(m) = &mut self.d1_console_modal {
+                    m.nav_up();
+                }
+            }
+            Action::D1ConsoleNavDown => {
+                if let Some(m) = &mut self.d1_console_modal {
+                    m.nav_down();
+                }
+            }
+            Action::D1ConsoleNavLeft => {
+                if let Some(m) = &mut self.d1_console_modal {
+                    m.nav_left();
+                }
+            }
+            Action::D1ConsoleNavRight => {
+                if let Some(m) = &mut self.d1_console_modal {
+                    m.nav_right();
+                }
+            }
+            Action::D1ConsoleInputChar(c) => {
+                if let Some(m) = &mut self.d1_console_modal {
+                    m.input_char(c);
+                }
+            }
+            Action::D1ConsoleInputBackspace => {
+                if let Some(m) = &mut self.d1_console_modal {
+                    m.input_backspace();
+                }
+            }
+            Action::D1ConsoleInputDelete => {
+                if let Some(m) = &mut self.d1_console_modal {
+                    m.input_delete();
+                }
+            }
+            Action::D1ConsoleClearQuery => {
+                if let Some(m) = &mut self.d1_console_modal {
+                    m.clear_query();
+                }
+            }
+            Action::D1ConsoleApplyPreset(idx) => {
+                if let Some(m) = &mut self.d1_console_modal {
+                    m.apply_preset(idx);
+                }
+            }
+            Action::D1ConsoleExecuteQuery => {
+                if let Some(m) = &mut self.d1_console_modal {
+                    let query = m.query_input.clone();
+                    m.record_query_history(&query);
+                    m.is_executing = true;
+                    m.error_message = None;
+
+                    if let Some(client) = &self.cf_client {
+                        let client = client.clone();
+                        let tx = self.action_tx.clone();
+                        let db_id = m.database_id.clone();
+                        let query_str = query.clone();
+
+                        tokio::spawn(async move {
+                            match client.get_accounts().await {
+                                Ok(accounts) => {
+                                    if let Some(acc) = accounts.first() {
+                                        match client.execute_d1_query(&acc.id, &db_id, &query_str).await {
+                                            Ok(results) => {
+                                                if let Some(first_res) = results.into_iter().next() {
+                                                    let _ = tx.send(Action::D1QueryResultLoaded(first_res));
+                                                } else {
+                                                    let _ = tx.send(Action::D1QueryResultLoaded(crate::cloudflare::client::D1QueryResult::default()));
+                                                }
+                                            }
+                                            Err(e) => {
+                                                let _ = tx.send(Action::D1QueryExecutionFailed(e.to_string()));
+                                            }
+                                        }
+                                    } else {
+                                        let _ = tx.send(Action::D1QueryExecutionFailed("No account associated with token".to_string()));
+                                    }
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(Action::D1QueryExecutionFailed(e.to_string()));
+                                }
+                            }
+                        });
+                    } else {
+                        // Offline simulation mode
+                        let sim_result = crate::cloudflare::client::D1QueryResult {
+                            results: Some(vec![
+                                serde_json::json!({
+                                    "status": "offline_mode",
+                                    "database": m.database_name.clone(),
+                                    "query_executed": query,
+                                    "note": "Connect Cloudflare API token with 'a' for live edge query execution"
+                                }),
+                            ]),
+                            success: Some(true),
+                            meta: Some(crate::cloudflare::client::D1QueryMeta {
+                                duration: Some(0.35),
+                                rows_read: Some(1),
+                                rows_written: Some(0),
+                                changes: Some(0),
+                                last_row_id: None,
+                            }),
+                        };
+                        let _ = self.action_tx.send(Action::D1QueryResultLoaded(sim_result));
+                    }
+                }
+            }
+            Action::D1QueryResultLoaded(results) => {
+                if let Some(m) = &mut self.d1_console_modal {
+                    m.set_result(results);
+                }
+            }
+            Action::D1QueryExecutionFailed(err) => {
+                if let Some(m) = &mut self.d1_console_modal {
+                    m.set_error(err);
+                }
+            }
+
+            // KV Inspector Actions
+            Action::OpenKvModal => {
+                if let Some(kv) = self.storage_view.selected_kv().cloned() {
+                    let mut modal = KvModal::new(kv.id.clone(), kv.title.clone(), Vec::new());
+                    modal.is_loading = true;
+
+                    if let Some(client) = &self.cf_client {
+                        let client = client.clone();
+                        let tx = self.action_tx.clone();
+                        let ns_id = kv.id.clone();
+
+                        tokio::spawn(async move {
+                            if let Ok(accounts) = client.get_accounts().await {
+                                if let Some(acc) = accounts.first() {
+                                    match client.get_kv_keys(&acc.id, &ns_id, None, None).await {
+                                        Ok(keys) => {
+                                            let _ = tx.send(Action::KvModalValueLoaded(format!("__KEYS_LOADED__:{}", serde_json::to_string(&keys).unwrap_or_default())));
+                                        }
+                                        Err(e) => {
+                                            let _ = tx.send(Action::KvModalValueFailed(e.to_string()));
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    } else {
+                        // Offline simulation keys
+                        let sample_keys = vec![
+                            crate::cloudflare::client::KvKeyResult {
+                                name: "app:config".to_string(),
+                                expiration: None,
+                                metadata: None,
+                            },
+                            crate::cloudflare::client::KvKeyResult {
+                                name: "session:usr_99182".to_string(),
+                                expiration: Some(1735689600),
+                                metadata: None,
+                            },
+                            crate::cloudflare::client::KvKeyResult {
+                                name: "ratelimit:ip_192_168_1_1".to_string(),
+                                expiration: Some(1735693200),
+                                metadata: None,
+                            },
+                        ];
+                        modal.set_keys(sample_keys);
+                        modal.is_loading = false;
+                    }
+
+                    self.kv_modal = Some(modal);
+                } else {
+                    self.status_bar.set_status("No KV namespace selected to inspect");
+                }
+            }
+            Action::CloseKvModal => {
+                self.kv_modal = None;
+            }
+            Action::KvModalSwitchPane => {
+                if let Some(m) = &mut self.kv_modal {
+                    m.switch_pane();
+                }
+            }
+            Action::KvModalNavUp => {
+                if let Some(m) = &mut self.kv_modal {
+                    m.nav_up();
+                }
+            }
+            Action::KvModalNavDown => {
+                if let Some(m) = &mut self.kv_modal {
+                    m.nav_down();
+                }
+            }
+            Action::KvModalInputChar(c) => {
+                if let Some(m) = &mut self.kv_modal {
+                    m.filter_input_char(c);
+                }
+            }
+            Action::KvModalInputBackspace => {
+                if let Some(m) = &mut self.kv_modal {
+                    m.filter_input_backspace();
+                }
+            }
+            Action::KvModalClearFilter => {
+                if let Some(m) = &mut self.kv_modal {
+                    m.clear_filter();
+                }
+            }
+            Action::KvModalFetchValue => {
+                if let Some(m) = &mut self.kv_modal {
+                    if let Some(key) = m.selected_key() {
+                        let key_name = key.name.clone();
+                        let ns_id = m.namespace_id.clone();
+                        m.is_loading = true;
+                        m.error_message = None;
+
+                        if let Some(client) = &self.cf_client {
+                            let client = client.clone();
+                            let tx = self.action_tx.clone();
+
+                            tokio::spawn(async move {
+                                if let Ok(accounts) = client.get_accounts().await {
+                                    if let Some(acc) = accounts.first() {
+                                        match client.get_kv_value(&acc.id, &ns_id, &key_name).await {
+                                            Ok(val) => {
+                                                let _ = tx.send(Action::KvModalValueLoaded(val));
+                                            }
+                                            Err(e) => {
+                                                let _ = tx.send(Action::KvModalValueFailed(e.to_string()));
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                        } else {
+                            // Offline sample formatted JSON
+                            let sample_json = serde_json::json!({
+                                "key": key_name,
+                                "environment": "production",
+                                "features": {
+                                    "d1_edge_cache": true,
+                                    "streaming_ssr": true,
+                                    "max_concurrency": 250
+                                },
+                                "metadata": {
+                                    "source": "offline_simulated",
+                                    "version": "1.0.4"
+                                }
+                            });
+                            let formatted = serde_json::to_string_pretty(&sample_json).unwrap_or_default();
+                            m.set_value(formatted);
+                        }
+                    }
+                }
+            }
+            Action::KvModalValueLoaded(val) => {
+                if let Some(m) = &mut self.kv_modal {
+                    if let Some(stripped) = val.strip_prefix("__KEYS_LOADED__:") {
+                        if let Ok(keys) = serde_json::from_str::<Vec<crate::cloudflare::client::KvKeyResult>>(stripped) {
+                            m.set_keys(keys);
+                            m.is_loading = false;
+                        }
+                    } else {
+                        m.set_value(val);
+                    }
+                }
+            }
+            Action::KvModalValueFailed(err) => {
+                if let Some(m) = &mut self.kv_modal {
+                    m.set_error(err);
                 }
             }
             Action::InputChar(c) => {
@@ -1398,6 +1741,10 @@ impl App {
             dns_modal.render(f, area, &self.theme);
         } else if let Some(del_modal) = &self.delete_modal {
             del_modal.render(f, area, &self.theme);
+        } else if let Some(d1_console) = &self.d1_console_modal {
+            d1_console.render(f, area, &self.theme);
+        } else if let Some(kv_modal) = &self.kv_modal {
+            kv_modal.render(f, area, &self.theme);
         }
     }
 }
