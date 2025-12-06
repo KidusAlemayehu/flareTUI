@@ -76,7 +76,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and adher
 
 ### Fixed
 
-- SQL tabular results clipping and invisible cursor when navigating large result sets
+- SQL tabular results clipping and invisible cursor when navigating large result sets - ([09bef43](https://github.com/KidusAlemayehu/flareTUI/commit/09bef43))
   - Implemented dynamic viewport windowing in D1 SQL console table to display all records beyond 18 rows
   - Added vertical scrolling (`result_scroll_y`) and horizontal column windowing (`result_scroll_x`) with active cursor auto-following
   - Added paging keys (`PageUp`/`PageDown`), boundary navigation (`Home`/`End`), and vim motions (`j`/`k`/`h`/`l`/`g`/`G`) in result grid and sidebar
