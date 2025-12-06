@@ -177,7 +177,9 @@ theme = "default"
 | `Tab` | In D1 Console: cycle focus between **Schema Sidebar**, **SQL Editor**, and **Results Grid** |
 | `Ctrl+Enter` / `Enter` | In D1 Console: execute SQL query against Cloudflare D1 edge replica |
 | `1` .. `4` | In D1 Console: quick-apply query template (`Scan`, `Count`, `table_info`, `sqlite_schema`) |
-| `↑` / `↓` | In D1 Console: navigate persistent query history buffer |
+| `↑` / `↓` / `PgUp` / `PgDn` | In D1 Console: navigate query history (editor) or scroll records & tables (results grid/sidebar) |
+| `←` / `→` / `Home` / `End` | In D1 Console: horizontal column scrolling, jump to start/end of result rows or editor line |
+| `j` / `k` / `h` / `l` / `g` / `G` | In D1 Console: vim-style cursor motions in Results Grid and Schema Sidebar |
 | `/` | In KV Inspector: open real-time key/prefix search filter bar |
 | `Enter` / `Space` | In KV Inspector: load and inspect key value with formatted JSON syntax viewer |
 

@@ -74,6 +74,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and adher
   - Added data models: `D1DatabaseResult`, `D1QueryRequest`, `D1QueryResult`, `D1QueryMeta`, `KvNamespaceResult`, `KvKeyResult`
   - Implemented client methods: `get_d1_databases`, `execute_d1_query`, `get_kv_namespaces`, `get_kv_keys`, `get_kv_value`
 
+### Fixed
+
+- SQL tabular results clipping and invisible cursor when navigating large result sets
+  - Implemented dynamic viewport windowing in D1 SQL console table to display all records beyond 18 rows
+  - Added vertical scrolling (`result_scroll_y`) and horizontal column windowing (`result_scroll_x`) with active cursor auto-following
+  - Added paging keys (`PageUp`/`PageDown`), boundary navigation (`Home`/`End`), and vim motions (`j`/`k`/`h`/`l`/`g`/`G`) in result grid and sidebar
+  - Added dynamic viewport range indicator to table header title `(Showing X-Y of Z)` and windowed sidebar schema tables list
+
 ---
 
 ## 0.3.0 (2025-11-09)

@@ -788,6 +788,26 @@ impl App {
                     m.nav_right();
                 }
             }
+            Action::D1ConsolePageUp => {
+                if let Some(m) = &mut self.d1_console_modal {
+                    m.page_up();
+                }
+            }
+            Action::D1ConsolePageDown => {
+                if let Some(m) = &mut self.d1_console_modal {
+                    m.page_down();
+                }
+            }
+            Action::D1ConsoleHome => {
+                if let Some(m) = &mut self.d1_console_modal {
+                    m.nav_home();
+                }
+            }
+            Action::D1ConsoleEnd => {
+                if let Some(m) = &mut self.d1_console_modal {
+                    m.nav_end();
+                }
+            }
             Action::D1ConsoleInputChar(c) => {
                 if let Some(m) = &mut self.d1_console_modal {
                     m.input_char(c);

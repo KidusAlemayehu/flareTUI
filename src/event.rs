@@ -101,6 +101,10 @@ impl EventHandler {
                 (_, KeyCode::Down) => Some(Action::D1ConsoleNavDown),
                 (_, KeyCode::Left) => Some(Action::D1ConsoleNavLeft),
                 (_, KeyCode::Right) => Some(Action::D1ConsoleNavRight),
+                (_, KeyCode::PageUp) => Some(Action::D1ConsolePageUp),
+                (_, KeyCode::PageDown) => Some(Action::D1ConsolePageDown),
+                (_, KeyCode::Home) => Some(Action::D1ConsoleHome),
+                (_, KeyCode::End) => Some(Action::D1ConsoleEnd),
                 (_, KeyCode::Backspace) => Some(Action::D1ConsoleInputBackspace),
                 (_, KeyCode::Delete) => Some(Action::D1ConsoleInputDelete),
                 (_, KeyCode::Enter) => Some(Action::D1ConsoleExecuteQuery),
@@ -321,6 +325,20 @@ mod tests {
             true, false, 3, false, false,
         );
         assert_eq!(action, Some(Action::CloseD1Console));
+
+        let pgdn_key = KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE);
+        let action = EventHandler::map_key_to_action(
+            pgdn_key, false, false, false, false, false, false, false, false, false, false,
+            true, false, 3, false, false,
+        );
+        assert_eq!(action, Some(Action::D1ConsolePageDown));
+
+        let home_key = KeyEvent::new(KeyCode::Home, KeyModifiers::NONE);
+        let action = EventHandler::map_key_to_action(
+            home_key, false, false, false, false, false, false, false, false, false, false,
+            true, false, 3, false, false,
+        );
+        assert_eq!(action, Some(Action::D1ConsoleHome));
     }
 
     #[test]

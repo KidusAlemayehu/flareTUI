@@ -58,7 +58,9 @@ pub struct D1ConsoleModal {
     pub error_message: Option<String>,
     pub selected_result_row: usize,
     pub selected_col_idx: usize,
-    pub result_scroll_x: usize,
+    pub result_scroll_x: std::cell::Cell<usize>,
+    pub result_scroll_y: std::cell::Cell<usize>,
+    pub sidebar_scroll_y: std::cell::Cell<usize>,
     pub selected_preset_idx: usize,
 }
 
@@ -87,7 +89,9 @@ impl D1ConsoleModal {
             error_message: None,
             selected_result_row: 0,
             selected_col_idx: 0,
-            result_scroll_x: 0,
+            result_scroll_x: std::cell::Cell::new(0),
+            result_scroll_y: std::cell::Cell::new(0),
+            sidebar_scroll_y: std::cell::Cell::new(0),
             selected_preset_idx: 0,
         }
     }
@@ -185,15 +189,26 @@ impl D1ConsoleModal {
     }
 
     pub fn input_char(&mut self, c: char) {
-        if self.focus_pane != D1FocusPane::QueryEditor {
+        if self.focus_pane == D1FocusPane::QueryEditor {
+            if self.cursor_pos >= self.query_input.len() {
+                self.query_input.push(c);
+                self.cursor_pos = self.query_input.len();
+            } else {
+                self.query_input.insert(self.cursor_pos, c);
+                self.cursor_pos += 1;
+            }
             return;
         }
-        if self.cursor_pos >= self.query_input.len() {
-            self.query_input.push(c);
-            self.cursor_pos = self.query_input.len();
-        } else {
-            self.query_input.insert(self.cursor_pos, c);
-            self.cursor_pos += 1;
+
+        // Quick navigation shortcuts for ResultsTable & Sidebar
+        match c {
+            'j' => self.nav_down(),
+            'k' => self.nav_up(),
+            'h' => self.nav_left(),
+            'l' => self.nav_right(),
+            'g' => self.nav_home(),
+            'G' => self.nav_end(),
+            _ => {}
         }
     }
 
@@ -332,21 +347,99 @@ impl D1ConsoleModal {
         }
     }
 
+    pub fn page_up(&mut self) {
+        match self.focus_pane {
+            D1FocusPane::Sidebar => {
+                self.selected_table_idx = self.selected_table_idx.saturating_sub(10);
+            }
+            D1FocusPane::ResultsTable => {
+                self.selected_result_row = self.selected_result_row.saturating_sub(10);
+            }
+            D1FocusPane::QueryEditor => {
+                self.history_prev();
+            }
+        }
+    }
+
+    pub fn page_down(&mut self) {
+        match self.focus_pane {
+            D1FocusPane::Sidebar => {
+                if !self.tables.is_empty() {
+                    self.selected_table_idx = (self.selected_table_idx + 10).min(self.tables.len().saturating_sub(1));
+                }
+            }
+            D1FocusPane::ResultsTable => {
+                if let Some(res) = &self.query_result {
+                    if let Some(rows) = &res.results {
+                        if !rows.is_empty() {
+                            self.selected_result_row =
+                                (self.selected_result_row + 10).min(rows.len().saturating_sub(1));
+                        }
+                    }
+                }
+            }
+            D1FocusPane::QueryEditor => {
+                self.history_next();
+            }
+        }
+    }
+
+    pub fn nav_home(&mut self) {
+        match self.focus_pane {
+            D1FocusPane::Sidebar => {
+                self.selected_table_idx = 0;
+            }
+            D1FocusPane::ResultsTable => {
+                self.selected_result_row = 0;
+                self.selected_col_idx = 0;
+            }
+            D1FocusPane::QueryEditor => {
+                self.cursor_home();
+            }
+        }
+    }
+
+    pub fn nav_end(&mut self) {
+        match self.focus_pane {
+            D1FocusPane::Sidebar => {
+                if !self.tables.is_empty() {
+                    self.selected_table_idx = self.tables.len().saturating_sub(1);
+                }
+            }
+            D1FocusPane::ResultsTable => {
+                if let Some(res) = &self.query_result {
+                    if let Some(rows) = &res.results {
+                        if !rows.is_empty() {
+                            self.selected_result_row = rows.len().saturating_sub(1);
+                        }
+                    }
+                }
+            }
+            D1FocusPane::QueryEditor => {
+                self.cursor_end();
+            }
+        }
+    }
+
     pub fn scroll_results_left(&mut self) {
-        if self.result_scroll_x > 0 {
-            self.result_scroll_x -= 1;
+        let cur = self.result_scroll_x.get();
+        if cur > 0 {
+            self.result_scroll_x.set(cur - 1);
         }
     }
 
     pub fn scroll_results_right(&mut self) {
-        self.result_scroll_x += 1;
+        let cur = self.result_scroll_x.get();
+        self.result_scroll_x.set(cur + 1);
     }
 
     pub fn set_result(&mut self, result: D1QueryResult) {
         self.is_executing = false;
         self.error_message = None;
         self.selected_result_row = 0;
-        self.result_scroll_x = 0;
+        self.selected_col_idx = 0;
+        self.result_scroll_x.set(0);
+        self.result_scroll_y.set(0);
         self.query_result = Some(result);
     }
 
@@ -453,6 +546,25 @@ impl D1ConsoleModal {
         let is_sidebar_focused = self.focus_pane == D1FocusPane::Sidebar;
 
         // 1. Tables list
+        let tables_area = sidebar_chunks[0];
+        let visible_sidebar_rows = (tables_area.height.saturating_sub(2) as usize).max(1);
+        let total_tables = self.tables.len();
+
+        let mut sidebar_scroll = self.sidebar_scroll_y.get();
+        if self.selected_table_idx < sidebar_scroll {
+            sidebar_scroll = self.selected_table_idx;
+        } else if self.selected_table_idx >= sidebar_scroll + visible_sidebar_rows {
+            sidebar_scroll = self.selected_table_idx + 1 - visible_sidebar_rows;
+        }
+        let max_sidebar_scroll = total_tables.saturating_sub(visible_sidebar_rows);
+        if sidebar_scroll > max_sidebar_scroll {
+            sidebar_scroll = max_sidebar_scroll;
+        }
+        self.sidebar_scroll_y.set(sidebar_scroll);
+
+        let start_tbl = sidebar_scroll;
+        let end_tbl = (start_tbl + visible_sidebar_rows).min(total_tables);
+
         let mut table_rows = Vec::new();
         if self.tables.is_empty() {
             table_rows.push(
@@ -460,8 +572,9 @@ impl D1ConsoleModal {
                     .style(Style::default().fg(theme.text_dim)),
             );
         } else {
-            for (idx, tbl) in self.tables.iter().enumerate() {
-                let is_selected = is_sidebar_focused && idx == self.selected_table_idx;
+            for (offset, tbl) in self.tables[start_tbl..end_tbl].iter().enumerate() {
+                let actual_tbl_idx = start_tbl + offset;
+                let is_selected = is_sidebar_focused && actual_tbl_idx == self.selected_table_idx;
                 let marker = if is_selected { "▶ " } else { "  " };
                 let display = format!("{}{}", marker, tbl.table_name);
                 let meta = format!("~{} rows", tbl.row_count);
@@ -476,8 +589,21 @@ impl D1ConsoleModal {
             }
         }
 
+        let title_str = if total_tables > visible_sidebar_rows {
+            format!(
+                " Schema Tables ({}) [Row {}/{}] ",
+                total_tables,
+                self.selected_table_idx + 1,
+                total_tables
+            )
+        } else if total_tables > 0 {
+            format!(" Schema Tables ({}) ", total_tables)
+        } else {
+            " Schema Tables ".to_string()
+        };
+
         let tables_block = Block::default()
-            .title(" Schema Tables ")
+            .title(title_str)
             .title_style(if is_sidebar_focused {
                 theme.title()
             } else {
@@ -629,8 +755,20 @@ impl D1ConsoleModal {
             metrics_spans.push(Span::raw(" Enter query or select template"));
         }
 
+        let key_hints = match self.focus_pane {
+            D1FocusPane::QueryEditor => {
+                " | [Tab] Results  [↑/↓ History]  [1-4] Presets  [Ctrl+Enter] Run  [Esc] Close "
+            }
+            D1FocusPane::ResultsTable => {
+                " | [Tab] Sidebar  [↑/↓/PgUp/PgDn] Scroll  [←/→] Cols  [Home/End] Extremes  [Esc] Close "
+            }
+            D1FocusPane::Sidebar => {
+                " | [Tab] Query  [↑/↓] Tables  [1-4] Presets  [Ctrl+Enter] Run  [Esc] Close "
+            }
+        };
+
         metrics_spans.push(Span::styled(
-            " | [Tab] Switch Pane  [↑/↓ History]  [1-4] Preset  [Ctrl+Enter] Run  [Esc] Close ",
+            key_hints,
             Style::default().fg(theme.text_dim),
         ));
 
@@ -658,18 +796,69 @@ impl D1ConsoleModal {
             .map(|rows| rows.len())
             .unwrap_or(0);
 
+        // 1. Calculate vertical viewport windowing
+        // Non-data rows: top border (1) + bottom border (1) + header row (1) + header bottom margin (1) = 4
+        let visible_height = (area.height.saturating_sub(4) as usize).max(1);
+        let mut scroll_y = self.result_scroll_y.get();
+        if self.selected_result_row < scroll_y {
+            scroll_y = self.selected_result_row;
+        } else if self.selected_result_row >= scroll_y + visible_height {
+            scroll_y = self.selected_result_row + 1 - visible_height;
+        }
+        let max_scroll_y = row_count.saturating_sub(visible_height);
+        if scroll_y > max_scroll_y {
+            scroll_y = max_scroll_y;
+        }
+        self.result_scroll_y.set(scroll_y);
+
+        let start_row = scroll_y;
+        let end_row = (start_row + visible_height).min(row_count);
+
+        // 2. Calculate horizontal column windowing
+        let col_count = columns.len();
+        let available_width = area.width.saturating_sub(2) as usize;
+        let col_width: usize = 18;
+        let visible_cols = (available_width / col_width).max(1);
+
+        let mut scroll_x = self.result_scroll_x.get();
+        if self.selected_col_idx < scroll_x {
+            scroll_x = self.selected_col_idx;
+        } else if self.selected_col_idx >= scroll_x + visible_cols {
+            scroll_x = self.selected_col_idx + 1 - visible_cols;
+        }
+        let max_scroll_x = col_count.saturating_sub(visible_cols);
+        if scroll_x > max_scroll_x {
+            scroll_x = max_scroll_x;
+        }
+        self.result_scroll_x.set(scroll_x);
+
+        let start_col = scroll_x;
+        let end_col = (start_col + visible_cols).min(col_count);
+
         let title_info = if row_count > 0 {
+            let row_range_str = if row_count > visible_height {
+                format!(" (Showing {}-{} of {})", start_row + 1, end_row, row_count)
+            } else {
+                String::new()
+            };
+            let col_range_str = if col_count > visible_cols {
+                format!(" (Cols {}-{} of {})", start_col + 1, end_col, col_count)
+            } else {
+                String::new()
+            };
             format!(
-                " Tabular Results Grid ({} rows, {} cols) [Row {}/{}, Col {}/{}] ",
+                " Tabular Results Grid ({} rows, {} cols) [Row {}/{}, Col {}/{}] {}{} ",
                 row_count,
-                columns.len(),
+                col_count,
                 self.selected_result_row + 1,
                 row_count,
                 self.selected_col_idx + 1,
-                columns.len()
+                col_count,
+                row_range_str,
+                col_range_str,
             )
         } else {
-            format!(" Tabular Results Grid ({} cols) ", columns.len())
+            format!(" Tabular Results Grid ({} cols) ", col_count)
         };
 
         let table_block = Block::default()
@@ -717,7 +906,7 @@ impl D1ConsoleModal {
         }
 
         let mut header_cells = Vec::new();
-        for col in &columns {
+        for col in &columns[start_col..end_col] {
             header_cells.push(Cell::from(col.clone()));
         }
         let header_row = Row::new(header_cells)
@@ -727,41 +916,44 @@ impl D1ConsoleModal {
         let mut data_rows = Vec::new();
         if let Some(res) = &self.query_result {
             if let Some(rows) = &res.results {
-                for (row_idx, row_val) in rows.iter().enumerate() {
-                    let mut cells = Vec::new();
-                    let is_selected = is_focused && row_idx == self.selected_result_row;
+                if start_row < rows.len() {
+                    for (offset, row_val) in rows[start_row..end_row].iter().enumerate() {
+                        let actual_row_idx = start_row + offset;
+                        let mut cells = Vec::new();
+                        let is_selected = is_focused && actual_row_idx == self.selected_result_row;
 
-                    if let serde_json::Value::Object(map) = row_val {
-                        for (col_idx, col) in columns.iter().enumerate() {
-                            let (val_str, style) = Self::format_cell_value(map.get(col));
-                            let is_cell_focused = is_selected && col_idx == self.selected_col_idx;
-                            let cell_style = if is_cell_focused {
-                                Style::default()
-                                    .bg(Color::Rgb(70, 70, 100))
-                                    .fg(Color::Rgb(255, 220, 100))
-                                    .add_modifier(Modifier::BOLD)
-                            } else if is_selected {
-                                theme.selected_row()
-                            } else {
-                                style
-                            };
-                            cells.push(Cell::from(val_str).style(cell_style));
+                        if let serde_json::Value::Object(map) = row_val {
+                            for (col_offset, col) in columns[start_col..end_col].iter().enumerate() {
+                                let actual_col_idx = start_col + col_offset;
+                                let (val_str, style) = Self::format_cell_value(map.get(col));
+                                let is_cell_focused = is_selected && actual_col_idx == self.selected_col_idx;
+                                let cell_style = if is_cell_focused {
+                                    Style::default()
+                                        .bg(Color::Rgb(70, 70, 100))
+                                        .fg(Color::Rgb(255, 220, 100))
+                                        .add_modifier(Modifier::BOLD)
+                                } else if is_selected {
+                                    theme.selected_row()
+                                } else {
+                                    style
+                                };
+                                cells.push(Cell::from(val_str).style(cell_style));
+                            }
                         }
-                    }
 
-                    let row_style = if is_selected {
-                        theme.selected_row()
-                    } else {
-                        Style::default()
-                    };
-                    data_rows.push(Row::new(cells).style(row_style));
+                        let row_style = if is_selected {
+                            theme.selected_row()
+                        } else {
+                            Style::default()
+                        };
+                        data_rows.push(Row::new(cells).style(row_style));
+                    }
                 }
             }
         }
 
-        let widths: Vec<Constraint> = columns
-            .iter()
-            .map(|_| Constraint::Length(18))
+        let widths: Vec<Constraint> = (start_col..end_col)
+            .map(|_| Constraint::Min(18))
             .collect();
 
         let table = Table::new(data_rows, widths)
@@ -891,6 +1083,85 @@ mod tests {
         modal.clear_line();
         assert_eq!(modal.query_input, "");
         assert_eq!(modal.cursor_pos, 0);
+    }
+
+    #[test]
+    fn test_d1_console_viewport_scrolling_and_large_result_sets() {
+        let mut modal = D1ConsoleModal::new("db-123".to_string(), "prod_db".to_string(), vec![]);
+
+        // Construct 25 rows (user had 22 records clipped at 18)
+        let mut rows = Vec::new();
+        for i in 1..=25 {
+            rows.push(json!({
+                "id": i,
+                "name": format!("user_{}", i),
+                "role": "member",
+            }));
+        }
+
+        let result = D1QueryResult {
+            results: Some(rows),
+            success: Some(true),
+            meta: None,
+        };
+
+        modal.set_result(result);
+        modal.set_focus(D1FocusPane::ResultsTable);
+        assert_eq!(modal.selected_result_row, 0);
+
+        // Navigate down past row 18 (e.g. to row 21 which is the 22nd record)
+        for _ in 0..21 {
+            modal.nav_down();
+        }
+        assert_eq!(modal.selected_result_row, 21);
+
+        // Navigate to the 25th row (index 24)
+        modal.nav_down();
+        modal.nav_down();
+        modal.nav_down();
+        assert_eq!(modal.selected_result_row, 24);
+
+        // Clamp at bottom
+        modal.nav_down();
+        assert_eq!(modal.selected_result_row, 24);
+
+        // Test nav_home and nav_end
+        modal.nav_home();
+        assert_eq!(modal.selected_result_row, 0);
+
+        modal.nav_end();
+        assert_eq!(modal.selected_result_row, 24);
+
+        // Test page_up and page_down
+        modal.page_up();
+        assert_eq!(modal.selected_result_row, 14);
+        modal.page_down();
+        assert_eq!(modal.selected_result_row, 24);
+
+        // Test vim navigation keys in ResultsTable
+        modal.input_char('k'); // up
+        assert_eq!(modal.selected_result_row, 23);
+        modal.input_char('j'); // down
+        assert_eq!(modal.selected_result_row, 24);
+        modal.input_char('g'); // top
+        assert_eq!(modal.selected_result_row, 0);
+        modal.input_char('G'); // bottom
+        assert_eq!(modal.selected_result_row, 24);
+
+        // Render with Ratatui TestBackend to verify viewport windowing
+        let backend = ratatui::backend::TestBackend::new(100, 24);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        let theme = Theme::default();
+
+        terminal
+            .draw(|f| {
+                let area = f.area();
+                modal.render(f, area, &theme);
+            })
+            .unwrap();
+
+        // At row 24, result_scroll_y should have scrolled down so row 24 is visible
+        assert!(modal.result_scroll_y.get() > 0);
     }
 }
 
