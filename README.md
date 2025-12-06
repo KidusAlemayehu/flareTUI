@@ -84,11 +84,16 @@ cargo build --release
 ./target/release/flareTUI
 ```
 
-### Install into Cargo Bin Path
+### Quick Install with Cargo
 
 ```bash
+# Install directly from Git repository
+cargo install --git https://github.com/KidusAlemayehu/flareTUI
+
+# Or install from local clone
 cargo install --path .
-# Now launch from anywhere:
+
+# Launch flareTUI from anywhere
 flareTUI
 ```
 
