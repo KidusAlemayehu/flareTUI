@@ -39,6 +39,7 @@
 - **Interactive DNS & Zone Management**: Instant orange/grey cloud proxy toggling (`p`), inline record creation/editing with safety checks, and single-click BIND zone export (`x`).
 - **Workers Inspector & Realtime Live Tail**: Inspect script metadata, route patterns, and active bindings (D1, KV, R2, Queues). Stream live Worker execution logs over WebSockets with exception decoding, regex filtering (`/`), and auto-follow mode (`f`).
 - **Cloudflare Pages & Instant Rollback**: Track deployment statuses across preview and production environments, inspect build stages and logs, and execute rollbacks directly from your terminal.
+- **Storage & Edge Databases (D1 & KV)**: Interactive D1 SQL Console with table schema explorer, quick query presets, tabular result grid, query history buffer (`↑`/`↓`), and live execution duration metrics. Workers KV key browser with real-time prefix filtering (`/`) and formatted JSON syntax viewer.
 - **Defensive Safety Safeguards**: Irreversible modifications (deleting records, purging edge cache, rolling back builds) are guarded by interactive confirmation dialogs.
 - **Ergonomic Vim Keybindings**: Single-stroke navigation (`j`/`k`, numeric view switching `1`-`5`, `Tab`/`s` pane toggle, and `/` search).
 
@@ -107,6 +108,8 @@ Create a Cloudflare **User API Token** at [dash.cloudflare.com/profile/api-token
 | **Account ➔ Worker Scripts**| All Accounts | **Read** | List scripts, inspect routes and bindings |
 | **Account ➔ Worker Tail** | All Accounts | **Read** | Stream real-time WebSocket live tail logs |
 | **Account ➔ Cloudflare Pages** | All Accounts | **Read / Edit** | View deployments, build logs, and trigger rollbacks |
+| **Account ➔ D1** | All Accounts | **Read / Edit** | Query and browse D1 databases |
+| **Account ➔ Workers KV Storage** | All Accounts | **Read** | List namespaces, browse keys, inspect values |
 
 > [!TIP]
 > Always generate a **User API Token** under **User Profile (top-right avatar) ➔ My Profile ➔ API Tokens** rather than an Account API Token to ensure zone-level DNS listing and modifications succeed.
@@ -166,6 +169,18 @@ theme = "default"
 | `l` | Inspect deployment **Build Logs** |
 | `b` | Trigger instant **Deployment Rollback** with safety confirmation |
 
+### Storage & Databases View (`Tab 4`)
+| Keybinding | Action |
+| :--- | :--- |
+| `s` | Switch focus between **D1 Databases** (top) and **Workers KV Namespaces** (bottom) |
+| `Enter` / `i` | Open **D1 SQL Console** (on D1 table) or **Workers KV Inspector** (on KV table) |
+| `Tab` | In D1 Console: cycle focus between **Schema Sidebar**, **SQL Editor**, and **Results Grid** |
+| `Ctrl+Enter` / `Enter` | In D1 Console: execute SQL query against Cloudflare D1 edge replica |
+| `1` .. `4` | In D1 Console: quick-apply query template (`Scan`, `Count`, `table_info`, `sqlite_schema`) |
+| `↑` / `↓` | In D1 Console: navigate persistent query history buffer |
+| `/` | In KV Inspector: open real-time key/prefix search filter bar |
+| `Enter` / `Space` | In KV Inspector: load and inspect key value with formatted JSON syntax viewer |
+
 ---
 
 ## Architecture
@@ -219,7 +234,7 @@ flowchart TD
 - [x] **Milestone 6**: Workers script explorer, metadata inspection, and D1/KV/R2/Queue bindings resolution.
 - [x] **Milestone 7**: Realtime Worker live tail session dispatcher over WebSockets with in-memory filtering & follow mode.
 - [x] **Milestone 8**: Pages projects overview, deployment history, build log viewer, and rollback dispatcher.
-- [ ] **Milestone 9**: Storage Browser (Interactive D1 SQL query runner and KV namespace key-value explorer).
+- [x] **Milestone 9**: Storage Browser (Interactive D1 SQL query runner and KV namespace key-value explorer).
 - [ ] **Milestone 10**: WAF & Security analytics dashboard, multi-account fuzzy command palette (`Ctrl+P`).
 
 ---
