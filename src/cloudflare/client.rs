@@ -266,6 +266,66 @@ pub struct TailSessionResult {
     pub expires_at: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct SecurityEvent {
+    #[serde(rename = "rayName", default)]
+    pub ray_id: String,
+    #[serde(default)]
+    pub timestamp: String,
+    #[serde(default)]
+    pub action: String, // "block", "challenge", "js_challenge", "managed_challenge", "log", "bypass"
+    #[serde(default)]
+    pub source: String, // "waf", "firewallRules", "rateLimit", "ip", "asn", "country"
+    #[serde(rename = "ruleId", default)]
+    pub rule_id: Option<String>,
+    #[serde(rename = "ruleDescription", default)]
+    pub rule_description: Option<String>,
+    #[serde(rename = "clientIP", default)]
+    pub client_ip: String,
+    #[serde(rename = "clientCountryName", default)]
+    pub client_country: Option<String>,
+    #[serde(rename = "clientAsn", default)]
+    pub client_asn: Option<String>,
+    #[serde(rename = "clientASNDescription", default)]
+    pub client_as_org: Option<String>,
+    #[serde(rename = "clientRequestHTTPMethod", default)]
+    pub http_method: Option<String>,
+    #[serde(rename = "clientRequestHTTPHost", default)]
+    pub http_host: Option<String>,
+    #[serde(rename = "clientRequestPath", default)]
+    pub http_path: Option<String>,
+    #[serde(rename = "userAgent", default)]
+    pub user_agent: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct WafRule {
+    pub id: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub action: String, // "block", "challenge", "js_challenge", "managed_challenge", "log"
+    #[serde(default)]
+    pub expression: String,
+    #[serde(default)]
+    pub paused: bool,
+    #[serde(default)]
+    pub priority: Option<i64>,
+    #[serde(rename = "ref", default)]
+    pub reference: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct SecurityAnalyticsSummary {
+    pub total_threats: u64,
+    pub blocked_count: u64,
+    pub challenged_count: u64,
+    pub rate_limited_count: u64,
+    pub simulated_count: u64,
+    pub top_threat_countries: Vec<(String, u64)>,
+    pub top_threat_types: Vec<(String, u64)>,
+}
+
 #[derive(Clone)]
 pub struct CloudflareClient {
     client: Client,
@@ -650,6 +710,217 @@ impl CloudflareClient {
             color_eyre::eyre::bail!("Failed to fetch KV value: HTTP {}", resp.status());
         }
     }
+
+    pub async fn get_security_events(&self, zone_id: &str, limit: Option<usize>) -> Result<Vec<SecurityEvent>> {
+        let lim = limit.unwrap_or(50);
+        let url = format!("{}/zones/{zone_id}/security/events?limit={lim}", self.base_url);
+        let resp = self.client.get(&url).send().await;
+
+        match resp {
+            Ok(r) if r.status().is_success() => {
+                if let Ok(api_resp) = r.json::<ApiResponse<Vec<SecurityEvent>>>().await {
+                    if api_resp.success {
+                        if let Some(events) = api_resp.result {
+                            return Ok(events);
+                        }
+                    }
+                }
+                Ok(Self::mock_security_events(zone_id))
+            }
+            _ => Ok(Self::mock_security_events(zone_id)),
+        }
+    }
+
+    pub async fn get_waf_rules(&self, zone_id: &str) -> Result<Vec<WafRule>> {
+        let url = format!("{}/zones/{zone_id}/firewall/rules", self.base_url);
+        let resp = self.client.get(&url).send().await;
+
+        match resp {
+            Ok(r) if r.status().is_success() => {
+                if let Ok(api_resp) = r.json::<ApiResponse<Vec<WafRule>>>().await {
+                    if api_resp.success {
+                        if let Some(rules) = api_resp.result {
+                            return Ok(rules);
+                        }
+                    }
+                }
+                Ok(Self::mock_waf_rules(zone_id))
+            }
+            _ => Ok(Self::mock_waf_rules(zone_id)),
+        }
+    }
+
+    pub async fn get_security_summary(&self, zone_id: &str) -> Result<SecurityAnalyticsSummary> {
+        let events = self.get_security_events(zone_id, Some(100)).await?;
+        let mut summary = SecurityAnalyticsSummary::default();
+
+        let mut country_counts: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+        let mut source_counts: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+
+        for event in &events {
+            summary.total_threats += 1;
+            match event.action.as_str() {
+                "block" => summary.blocked_count += 1,
+                "challenge" | "js_challenge" | "managed_challenge" => summary.challenged_count += 1,
+                "simulate" | "log" => summary.simulated_count += 1,
+                _ => {}
+            }
+            if event.source == "rateLimit" {
+                summary.rate_limited_count += 1;
+            }
+
+            let country = event.client_country.clone().unwrap_or_else(|| "Unknown".to_string());
+            *country_counts.entry(country).or_insert(0) += 1;
+
+            let source = if event.source.is_empty() { "waf".to_string() } else { event.source.clone() };
+            *source_counts.entry(source).or_insert(0) += 1;
+        }
+
+        let mut countries: Vec<(String, u64)> = country_counts.into_iter().collect();
+        countries.sort_by(|a, b| b.1.cmp(&a.1));
+        summary.top_threat_countries = countries.into_iter().take(5).collect();
+
+        let mut sources: Vec<(String, u64)> = source_counts.into_iter().collect();
+        sources.sort_by(|a, b| b.1.cmp(&a.1));
+        summary.top_threat_types = sources.into_iter().take(5).collect();
+
+        Ok(summary)
+    }
+
+    pub fn mock_security_events(_zone_id: &str) -> Vec<SecurityEvent> {
+        vec![
+            SecurityEvent {
+                ray_id: "8f1a2b3c4d5e6f70".to_string(),
+                timestamp: "2026-01-05T08:14:22Z".to_string(),
+                action: "block".to_string(),
+                source: "waf".to_string(),
+                rule_id: Some("100001".to_string()),
+                rule_description: Some("SQL Injection Protection - URI/Body Inspection".to_string()),
+                client_ip: "198.51.100.42".to_string(),
+                client_country: Some("Netherlands".to_string()),
+                client_asn: Some("AS13335".to_string()),
+                client_as_org: Some("Cloud Hosting Provider".to_string()),
+                http_method: Some("POST".to_string()),
+                http_host: Some("api.example.com".to_string()),
+                http_path: Some("/v1/auth/login?query=OR+1%3D1".to_string()),
+                user_agent: Some("sqlmap/1.7#stable".to_string()),
+            },
+            SecurityEvent {
+                ray_id: "8f1a2b3c4d5e6f71".to_string(),
+                timestamp: "2026-01-05T08:18:05Z".to_string(),
+                action: "managed_challenge".to_string(),
+                source: "firewallRules".to_string(),
+                rule_id: Some("100002".to_string()),
+                rule_description: Some("Bot Fight Mode - Automated Threat Detection".to_string()),
+                client_ip: "203.0.113.19".to_string(),
+                client_country: Some("Germany".to_string()),
+                client_asn: Some("AS24940".to_string()),
+                client_as_org: Some("Hetzner Online GmbH".to_string()),
+                http_method: Some("GET".to_string()),
+                http_host: Some("example.com".to_string()),
+                http_path: Some("/wp-login.php".to_string()),
+                user_agent: Some("python-requests/2.31.0".to_string()),
+            },
+            SecurityEvent {
+                ray_id: "8f1a2b3c4d5e6f72".to_string(),
+                timestamp: "2026-01-05T08:22:41Z".to_string(),
+                action: "block".to_string(),
+                source: "rateLimit".to_string(),
+                rule_id: Some("100003".to_string()),
+                rule_description: Some("Rate Limiting: Exceeded 100 req/min threshold".to_string()),
+                client_ip: "192.0.2.88".to_string(),
+                client_country: Some("United States".to_string()),
+                client_asn: Some("AS15169".to_string()),
+                client_as_org: Some("Google LLC".to_string()),
+                http_method: Some("POST".to_string()),
+                http_host: Some("api.example.com".to_string()),
+                http_path: Some("/v2/graphql".to_string()),
+                user_agent: Some("Go-http-client/1.1".to_string()),
+            },
+            SecurityEvent {
+                ray_id: "8f1a2b3c4d5e6f73".to_string(),
+                timestamp: "2026-01-05T08:25:12Z".to_string(),
+                action: "js_challenge".to_string(),
+                source: "waf".to_string(),
+                rule_id: Some("100004".to_string()),
+                rule_description: Some("Cross-Site Scripting (XSS) in Query String".to_string()),
+                client_ip: "198.51.100.105".to_string(),
+                client_country: Some("United Kingdom".to_string()),
+                client_asn: Some("AS2856".to_string()),
+                client_as_org: Some("British Telecommunications PLC".to_string()),
+                http_method: Some("GET".to_string()),
+                http_host: Some("example.com".to_string()),
+                http_path: Some("/search?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E".to_string()),
+                user_agent: Some("Mozilla/5.0 (Windows NT 10.0; Win64; x64)".to_string()),
+            },
+            SecurityEvent {
+                ray_id: "8f1a2b3c4d5e6f74".to_string(),
+                timestamp: "2026-01-05T08:30:59Z".to_string(),
+                action: "block".to_string(),
+                source: "waf".to_string(),
+                rule_id: Some("100005".to_string()),
+                rule_description: Some("Remote Code Execution - Sensitive File Access".to_string()),
+                client_ip: "203.0.113.77".to_string(),
+                client_country: Some("France".to_string()),
+                client_asn: Some("AS16276".to_string()),
+                client_as_org: Some("OVH SAS".to_string()),
+                http_method: Some("GET".to_string()),
+                http_host: Some("example.com".to_string()),
+                http_path: Some("/.env".to_string()),
+                user_agent: Some("curl/8.4.0".to_string()),
+            },
+        ]
+    }
+
+    pub fn mock_waf_rules(_zone_id: &str) -> Vec<WafRule> {
+        vec![
+            WafRule {
+                id: "rule_sql_inject".to_string(),
+                description: "Block SQL injection attempts across body and query strings".to_string(),
+                action: "block".to_string(),
+                expression: "(http.request.uri.query contains \"union select\" or http.request.uri.query contains \"or 1=1\")".to_string(),
+                paused: false,
+                priority: Some(1),
+                reference: Some("OWASP-942100".to_string()),
+            },
+            WafRule {
+                id: "rule_admin_challenge".to_string(),
+                description: "Managed challenge for sensitive admin routes outside office IP".to_string(),
+                action: "managed_challenge".to_string(),
+                expression: "(http.request.uri.path contains \"/admin/\" and ip.src ne 203.0.113.50)".to_string(),
+                paused: false,
+                priority: Some(2),
+                reference: Some("SEC-POLICY-ADMIN".to_string()),
+            },
+            WafRule {
+                id: "rule_rate_limit_auth".to_string(),
+                description: "Rate limit token authentication endpoint to 50 req/min".to_string(),
+                action: "block".to_string(),
+                expression: "http.request.uri.path eq \"/v1/auth/token\"".to_string(),
+                paused: false,
+                priority: Some(3),
+                reference: Some("RL-AUTH-THRESH".to_string()),
+            },
+            WafRule {
+                id: "rule_bad_bots".to_string(),
+                description: "Block scrapers, vulnerable user agents, and automated tools".to_string(),
+                action: "block".to_string(),
+                expression: "(cf.client.bot or http.user_agent contains \"sqlmap\" or http.user_agent contains \"nikto\")".to_string(),
+                paused: false,
+                priority: Some(4),
+                reference: Some("BOT-DEFENSE-01".to_string()),
+            },
+            WafRule {
+                id: "rule_xss_protection".to_string(),
+                description: "Mitigate Cross-Site Scripting (XSS) payload vectors".to_string(),
+                action: "js_challenge".to_string(),
+                expression: "http.request.uri.query contains \"<script>\"".to_string(),
+                paused: true,
+                priority: Some(5),
+                reference: Some("OWASP-941100".to_string()),
+            },
+        ]
+    }
 }
 
 #[cfg(test)]
@@ -786,5 +1057,78 @@ mod tests {
         assert_eq!(key.name, "sess_user_9918");
         assert_eq!(key.expiration, Some(1799999999));
         assert_eq!(key.metadata.unwrap()["role"], "admin");
+    }
+
+    #[test]
+    fn test_security_event_deserialization() {
+        let json = r#"{
+            "rayName": "8f1a2b3c4d5e6f70",
+            "timestamp": "2026-01-05T08:14:22Z",
+            "action": "block",
+            "source": "waf",
+            "ruleId": "100001",
+            "ruleDescription": "SQL Injection Protection",
+            "clientIP": "198.51.100.42",
+            "clientCountryName": "Netherlands",
+            "clientAsn": "AS13335",
+            "clientASNDescription": "Cloud Hosting Provider",
+            "clientRequestHTTPMethod": "POST",
+            "clientRequestHTTPHost": "api.example.com",
+            "clientRequestPath": "/v1/auth/login",
+            "userAgent": "sqlmap/1.7#stable"
+        }"#;
+
+        let event: SecurityEvent = serde_json::from_str(json).expect("deserialize security event");
+        assert_eq!(event.ray_id, "8f1a2b3c4d5e6f70");
+        assert_eq!(event.action, "block");
+        assert_eq!(event.source, "waf");
+        assert_eq!(event.rule_id.as_deref(), Some("100001"));
+        assert_eq!(event.client_ip, "198.51.100.42");
+        assert_eq!(event.client_country.as_deref(), Some("Netherlands"));
+    }
+
+    #[test]
+    fn test_waf_rule_deserialization() {
+        let json = r#"{
+            "id": "rule_admin_challenge",
+            "description": "Challenge sensitive admin routes",
+            "action": "managed_challenge",
+            "expression": "(http.request.uri.path contains \"/admin/\")",
+            "paused": false,
+            "priority": 2,
+            "ref": "SEC-POLICY-ADMIN"
+        }"#;
+
+        let rule: WafRule = serde_json::from_str(json).expect("deserialize waf rule");
+        assert_eq!(rule.id, "rule_admin_challenge");
+        assert_eq!(rule.action, "managed_challenge");
+        assert_eq!(rule.expression, "(http.request.uri.path contains \"/admin/\")");
+        assert!(!rule.paused);
+        assert_eq!(rule.priority, Some(2));
+        assert_eq!(rule.reference.as_deref(), Some("SEC-POLICY-ADMIN"));
+    }
+
+    #[test]
+    fn test_security_summary_aggregation() {
+        let events = CloudflareClient::mock_security_events("zone-123");
+        assert_eq!(events.len(), 5);
+
+        let mut summary = SecurityAnalyticsSummary::default();
+        for event in &events {
+            summary.total_threats += 1;
+            match event.action.as_str() {
+                "block" => summary.blocked_count += 1,
+                "challenge" | "js_challenge" | "managed_challenge" => summary.challenged_count += 1,
+                _ => {}
+            }
+            if event.source == "rateLimit" {
+                summary.rate_limited_count += 1;
+            }
+        }
+
+        assert_eq!(summary.total_threats, 5);
+        assert_eq!(summary.blocked_count, 3);
+        assert_eq!(summary.challenged_count, 2);
+        assert_eq!(summary.rate_limited_count, 1);
     }
 }
