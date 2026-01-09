@@ -92,6 +92,37 @@ pub struct CachedKvNamespace {
     pub supports_url_encoding: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct CachedSecurityEvent {
+    pub ray_id: String,
+    pub zone_id: String,
+    pub timestamp: String,
+    pub action: String,
+    pub source: String,
+    pub rule_id: String,
+    pub rule_description: String,
+    pub client_ip: String,
+    pub client_country: String,
+    pub client_asn: u32,
+    pub client_as_org: String,
+    pub http_method: String,
+    pub http_host: String,
+    pub http_path: String,
+    pub user_agent: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct CachedWafRule {
+    pub id: String,
+    pub zone_id: String,
+    pub description: String,
+    pub action: String,
+    pub expression: String,
+    pub paused: bool,
+    pub priority: u32,
+    pub ref_code: String,
+}
+
 #[derive(Clone)]
 pub struct CacheDb {
     conn: Arc<Mutex<Connection>>,
@@ -127,6 +158,8 @@ impl CacheDb {
         conn.execute("DELETE FROM zones WHERE id IN ('z1', 'z2', 'z3')", [])?;
         conn.execute("DELETE FROM workers WHERE id IN ('w1', 'w2', 'w3', 'w4')", [])?;
         conn.execute("DELETE FROM pages WHERE id IN ('p1', 'p2', 'p3')", [])?;
+        conn.execute("DELETE FROM security_events WHERE zone_id IN ('z1', 'z2', 'z3')", [])?;
+        conn.execute("DELETE FROM waf_rules WHERE zone_id IN ('z1', 'z2', 'z3')", [])?;
         Ok(())
     }
 
@@ -559,6 +592,126 @@ impl CacheDb {
         tx.commit()?;
         Ok(())
     }
+
+    pub fn replace_security_events(&self, zone_id: &str, events: &[CachedSecurityEvent]) -> Result<()> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        tx.execute("DELETE FROM security_events WHERE zone_id = ?1", params![zone_id])?;
+        for ev in events {
+            tx.execute(
+                "INSERT INTO security_events (
+                    ray_id, zone_id, timestamp, action, source,
+                    rule_id, rule_description, client_ip, client_country,
+                    client_asn, client_as_org, http_method, http_host, http_path, user_agent
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                params![
+                    ev.ray_id,
+                    ev.zone_id,
+                    ev.timestamp,
+                    ev.action,
+                    ev.source,
+                    ev.rule_id,
+                    ev.rule_description,
+                    ev.client_ip,
+                    ev.client_country,
+                    ev.client_asn,
+                    ev.client_as_org,
+                    ev.http_method,
+                    ev.http_host,
+                    ev.http_path,
+                    ev.user_agent,
+                ],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn get_security_events(&self, zone_id: &str) -> Result<Vec<CachedSecurityEvent>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT ray_id, zone_id, timestamp, action, source,
+                    rule_id, rule_description, client_ip, client_country,
+                    client_asn, client_as_org, http_method, http_host, http_path, user_agent
+             FROM security_events
+             WHERE zone_id = ?1
+             ORDER BY timestamp DESC",
+        )?;
+        let rows = stmt
+            .query_map(params![zone_id], |row| {
+                Ok(CachedSecurityEvent {
+                    ray_id: row.get(0)?,
+                    zone_id: row.get(1)?,
+                    timestamp: row.get(2)?,
+                    action: row.get(3)?,
+                    source: row.get(4)?,
+                    rule_id: row.get(5)?,
+                    rule_description: row.get(6)?,
+                    client_ip: row.get(7)?,
+                    client_country: row.get(8)?,
+                    client_asn: row.get(9)?,
+                    client_as_org: row.get(10)?,
+                    http_method: row.get(11)?,
+                    http_host: row.get(12)?,
+                    http_path: row.get(13)?,
+                    user_agent: row.get(14)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    pub fn replace_waf_rules(&self, zone_id: &str, rules: &[CachedWafRule]) -> Result<()> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        tx.execute("DELETE FROM waf_rules WHERE zone_id = ?1", params![zone_id])?;
+        for r in rules {
+            let paused_int = if r.paused { 1 } else { 0 };
+            tx.execute(
+                "INSERT INTO waf_rules (
+                    id, zone_id, description, action, expression, paused, priority, ref_code
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![
+                    r.id,
+                    r.zone_id,
+                    r.description,
+                    r.action,
+                    r.expression,
+                    paused_int,
+                    r.priority,
+                    r.ref_code,
+                ],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn get_waf_rules(&self, zone_id: &str) -> Result<Vec<CachedWafRule>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, zone_id, description, action, expression, paused, priority, ref_code
+             FROM waf_rules
+             WHERE zone_id = ?1
+             ORDER BY priority ASC, id ASC",
+        )?;
+        let rows = stmt
+            .query_map(params![zone_id], |row| {
+                let paused_int: i32 = row.get(5)?;
+                Ok(CachedWafRule {
+                    id: row.get(0)?,
+                    zone_id: row.get(1)?,
+                    description: row.get(2)?,
+                    action: row.get(3)?,
+                    expression: row.get(4)?,
+                    paused: paused_int != 0,
+                    priority: row.get(6)?,
+                    ref_code: row.get(7)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
 }
 
 #[cfg(test)]
@@ -662,5 +815,112 @@ mod tests {
         assert_eq!(loaded[0].title, "CACHE_KV");
         assert_eq!(loaded[1].title, "CONFIG_KV");
     }
+
+    #[test]
+    fn test_security_events_cache() {
+        let db = CacheDb::open_in_memory().expect("open db");
+        let zone_id = "zone-test-sec-1";
+        db.upsert_zone(&Zone {
+            id: zone_id.to_string(),
+            name: "example.com".to_string(),
+            status: "active".to_string(),
+            plan: "Free".to_string(),
+            created_on: "2026-01-01".to_string(),
+        })
+        .expect("upsert zone");
+
+        let events = vec![
+            CachedSecurityEvent {
+                ray_id: "8472a1bf001".to_string(),
+                zone_id: zone_id.to_string(),
+                timestamp: "2026-01-08T14:22:00Z".to_string(),
+                action: "block".to_string(),
+                source: "firewallCustom".to_string(),
+                rule_id: "rule-sql-inj".to_string(),
+                rule_description: "Block SQL injection attempts".to_string(),
+                client_ip: "198.51.100.42".to_string(),
+                client_country: "US".to_string(),
+                client_asn: 13335,
+                client_as_org: "Cloudflare Inc".to_string(),
+                http_method: "POST".to_string(),
+                http_host: "api.example.com".to_string(),
+                http_path: "/login".to_string(),
+                user_agent: "sqlmap/1.7".to_string(),
+            },
+            CachedSecurityEvent {
+                ray_id: "8472a1bf002".to_string(),
+                zone_id: zone_id.to_string(),
+                timestamp: "2026-01-08T14:25:00Z".to_string(),
+                action: "managed_challenge".to_string(),
+                source: "waf".to_string(),
+                rule_id: "rule-bot".to_string(),
+                rule_description: "Challenge automated bots".to_string(),
+                client_ip: "203.0.113.19".to_string(),
+                client_country: "DE".to_string(),
+                client_asn: 24940,
+                client_as_org: "Hetzner Online GmbH".to_string(),
+                http_method: "GET".to_string(),
+                http_host: "api.example.com".to_string(),
+                http_path: "/catalog".to_string(),
+                user_agent: "Mozilla/5.0 Bot".to_string(),
+            },
+        ];
+
+        db.replace_security_events(zone_id, &events).expect("replace security events");
+        let retrieved = db.get_security_events(zone_id).expect("get security events");
+        assert_eq!(retrieved.len(), 2);
+        // Ordered by timestamp DESC
+        assert_eq!(retrieved[0].ray_id, "8472a1bf002");
+        assert_eq!(retrieved[0].client_ip, "203.0.113.19");
+        assert_eq!(retrieved[1].ray_id, "8472a1bf001");
+        assert_eq!(retrieved[1].action, "block");
+    }
+
+    #[test]
+    fn test_waf_rules_cache() {
+        let db = CacheDb::open_in_memory().expect("open db");
+        let zone_id = "zone-test-waf-1";
+        db.upsert_zone(&Zone {
+            id: zone_id.to_string(),
+            name: "example.com".to_string(),
+            status: "active".to_string(),
+            plan: "Free".to_string(),
+            created_on: "2026-01-01".to_string(),
+        })
+        .expect("upsert zone");
+
+        let rules = vec![
+            CachedWafRule {
+                id: "rule-2".to_string(),
+                zone_id: zone_id.to_string(),
+                description: "Challenge suspicious bots".to_string(),
+                action: "managed_challenge".to_string(),
+                expression: "(cf.client.bot)".to_string(),
+                paused: false,
+                priority: 2,
+                ref_code: "RULE_BOT_2".to_string(),
+            },
+            CachedWafRule {
+                id: "rule-1".to_string(),
+                zone_id: zone_id.to_string(),
+                description: "Block sensitive admin access".to_string(),
+                action: "block".to_string(),
+                expression: "(http.request.uri.path contains \"/admin\")".to_string(),
+                paused: false,
+                priority: 1,
+                ref_code: "RULE_ADMIN_1".to_string(),
+            },
+        ];
+
+        db.replace_waf_rules(zone_id, &rules).expect("replace waf rules");
+        let retrieved = db.get_waf_rules(zone_id).expect("get waf rules");
+        assert_eq!(retrieved.len(), 2);
+        // Ordered by priority ASC
+        assert_eq!(retrieved[0].id, "rule-1");
+        assert_eq!(retrieved[0].priority, 1);
+        assert_eq!(retrieved[1].id, "rule-2");
+        assert_eq!(retrieved[1].priority, 2);
+    }
 }
+
 

@@ -289,6 +289,12 @@ impl App {
                                     if rep.kv_count > 0 {
                                         details.push(format!("{} KV namespaces", rep.kv_count));
                                     }
+                                    if rep.security_events_count > 0 {
+                                        details.push(format!("{} security events", rep.security_events_count));
+                                    }
+                                    if rep.waf_rules_count > 0 {
+                                        details.push(format!("{} WAF rules", rep.waf_rules_count));
+                                    }
                                     format!("Synced {}", details.join(", "))
                                 };
                                 let _ = tx.send(Action::SyncCompleted(msg));

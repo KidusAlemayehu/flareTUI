@@ -9,6 +9,8 @@ pub struct SyncReport {
     pub pages_count: usize,
     pub d1_count: usize,
     pub kv_count: usize,
+    pub security_events_count: usize,
+    pub waf_rules_count: usize,
     pub warning: Option<String>,
 }
 
@@ -23,6 +25,8 @@ impl CloudflareSync {
             pages_count: 0,
             d1_count: 0,
             kv_count: 0,
+            security_events_count: 0,
+            waf_rules_count: 0,
             warning: None,
         };
 
@@ -70,6 +74,55 @@ impl CloudflareSync {
                     };
                     report.warning = Some(format!("DNS sync error: {e}. {hint}"));
                 }
+            }
+
+            // 3. Sync Security Events for zone
+            if let Ok(sec_events) = client.get_security_events(&z.id, Some(50)).await {
+                report.security_events_count += sec_events.len();
+                let cached: Vec<crate::db::CachedSecurityEvent> = sec_events
+                    .into_iter()
+                    .map(|e| crate::db::CachedSecurityEvent {
+                        ray_id: e.ray_id,
+                        zone_id: z.id.clone(),
+                        timestamp: e.timestamp,
+                        action: e.action,
+                        source: e.source,
+                        rule_id: e.rule_id.unwrap_or_default(),
+                        rule_description: e.rule_description.unwrap_or_default(),
+                        client_ip: e.client_ip,
+                        client_country: e.client_country.unwrap_or_else(|| "XX".to_string()),
+                        client_asn: e
+                            .client_asn
+                            .as_deref()
+                            .and_then(|s| s.trim_start_matches("AS").parse::<u32>().ok())
+                            .unwrap_or(0),
+                        client_as_org: e.client_as_org.unwrap_or_default(),
+                        http_method: e.http_method.unwrap_or_else(|| "GET".to_string()),
+                        http_host: e.http_host.unwrap_or_else(|| z.name.clone()),
+                        http_path: e.http_path.unwrap_or_else(|| "/".to_string()),
+                        user_agent: e.user_agent.unwrap_or_default(),
+                    })
+                    .collect();
+                let _ = db.replace_security_events(&z.id, &cached);
+            }
+
+            // 4. Sync WAF Rules for zone
+            if let Ok(waf_rules) = client.get_waf_rules(&z.id).await {
+                report.waf_rules_count += waf_rules.len();
+                let cached: Vec<crate::db::CachedWafRule> = waf_rules
+                    .into_iter()
+                    .map(|r| crate::db::CachedWafRule {
+                        id: r.id,
+                        zone_id: z.id.clone(),
+                        description: r.description,
+                        action: r.action,
+                        expression: r.expression,
+                        paused: r.paused,
+                        priority: r.priority.unwrap_or(0) as u32,
+                        ref_code: r.reference.unwrap_or_default(),
+                    })
+                    .collect();
+                let _ = db.replace_waf_rules(&z.id, &cached);
             }
         }
 

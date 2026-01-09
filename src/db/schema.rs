@@ -78,4 +78,35 @@ CREATE TABLE IF NOT EXISTS kv_namespaces (
     title TEXT NOT NULL,
     supports_url_encoding INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS security_events (
+    ray_id TEXT PRIMARY KEY,
+    zone_id TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    action TEXT NOT NULL,
+    source TEXT NOT NULL,
+    rule_id TEXT NOT NULL DEFAULT '',
+    rule_description TEXT NOT NULL DEFAULT '',
+    client_ip TEXT NOT NULL,
+    client_country TEXT NOT NULL DEFAULT '',
+    client_asn INTEGER NOT NULL DEFAULT 0,
+    client_as_org TEXT NOT NULL DEFAULT '',
+    http_method TEXT NOT NULL,
+    http_host TEXT NOT NULL,
+    http_path TEXT NOT NULL,
+    user_agent TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY(zone_id) REFERENCES zones(id)
+);
+
+CREATE TABLE IF NOT EXISTS waf_rules (
+    id TEXT PRIMARY KEY,
+    zone_id TEXT NOT NULL,
+    description TEXT NOT NULL,
+    action TEXT NOT NULL,
+    expression TEXT NOT NULL,
+    paused INTEGER NOT NULL DEFAULT 0,
+    priority INTEGER NOT NULL DEFAULT 0,
+    ref_code TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY(zone_id) REFERENCES zones(id)
+);
 "#;
