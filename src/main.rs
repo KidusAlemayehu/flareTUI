@@ -4,6 +4,7 @@ pub mod cloudflare;
 pub mod components;
 pub mod db;
 pub mod event;
+pub mod security;
 pub mod theme;
 pub mod tui;
 
