@@ -1,0 +1,365 @@
+use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
+use nucleo_matcher::{Config, Matcher, Utf32Str};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum CommandCategory {
+    Navigation,
+    Cloudflare,
+    Security,
+    Storage,
+    Workers,
+    Profiles,
+    System,
+}
+
+impl CommandCategory {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            CommandCategory::Navigation => "Navigation",
+            CommandCategory::Cloudflare => "Cloudflare",
+            CommandCategory::Security => "Security",
+            CommandCategory::Storage => "Storage",
+            CommandCategory::Workers => "Workers",
+            CommandCategory::Profiles => "Profiles",
+            CommandCategory::System => "System",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PaletteAction {
+    SwitchView(usize),
+    TriggerSync,
+    PurgeCache,
+    OpenD1Console,
+    OpenKvModal,
+    OpenSecurityInspector,
+    OpenProfileSwitcher,
+    OpenHelp,
+    Quit,
+    Custom(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaletteCommand {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    pub category: CommandCategory,
+    pub shortcut: Option<String>,
+    pub keywords: Vec<String>,
+    pub action: PaletteAction,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScoredCommand {
+    pub command: PaletteCommand,
+    pub score: u32,
+    pub matched_indices: Vec<u32>,
+}
+
+pub struct PaletteEngine {
+    matcher: Matcher,
+    commands: Vec<PaletteCommand>,
+}
+
+impl PaletteEngine {
+    pub fn new() -> Self {
+        let mut engine = Self {
+            matcher: Matcher::new(Config::DEFAULT),
+            commands: Vec::new(),
+        };
+        engine.register_default_commands();
+        engine
+    }
+
+    pub fn commands(&self) -> &[PaletteCommand] {
+        &self.commands
+    }
+
+    pub fn register(&mut self, cmd: PaletteCommand) {
+        if let Some(pos) = self.commands.iter().position(|c| c.id == cmd.id) {
+            self.commands[pos] = cmd;
+        } else {
+            self.commands.push(cmd);
+        }
+    }
+
+    pub fn register_all(&mut self, cmds: Vec<PaletteCommand>) {
+        for cmd in cmds {
+            self.register(cmd);
+        }
+    }
+
+    pub fn register_default_commands(&mut self) {
+        let defaults = vec![
+            // Navigation
+            PaletteCommand {
+                id: "nav_dns".to_string(),
+                title: "DNS Records & Zones".to_string(),
+                description: "Manage DNS zone records, proxy status, and TTLs".to_string(),
+                category: CommandCategory::Navigation,
+                shortcut: Some("1".to_string()),
+                keywords: vec!["dns".into(), "zone".into(), "cname".into(), "a".into(), "mx".into(), "proxied".into()],
+                action: PaletteAction::SwitchView(0),
+            },
+            PaletteCommand {
+                id: "nav_workers".to_string(),
+                title: "Workers Scripts & Deployments".to_string(),
+                description: "View and inspect serverless Cloudflare Workers".to_string(),
+                category: CommandCategory::Navigation,
+                shortcut: Some("2".to_string()),
+                keywords: vec!["workers".into(), "serverless".into(), "scripts".into(), "routes".into()],
+                action: PaletteAction::SwitchView(1),
+            },
+            PaletteCommand {
+                id: "nav_pages".to_string(),
+                title: "Pages Projects & Builds".to_string(),
+                description: "Inspect Cloudflare Pages deployments and build logs".to_string(),
+                category: CommandCategory::Navigation,
+                shortcut: Some("3".to_string()),
+                keywords: vec!["pages".into(), "deployments".into(), "builds".into(), "jamstack".into()],
+                action: PaletteAction::SwitchView(2),
+            },
+            PaletteCommand {
+                id: "nav_storage".to_string(),
+                title: "Storage: D1 & KV".to_string(),
+                description: "Explore D1 SQL databases and Workers KV namespaces".to_string(),
+                category: CommandCategory::Navigation,
+                shortcut: Some("4".to_string()),
+                keywords: vec!["storage".into(), "d1".into(), "kv".into(), "database".into(), "sql".into()],
+                action: PaletteAction::SwitchView(3),
+            },
+            PaletteCommand {
+                id: "nav_tail".to_string(),
+                title: "Live Tail Log Stream".to_string(),
+                description: "Stream live Cloudflare Workers console logs and errors".to_string(),
+                category: CommandCategory::Navigation,
+                shortcut: Some("5".to_string()),
+                keywords: vec!["tail".into(), "logs".into(), "stream".into(), "realtime".into(), "console".into()],
+                action: PaletteAction::SwitchView(4),
+            },
+            PaletteCommand {
+                id: "nav_security".to_string(),
+                title: "Security & WAF Dashboard".to_string(),
+                description: "Monitor real-time threat levels, WAF rules, and attacks".to_string(),
+                category: CommandCategory::Navigation,
+                shortcut: Some("6".to_string()),
+                keywords: vec!["security".into(), "waf".into(), "firewall".into(), "threats".into(), "ddos".into(), "blocks".into()],
+                action: PaletteAction::SwitchView(5),
+            },
+
+            // Cloudflare Actions
+            PaletteCommand {
+                id: "cf_sync".to_string(),
+                title: "Sync All Cloudflare Resources".to_string(),
+                description: "Fetch and cache all zones, DNS, workers, and security events".to_string(),
+                category: CommandCategory::Cloudflare,
+                shortcut: Some("s".to_string()),
+                keywords: vec!["sync".into(), "refresh".into(), "reload".into(), "fetch".into(), "update".into()],
+                action: PaletteAction::TriggerSync,
+            },
+            PaletteCommand {
+                id: "cf_purge".to_string(),
+                title: "Purge Zone CDN Cache".to_string(),
+                description: "Purge cached assets from Cloudflare Edge CDN".to_string(),
+                category: CommandCategory::Cloudflare,
+                shortcut: None,
+                keywords: vec!["purge".into(), "cache".into(), "flush".into(), "clear".into(), "cdn".into()],
+                action: PaletteAction::PurgeCache,
+            },
+
+            // Storage
+            PaletteCommand {
+                id: "storage_d1_console".to_string(),
+                title: "Open D1 SQL Query Console".to_string(),
+                description: "Interactive SQL query runner with table schema browser".to_string(),
+                category: CommandCategory::Storage,
+                shortcut: Some("d".to_string()),
+                keywords: vec!["d1".into(), "sql".into(), "query".into(), "sqlite".into(), "console".into()],
+                action: PaletteAction::OpenD1Console,
+            },
+            PaletteCommand {
+                id: "storage_kv_browser".to_string(),
+                title: "Browse Workers KV Keys".to_string(),
+                description: "Explore, search, and view JSON values in KV namespaces".to_string(),
+                category: CommandCategory::Storage,
+                shortcut: Some("k".to_string()),
+                keywords: vec!["kv".into(), "keys".into(), "browser".into(), "values".into(), "json".into()],
+                action: PaletteAction::OpenKvModal,
+            },
+
+            // Security
+            PaletteCommand {
+                id: "sec_inspect".to_string(),
+                title: "Inspect Security Threat Event".to_string(),
+                description: "Open detailed inspector with IP lookup and WAF rule details".to_string(),
+                category: CommandCategory::Security,
+                shortcut: Some("Enter".to_string()),
+                keywords: vec!["inspect".into(), "threat".into(), "ray".into(), "ip".into(), "rule".into(), "payload".into()],
+                action: PaletteAction::OpenSecurityInspector,
+            },
+
+            // Profiles
+            PaletteCommand {
+                id: "profile_switch".to_string(),
+                title: "Switch Cloudflare Account Profile".to_string(),
+                description: "Hot-swap active credentials and profile environment".to_string(),
+                category: CommandCategory::Profiles,
+                shortcut: Some("Ctrl+U".to_string()),
+                keywords: vec!["profile".into(), "account".into(), "switch".into(), "token".into(), "credentials".into()],
+                action: PaletteAction::OpenProfileSwitcher,
+            },
+
+            // System
+            PaletteCommand {
+                id: "sys_help".to_string(),
+                title: "Keyboard Shortcuts & Help".to_string(),
+                description: "Display global keybindings and navigation cheat sheet".to_string(),
+                category: CommandCategory::System,
+                shortcut: Some("?".to_string()),
+                keywords: vec!["help".into(), "shortcuts".into(), "keys".into(), "guide".into()],
+                action: PaletteAction::OpenHelp,
+            },
+            PaletteCommand {
+                id: "sys_quit".to_string(),
+                title: "Quit flareTUI".to_string(),
+                description: "Exit flareTUI terminal interface cleanly".to_string(),
+                category: CommandCategory::System,
+                shortcut: Some("q".to_string()),
+                keywords: vec!["quit".into(), "exit".into(), "close".into()],
+                action: PaletteAction::Quit,
+            },
+        ];
+
+        self.register_all(defaults);
+    }
+
+    pub fn search(&mut self, query: &str) -> Vec<ScoredCommand> {
+        let trimmed = query.trim();
+        if trimmed.is_empty() {
+            // Return all commands sorted by category and title with base score
+            let mut all: Vec<ScoredCommand> = self
+                .commands
+                .iter()
+                .cloned()
+                .map(|cmd| ScoredCommand {
+                    command: cmd,
+                    score: 100,
+                    matched_indices: Vec::new(),
+                })
+                .collect();
+            all.sort_by(|a, b| {
+                a.command
+                    .category
+                    .cmp(&b.command.category)
+                    .then_with(|| a.command.title.cmp(&b.command.title))
+            });
+            return all;
+        }
+
+        let pattern = Pattern::parse(trimmed, CaseMatching::Ignore, Normalization::Smart);
+        let mut results = Vec::new();
+        let mut title_buf = Vec::new();
+        let mut haystack_buf = Vec::new();
+
+        for cmd in &self.commands {
+            // 1. Check title match for highlighting
+            title_buf.clear();
+            let title_utf32 = Utf32Str::new(&cmd.title, &mut title_buf);
+            let mut matched_indices = Vec::new();
+            let title_score = pattern.indices(title_utf32, &mut self.matcher, &mut matched_indices);
+            matched_indices.sort_unstable();
+            matched_indices.dedup();
+
+            // 2. Build full searchable haystack: title + category + description + keywords
+            let haystack = format!(
+                "{} {} {} {}",
+                cmd.title,
+                cmd.category.as_str(),
+                cmd.description,
+                cmd.keywords.join(" ")
+            );
+            haystack_buf.clear();
+            let haystack_utf32 = Utf32Str::new(&haystack, &mut haystack_buf);
+            let haystack_score = pattern.score(haystack_utf32, &mut self.matcher);
+
+            let final_score = match (title_score, haystack_score) {
+                (Some(ts), Some(hs)) => Some(ts.max(hs) + 40), // Title boost
+                (Some(ts), None) => Some(ts + 40),
+                (None, Some(hs)) => Some(hs),
+                (None, None) => None,
+            };
+
+            if let Some(score) = final_score {
+                results.push(ScoredCommand {
+                    command: cmd.clone(),
+                    score,
+                    matched_indices,
+                });
+            }
+        }
+
+        results.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.command.title.cmp(&b.command.title)));
+        results
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_commands_catalog() {
+        let engine = PaletteEngine::new();
+        assert!(engine.commands().len() >= 10);
+        assert!(engine.commands().iter().any(|c| c.id == "nav_security"));
+        assert!(engine.commands().iter().any(|c| c.id == "storage_d1_console"));
+        assert!(engine.commands().iter().any(|c| c.id == "profile_switch"));
+    }
+
+    #[test]
+    fn test_fuzzy_search_empty_returns_all() {
+        let mut engine = PaletteEngine::new();
+        let results = engine.search("");
+        assert_eq!(results.len(), engine.commands().len());
+    }
+
+    #[test]
+    fn test_fuzzy_search_matching_security() {
+        let mut engine = PaletteEngine::new();
+        let results = engine.search("sec");
+        assert!(!results.is_empty());
+        assert!(results.iter().any(|r| r.command.id == "nav_security"));
+        assert!(results.iter().any(|r| r.command.id == "sec_inspect"));
+        assert!(!results[0].matched_indices.is_empty() || results[0].score > 0);
+    }
+
+    #[test]
+    fn test_fuzzy_search_matching_d1_sql() {
+        let mut engine = PaletteEngine::new();
+        let results = engine.search("sql");
+        assert!(!results.is_empty());
+        assert!(results.iter().any(|r| r.command.id == "storage_d1_console"));
+    }
+
+    #[test]
+    fn test_dynamic_command_registration() {
+        let mut engine = PaletteEngine::new();
+        let custom_cmd = PaletteCommand {
+            id: "zone_example_com".to_string(),
+            title: "Switch Zone: example.com".to_string(),
+            description: "Direct jump to example.com zone overview".to_string(),
+            category: CommandCategory::Navigation,
+            shortcut: None,
+            keywords: vec!["example".into(), "zone".into()],
+            action: PaletteAction::Custom("switch_zone:example.com".to_string()),
+        };
+
+        engine.register(custom_cmd);
+        let results = engine.search("example.com");
+        assert!(!results.is_empty());
+        assert_eq!(results[0].command.id, "zone_example_com");
+    }
+}
