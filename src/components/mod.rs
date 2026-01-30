@@ -14,3 +14,4 @@ pub mod tail_log_modal;
 pub mod d1_console_modal;
 pub mod kv_modal;
 pub mod security_inspector;
+pub mod command_palette_modal;
