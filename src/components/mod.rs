@@ -15,3 +15,4 @@ pub mod d1_console_modal;
 pub mod kv_modal;
 pub mod security_inspector;
 pub mod command_palette_modal;
+pub mod profile_modal;
