@@ -25,6 +25,7 @@ impl Header {
                 "3: Pages",
                 "4: D1 & KV",
                 "5: Live Tail",
+                "6: Security & WAF",
             ],
             account_name: "Personal (kidus)".to_string(),
             is_live: false,

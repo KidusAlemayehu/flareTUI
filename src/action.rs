@@ -142,6 +142,42 @@ pub enum Action {
     KvModalValueLoaded(String),
     KvModalValueFailed(String),
 
+    // Security & WAF Actions
+    OpenSecurityInspector,
+    CloseSecurityInspector,
+    SecurityInspectorNextTab,
+    SecurityInspectorPrevTab,
+    SecurityInspectorScrollUp,
+    SecurityInspectorScrollDown,
+    SecurityInspectorCopyIp,
+    SecurityInspectorCopyRayId,
+    SecurityViewNextTab,
+    SecurityViewPrevTab,
+    SecurityViewCycleFilter,
+
+    // Command Palette Actions (Ctrl+P)
+    OpenCommandPalette,
+    CloseCommandPalette,
+    CommandPaletteInputChar(char),
+    CommandPaletteInputBackspace,
+    CommandPaletteClearQuery,
+    CommandPaletteNavUp,
+    CommandPaletteNavDown,
+    CommandPaletteNavTop,
+    CommandPaletteNavBottom,
+    CommandPaletteNextCategory,
+    CommandPalettePrevCategory,
+    CommandPaletteExecute,
+
+    // Multi-Account Profile Actions
+    OpenProfileSwitcher,
+    CloseProfileSwitcher,
+    ProfileSwitcherNavUp,
+    ProfileSwitcherNavDown,
+    ProfileSwitcherSelect,
+    ProfileSwitcherDelete,
+    ProfileSwitched(String),
+
     // Feedback
     StatusMessage(String),
     Error(String),

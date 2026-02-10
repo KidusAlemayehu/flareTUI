@@ -26,6 +26,7 @@ use crate::components::{
     views::{
         dns_view::{DnsFocus, DnsView},
         pages_view::PagesView,
+        security_view::SecurityView,
         storage_view::StorageView,
         tail_view::TailView,
         workers_view::WorkersView,
@@ -35,8 +36,12 @@ use crate::components::{
     zone_inspector::ZoneInspectorModal,
     d1_console_modal::D1ConsoleModal,
     kv_modal::KvModal,
+    security_inspector::SecurityInspectorModal,
+    command_palette_modal::CommandPaletteModal,
+    profile_modal::ProfileModal,
 };
 use crate::db::{CacheDb, DnsRecord};
+use crate::palette::{PaletteAction, PaletteEngine};
 use crate::theme::Theme;
 
 pub struct App {
@@ -54,11 +59,15 @@ pub struct App {
     pub pages_logs_modal: Option<PagesLogsModal>,
     pub d1_console_modal: Option<D1ConsoleModal>,
     pub kv_modal: Option<KvModal>,
+    pub security_inspector: Option<SecurityInspectorModal>,
+    pub command_palette_modal: Option<CommandPaletteModal>,
+    pub profile_modal: Option<ProfileModal>,
     pub dns_view: DnsView,
     pub workers_view: WorkersView,
     pub pages_view: PagesView,
     pub storage_view: StorageView,
     pub tail_view: TailView,
+    pub security_view: SecurityView,
     pub show_help: bool,
     pub show_auth_modal: bool,
     pub should_quit: bool,
@@ -105,11 +114,15 @@ impl App {
             pages_logs_modal: None,
             d1_console_modal: None,
             kv_modal: None,
+            security_inspector: None,
+            command_palette_modal: None,
+            profile_modal: None,
             dns_view: DnsView::new(db.clone()),
             workers_view: WorkersView::new(db.clone()),
             pages_view: PagesView::new(db.clone()),
             storage_view: StorageView::new(db.clone()),
             tail_view: TailView::new(),
+            security_view: SecurityView::new(db.clone()),
             show_help: false,
             show_auth_modal: false,
             should_quit: false,
@@ -126,6 +139,7 @@ impl App {
     pub fn is_search_active(&self) -> bool {
         (self.header.active_tab == 0 && self.dns_view.search_active)
             || (self.header.active_tab == 4 && self.tail_view.search_active)
+            || (self.header.active_tab == 5 && self.security_view.is_searching)
     }
 
     pub fn is_auth_active(&self) -> bool {
@@ -172,6 +186,18 @@ impl App {
         self.kv_modal.is_some()
     }
 
+    pub fn is_command_palette_active(&self) -> bool {
+        self.command_palette_modal.is_some()
+    }
+
+    pub fn is_security_inspector_active(&self) -> bool {
+        self.security_inspector.is_some()
+    }
+
+    pub fn is_profile_switcher_active(&self) -> bool {
+        self.profile_modal.is_some()
+    }
+
     pub fn is_storage_kv_focused(&self) -> bool {
         self.storage_view.is_kv_focused
     }
@@ -194,6 +220,10 @@ impl App {
             }
             Action::NextTab => {
                 self.header.active_tab = (self.header.active_tab + 1) % self.header.tabs.len();
+                if self.header.active_tab == 5 {
+                    let active_zone_id = self.dns_view.selected_zone().map(|z| z.id.clone());
+                    self.security_view.reload(active_zone_id.as_deref());
+                }
                 self.status_bar.set_status(format!("Switched to {}", self.header.tabs[self.header.active_tab]));
             }
             Action::PrevTab => {
@@ -202,11 +232,19 @@ impl App {
                 } else {
                     self.header.active_tab -= 1;
                 }
+                if self.header.active_tab == 5 {
+                    let active_zone_id = self.dns_view.selected_zone().map(|z| z.id.clone());
+                    self.security_view.reload(active_zone_id.as_deref());
+                }
                 self.status_bar.set_status(format!("Switched to {}", self.header.tabs[self.header.active_tab]));
             }
             Action::SelectTab(idx) => {
                 if idx < self.header.tabs.len() {
                     self.header.active_tab = idx;
+                    if self.header.active_tab == 5 {
+                        let active_zone_id = self.dns_view.selected_zone().map(|z| z.id.clone());
+                        self.security_view.reload(active_zone_id.as_deref());
+                    }
                     self.status_bar.set_status(format!("Switched to {}", self.header.tabs[idx]));
                 }
             }
@@ -216,6 +254,7 @@ impl App {
                 2 => self.pages_view.nav_up(),
                 3 => self.storage_view.nav_up(),
                 4 => self.tail_view.nav_up(),
+                5 => self.security_view.nav_up(),
                 _ => {}
             },
             Action::NavDown => match self.header.active_tab {
@@ -224,6 +263,7 @@ impl App {
                 2 => self.pages_view.nav_down(),
                 3 => self.storage_view.nav_down(),
                 4 => self.tail_view.nav_down(20),
+                5 => self.security_view.nav_down(),
                 _ => {}
             },
             Action::NavLeft | Action::NavRight => {}
@@ -309,6 +349,8 @@ impl App {
                     self.workers_view.reload();
                     self.pages_view.reload();
                     self.storage_view.reload();
+                    let active_zone_id = self.dns_view.selected_zone().map(|z| z.id.clone());
+                    self.security_view.reload(active_zone_id.as_deref());
                     self.status_bar.set_status("Cache data reloaded from SQLite");
                 }
             }
@@ -323,6 +365,11 @@ impl App {
                     }
                 } else if self.header.active_tab == 4 {
                     self.tail_view.toggle_search();
+                } else if self.header.active_tab == 5 {
+                    self.security_view.is_searching = !self.security_view.is_searching;
+                    if !self.security_view.is_searching {
+                        self.security_view.search_query.clear();
+                    }
                 }
             }
             Action::ToggleAuth => {
@@ -417,6 +464,8 @@ impl App {
                 self.workers_view.reload();
                 self.pages_view.reload();
                 self.storage_view.reload();
+                let active_zone_id = self.dns_view.selected_zone().map(|z| z.id.clone());
+                self.security_view.reload(active_zone_id.as_deref());
                 self.status_bar.set_status(msg);
             }
             Action::TailLog(entry) => {
@@ -1067,6 +1116,9 @@ impl App {
                     self.dns_view.search_query.push(c);
                 } else if self.header.active_tab == 4 && self.tail_view.search_active {
                     self.tail_view.input_char(c);
+                } else if self.header.active_tab == 5 && self.security_view.is_searching {
+                    self.security_view.search_query.push(c);
+                    self.security_view.selected_event_idx = 0;
                 }
             }
             Action::InputBackspace => {
@@ -1074,6 +1126,9 @@ impl App {
                     self.dns_view.search_query.pop();
                 } else if self.header.active_tab == 4 && self.tail_view.search_active {
                     self.tail_view.input_backspace();
+                } else if self.header.active_tab == 5 && self.security_view.is_searching {
+                    self.security_view.search_query.pop();
+                    self.security_view.selected_event_idx = 0;
                 }
             }
             Action::InputSubmit => {
@@ -1081,6 +1136,8 @@ impl App {
                     self.dns_view.search_active = false;
                 } else if self.header.active_tab == 4 {
                     self.tail_view.search_active = false;
+                } else if self.header.active_tab == 5 {
+                    self.security_view.is_searching = false;
                 }
             }
             Action::ClearSearch => {
@@ -1089,6 +1146,9 @@ impl App {
                     self.dns_view.search_active = false;
                 } else if self.header.active_tab == 4 {
                     self.tail_view.clear_search();
+                } else if self.header.active_tab == 5 {
+                    self.security_view.search_query.clear();
+                    self.security_view.is_searching = false;
                 }
             }
             Action::StatusMessage(msg) => {
@@ -1713,6 +1773,256 @@ impl App {
                     }
                 }
             }
+            // Security & WAF Actions
+            Action::OpenSecurityInspector => {
+                if self.header.active_tab == 5 {
+                    if let Some(event) = self.security_view.selected_event() {
+                        let matched_rule = if event.rule_id.is_empty() {
+                            None
+                        } else {
+                            self.security_view
+                                .rules
+                                .iter()
+                                .find(|r| r.id == event.rule_id)
+                                .cloned()
+                        };
+                        self.security_inspector = Some(SecurityInspectorModal::new(event, matched_rule));
+                    }
+                }
+            }
+            Action::CloseSecurityInspector => {
+                self.security_inspector = None;
+            }
+            Action::SecurityInspectorNextTab => {
+                if let Some(modal) = &mut self.security_inspector {
+                    modal.next_tab();
+                }
+            }
+            Action::SecurityInspectorPrevTab => {
+                if let Some(modal) = &mut self.security_inspector {
+                    modal.prev_tab();
+                }
+            }
+            Action::SecurityInspectorScrollUp => {
+                if let Some(modal) = &mut self.security_inspector {
+                    modal.scroll_up();
+                }
+            }
+            Action::SecurityInspectorScrollDown => {
+                if let Some(modal) = &mut self.security_inspector {
+                    modal.scroll_down();
+                }
+            }
+            Action::SecurityInspectorCopyIp => {
+                if let Some(modal) = &mut self.security_inspector {
+                    modal.copy_ip();
+                    if let Some(fb) = &modal.action_feedback {
+                        self.status_bar.set_status(fb.clone());
+                    }
+                }
+            }
+            Action::SecurityInspectorCopyRayId => {
+                if let Some(modal) = &mut self.security_inspector {
+                    modal.copy_ray_id();
+                    if let Some(fb) = &modal.action_feedback {
+                        self.status_bar.set_status(fb.clone());
+                    }
+                }
+            }
+            Action::SecurityViewNextTab => {
+                if self.header.active_tab == 5 {
+                    self.security_view.next_tab();
+                }
+            }
+            Action::SecurityViewPrevTab => {
+                if self.header.active_tab == 5 {
+                    self.security_view.prev_tab();
+                }
+            }
+            Action::SecurityViewCycleFilter => {
+                if self.header.active_tab == 5 {
+                    self.security_view.cycle_action_filter();
+                    let filter_label = self
+                        .security_view
+                        .action_filter
+                        .as_deref()
+                        .unwrap_or("ALL")
+                        .to_uppercase();
+                    self.status_bar
+                        .set_status(format!("WAF Event Filter: {filter_label}"));
+                }
+            }
+
+            // Command Palette Actions (Ctrl+P)
+            Action::OpenCommandPalette => {
+                self.command_palette_modal = Some(CommandPaletteModal::new(PaletteEngine::new()));
+            }
+            Action::CloseCommandPalette => {
+                self.command_palette_modal = None;
+            }
+            Action::CommandPaletteInputChar(c) => {
+                if let Some(modal) = &mut self.command_palette_modal {
+                    modal.input_char(c);
+                }
+            }
+            Action::CommandPaletteInputBackspace => {
+                if let Some(modal) = &mut self.command_palette_modal {
+                    modal.backspace();
+                }
+            }
+            Action::CommandPaletteClearQuery => {
+                if let Some(modal) = &mut self.command_palette_modal {
+                    modal.clear_query();
+                }
+            }
+            Action::CommandPaletteNavUp => {
+                if let Some(modal) = &mut self.command_palette_modal {
+                    modal.nav_up();
+                }
+            }
+            Action::CommandPaletteNavDown => {
+                if let Some(modal) = &mut self.command_palette_modal {
+                    modal.nav_down();
+                }
+            }
+            Action::CommandPaletteNavTop => {
+                if let Some(modal) = &mut self.command_palette_modal {
+                    modal.nav_top();
+                }
+            }
+            Action::CommandPaletteNavBottom => {
+                if let Some(modal) = &mut self.command_palette_modal {
+                    modal.nav_bottom();
+                }
+            }
+            Action::CommandPaletteNextCategory => {
+                if let Some(modal) = &mut self.command_palette_modal {
+                    modal.next_category_filter();
+                }
+            }
+            Action::CommandPalettePrevCategory => {
+                if let Some(modal) = &mut self.command_palette_modal {
+                    modal.prev_category_filter();
+                }
+            }
+            Action::CommandPaletteExecute => {
+                if let Some(modal) = self.command_palette_modal.take() {
+                    if let Some(cmd) = modal.selected_command() {
+                        match cmd.action {
+                            PaletteAction::SwitchView(idx) => {
+                                let _ = self.action_tx.send(Action::SelectTab(idx));
+                            }
+                            PaletteAction::TriggerSync => {
+                                let _ = self.action_tx.send(Action::Refresh);
+                            }
+                            PaletteAction::PurgeCache => {
+                                if let Some(zone) = self.dns_view.selected_zone().cloned() {
+                                    if let Some(client) = &self.cf_client {
+                                        let client = client.clone();
+                                        let zone_id = zone.id.clone();
+                                        let zone_name = zone.name.clone();
+                                        let tx = self.action_tx.clone();
+                                        tokio::spawn(async move {
+                                            match client.purge_zone_cache(&zone_id).await {
+                                                Ok(_) => {
+                                                    let _ = tx.send(Action::StatusMessage(format!("Purged edge cache for {zone_name}!")));
+                                                }
+                                                Err(e) => {
+                                                    let _ = tx.send(Action::Error(format!("Purge cache error: {e}")));
+                                                }
+                                            }
+                                        });
+                                    } else {
+                                        self.status_bar.set_status("Purge simulated (no active Cloudflare token)".to_string());
+                                    }
+                                } else {
+                                    self.status_bar.set_error("No zone selected to purge cache".to_string());
+                                }
+                            }
+                            PaletteAction::OpenD1Console => {
+                                let _ = self.action_tx.send(Action::SelectTab(3));
+                                let _ = self.action_tx.send(Action::OpenD1Console);
+                            }
+                            PaletteAction::OpenKvModal => {
+                                let _ = self.action_tx.send(Action::SelectTab(3));
+                                let _ = self.action_tx.send(Action::OpenKvModal);
+                            }
+                            PaletteAction::OpenSecurityInspector => {
+                                let _ = self.action_tx.send(Action::SelectTab(5));
+                                let _ = self.action_tx.send(Action::OpenSecurityInspector);
+                            }
+                            PaletteAction::OpenProfileSwitcher => {
+                                let _ = self.action_tx.send(Action::OpenProfileSwitcher);
+                            }
+                            PaletteAction::OpenHelp => {
+                                let _ = self.action_tx.send(Action::ToggleHelp);
+                            }
+                            PaletteAction::Quit => {
+                                let _ = self.action_tx.send(Action::Quit);
+                            }
+                            PaletteAction::Custom(msg) => {
+                                self.status_bar.set_status(format!("Command executed: {msg}"));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Multi-Account Profile Actions
+            Action::OpenProfileSwitcher => {
+                self.profile_modal = Some(ProfileModal::new());
+            }
+            Action::CloseProfileSwitcher => {
+                self.profile_modal = None;
+            }
+            Action::ProfileSwitcherNavUp => {
+                if let Some(modal) = &mut self.profile_modal {
+                    modal.nav_up();
+                }
+            }
+            Action::ProfileSwitcherNavDown => {
+                if let Some(modal) = &mut self.profile_modal {
+                    modal.nav_down();
+                }
+            }
+            Action::ProfileSwitcherSelect => {
+                if let Some(modal) = &mut self.profile_modal {
+                    if let Some(profile) = modal.switch_to_selected() {
+                        let _ = self.action_tx.send(Action::ProfileSwitched(profile.name));
+                    }
+                }
+            }
+            Action::ProfileSwitcherDelete => {
+                if let Some(modal) = &mut self.profile_modal {
+                    if modal.delete_selected() {
+                        if let Some(msg) = &modal.status_msg {
+                            self.status_bar.set_status(msg.clone());
+                        }
+                    } else if let Some(msg) = &modal.status_msg {
+                        self.status_bar.set_error(msg.clone());
+                    }
+                }
+            }
+            Action::ProfileSwitched(name) => {
+                self.profile_modal = None;
+                if let Some(token) = AuthManager::load_token() {
+                    self.cf_client = Some(CloudflareClient::new(token));
+                    let config = AuthManager::load_config();
+                    self.header.account_name = config.account_name.unwrap_or_else(|| name.clone());
+                    self.header.is_live = true;
+                    self.status_bar
+                        .set_status(format!("Active profile switched to '{name}'. Refreshing..."));
+                    let _ = self.action_tx.send(Action::Refresh);
+                } else {
+                    self.header.account_name = name.clone();
+                    self.header.is_live = false;
+                    self.cf_client = None;
+                    self.status_bar
+                        .set_status(format!("Active profile switched to '{name}' (no API token)"));
+                    let _ = self.action_tx.send(Action::Refresh);
+                }
+            }
+
             Action::Render => {}
         }
         Ok(())
@@ -1740,6 +2050,7 @@ impl App {
             2 => self.pages_view.render(f, chunks[1], &self.theme),
             3 => self.storage_view.render(f, chunks[1], &self.theme),
             4 => self.tail_view.render(f, chunks[1], &self.theme),
+            5 => self.security_view.render(f, chunks[1], &self.theme),
             _ => {}
         }
 
@@ -1751,6 +2062,12 @@ impl App {
             HelpModal::render(f, area, &self.theme);
         } else if self.show_auth_modal {
             self.auth_modal.render(f, area, &self.theme);
+        } else if let Some(cmd_palette) = &self.command_palette_modal {
+            cmd_palette.render(f, area, &self.theme);
+        } else if let Some(prof_modal) = &self.profile_modal {
+            prof_modal.render(f, area, &self.theme);
+        } else if let Some(sec_insp) = &self.security_inspector {
+            sec_insp.render(f, area, &self.theme);
         } else if let Some(tail_log) = &self.tail_log_modal {
             tail_log.render(f, area, &self.theme);
         } else if let Some(worker_insp) = &self.worker_inspector {
@@ -1772,5 +2089,134 @@ impl App {
         } else if let Some(kv_modal) = &self.kv_modal {
             kv_modal.render(f, area, &self.theme);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::components::views::security_view::SecurityTab;
+    use crate::db::{CachedSecurityEvent, CachedWafRule, Zone};
+
+    #[test]
+    fn test_app_security_view_tab_and_actions() {
+        let db = CacheDb::open_in_memory().unwrap();
+        let zone = Zone {
+            id: "test-zone-sec".to_string(),
+            name: "example.com".to_string(),
+            status: "active".to_string(),
+            plan: "Enterprise".to_string(),
+            created_on: "2026-01-01T00:00:00Z".to_string(),
+        };
+        db.upsert_zone(&zone).unwrap();
+
+        let event = CachedSecurityEvent {
+            ray_id: "ray-test-001".to_string(),
+            zone_id: "test-zone-sec".to_string(),
+            timestamp: "2026-02-10T14:30:00Z".to_string(),
+            action: "block".to_string(),
+            source: "waf".to_string(),
+            rule_id: "rule-100".to_string(),
+            rule_description: "Block SQL injection".to_string(),
+            client_ip: "198.51.100.42".to_string(),
+            client_country: "US".to_string(),
+            client_asn: 13335,
+            client_as_org: "Example ISP".to_string(),
+            http_method: "POST".to_string(),
+            http_host: "example.com".to_string(),
+            http_path: "/api/login".to_string(),
+            user_agent: "curl/7.88.1".to_string(),
+        };
+        db.replace_security_events("test-zone-sec", &[event]).unwrap();
+
+        let rule = CachedWafRule {
+            id: "rule-100".to_string(),
+            zone_id: "test-zone-sec".to_string(),
+            description: "Block SQL injection".to_string(),
+            action: "block".to_string(),
+            expression: "(http.request.uri.path contains \"/login\")".to_string(),
+            paused: false,
+            priority: 1,
+            ref_code: "custom-sql".to_string(),
+        };
+        db.replace_waf_rules("test-zone-sec", &[rule]).unwrap();
+
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(db, tx);
+
+        // Switch to tab 5 (Security)
+        app.update(Action::SelectTab(5)).unwrap();
+        assert_eq!(app.header.active_tab, 5);
+
+        // Security view subtab navigation
+        assert_eq!(app.security_view.active_tab, SecurityTab::Events);
+        app.update(Action::SecurityViewNextTab).unwrap();
+        assert_eq!(app.security_view.active_tab, SecurityTab::WafRules);
+
+        // Security filter cycle
+        app.update(Action::SecurityViewCycleFilter).unwrap();
+        assert_eq!(app.security_view.action_filter.as_deref(), Some("block"));
+
+        // Open Security Inspector
+        app.security_view.active_tab = SecurityTab::Events;
+        app.update(Action::OpenSecurityInspector).unwrap();
+        assert!(app.is_security_inspector_active());
+
+        // Inspector tab switching
+        app.update(Action::SecurityInspectorNextTab).unwrap();
+        assert_eq!(
+            app.security_inspector.as_ref().unwrap().active_tab,
+            crate::components::security_inspector::InspectorTab::Rule
+        );
+
+        // Close Security Inspector
+        app.update(Action::CloseSecurityInspector).unwrap();
+        assert!(!app.is_security_inspector_active());
+    }
+
+    #[test]
+    fn test_app_command_palette_actions() {
+        let db = CacheDb::open_in_memory().unwrap();
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(db, tx);
+
+        assert!(!app.is_command_palette_active());
+
+        // Open palette
+        app.update(Action::OpenCommandPalette).unwrap();
+        assert!(app.is_command_palette_active());
+
+        // Search input
+        app.update(Action::CommandPaletteInputChar('d')).unwrap();
+        app.update(Action::CommandPaletteInputChar('1')).unwrap();
+        assert_eq!(app.command_palette_modal.as_ref().unwrap().query, "d1");
+
+        // Clear search
+        app.update(Action::CommandPaletteClearQuery).unwrap();
+        assert_eq!(app.command_palette_modal.as_ref().unwrap().query, "");
+
+        // Close palette
+        app.update(Action::CloseCommandPalette).unwrap();
+        assert!(!app.is_command_palette_active());
+    }
+
+    #[test]
+    fn test_app_profile_switcher_actions() {
+        let db = CacheDb::open_in_memory().unwrap();
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(db, tx);
+
+        assert!(!app.is_profile_switcher_active());
+
+        // Open profile switcher
+        app.update(Action::OpenProfileSwitcher).unwrap();
+        assert!(app.is_profile_switcher_active());
+
+        // Navigation
+        app.update(Action::ProfileSwitcherNavDown).unwrap();
+
+        // Close profile switcher
+        app.update(Action::CloseProfileSwitcher).unwrap();
+        assert!(!app.is_profile_switcher_active());
     }
 }

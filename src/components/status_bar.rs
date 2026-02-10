@@ -39,12 +39,13 @@ impl StatusBar {
 
         // Dynamic hotkeys based on tab
         let key_hints = match active_tab {
-            0 => " [q] Quit  [i] Inspector  [n] Add Record  [e] Edit  [d] Del  [p] Proxy  [E] Export  [s] Pane ",
-            1 => " [q] Quit  [i] Inspector  [t/Enter] Live Tail  [j/k] Nav  [r] Sync  [a] Auth  [?] Help ",
-            2 => " [q] Quit  [Enter/d] Deployments  [j/k] Nav  [r] Sync  [a] Auth  [?] Help ",
-            3 => " [q] Quit  [Tab] View  [j/k] Nav  [Enter] Query  [r] Sync  [a] Auth ",
-            4 => " [Space] Pause  [/] Filter  [f] Follow  [c] Clear  [Enter] Log Details  [j/k] Scroll ",
-            _ => " [q] Quit  [Tab] View  [Space] Pause  [c] Clear  [a] Auth  [?] Help ",
+            0 => " [q] Quit  [i] Inspector  [n] Add Record  [e] Edit  [d] Del  [p] Proxy  [Ctrl+P] Palette ",
+            1 => " [q] Quit  [i] Inspector  [t/Enter] Live Tail  [j/k] Nav  [r] Sync  [Ctrl+P] Palette ",
+            2 => " [q] Quit  [Enter/d] Deployments  [j/k] Nav  [r] Sync  [Ctrl+P] Palette ",
+            3 => " [q] Quit  [Tab] View  [j/k] Nav  [Enter] Query  [r] Sync  [Ctrl+P] Palette ",
+            4 => " [Space] Pause  [/] Filter  [f] Follow  [c] Clear  [Enter] Log Details  [Ctrl+P] Palette ",
+            5 => " [q] Quit  [Tab] Sec Tab  [Enter] Inspect  [f] Filter  [j/k] Nav  [Ctrl+P] Palette ",
+            _ => " [q] Quit  [Tab] View  [Space] Pause  [c] Clear  [Ctrl+P] Palette  [?] Help ",
         };
 
         let hints_widget = Paragraph::new(Line::from(vec![

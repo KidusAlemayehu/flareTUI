@@ -77,6 +77,9 @@ async fn main() -> Result<()> {
                         let pages_logs_active = app.is_pages_logs_active();
                         let d1_console_active = app.is_d1_console_active();
                         let kv_modal_active = app.is_kv_modal_active();
+                        let command_palette_active = app.is_command_palette_active();
+                        let security_inspector_active = app.is_security_inspector_active();
+                        let profile_modal_active = app.is_profile_switcher_active();
                         let active_tab = app.header.active_tab;
                         let is_zone_pane_focused = app.is_zone_pane_focused();
                         let is_storage_kv_focused = app.is_storage_kv_focused();
@@ -94,6 +97,9 @@ async fn main() -> Result<()> {
                             pages_logs_active,
                             d1_console_active,
                             kv_modal_active,
+                            command_palette_active,
+                            security_inspector_active,
+                            profile_modal_active,
                             active_tab,
                             is_zone_pane_focused,
                             is_storage_kv_focused,

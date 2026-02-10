@@ -73,10 +73,56 @@ impl EventHandler {
         pages_logs_active: bool,
         d1_console_active: bool,
         kv_modal_active: bool,
+        command_palette_active: bool,
+        security_inspector_active: bool,
+        profile_modal_active: bool,
         active_tab: usize,
         is_zone_pane_focused: bool,
         is_storage_kv_focused: bool,
     ) -> Option<Action> {
+        if command_palette_active {
+            return match (key.modifiers, key.code) {
+                (_, KeyCode::Esc) => Some(Action::CloseCommandPalette),
+                (_, KeyCode::Enter) => Some(Action::CommandPaletteExecute),
+                (_, KeyCode::Up) => Some(Action::CommandPaletteNavUp),
+                (_, KeyCode::Down) => Some(Action::CommandPaletteNavDown),
+                (_, KeyCode::Home) => Some(Action::CommandPaletteNavTop),
+                (_, KeyCode::End) => Some(Action::CommandPaletteNavBottom),
+                (KeyModifiers::SHIFT, KeyCode::BackTab) => Some(Action::CommandPalettePrevCategory),
+                (_, KeyCode::Tab) => Some(Action::CommandPaletteNextCategory),
+                (_, KeyCode::Backspace) => Some(Action::CommandPaletteInputBackspace),
+                (KeyModifiers::CONTROL, KeyCode::Char('u')) => Some(Action::CommandPaletteClearQuery),
+                (KeyModifiers::NONE, KeyCode::Char(c)) | (KeyModifiers::SHIFT, KeyCode::Char(c)) => {
+                    Some(Action::CommandPaletteInputChar(c))
+                }
+                _ => None,
+            };
+        }
+
+        if security_inspector_active {
+            return match (key.modifiers, key.code) {
+                (_, KeyCode::Esc) | (KeyModifiers::NONE, KeyCode::Char('q')) => Some(Action::CloseSecurityInspector),
+                (KeyModifiers::SHIFT, KeyCode::BackTab) => Some(Action::SecurityInspectorPrevTab),
+                (_, KeyCode::Tab) => Some(Action::SecurityInspectorNextTab),
+                (_, KeyCode::Up) | (KeyModifiers::NONE, KeyCode::Char('k')) => Some(Action::SecurityInspectorScrollUp),
+                (_, KeyCode::Down) | (KeyModifiers::NONE, KeyCode::Char('j')) => Some(Action::SecurityInspectorScrollDown),
+                (KeyModifiers::NONE, KeyCode::Char('c')) => Some(Action::SecurityInspectorCopyIp),
+                (KeyModifiers::NONE, KeyCode::Char('r')) => Some(Action::SecurityInspectorCopyRayId),
+                _ => None,
+            };
+        }
+
+        if profile_modal_active {
+            return match (key.modifiers, key.code) {
+                (_, KeyCode::Esc) | (KeyModifiers::NONE, KeyCode::Char('q')) => Some(Action::CloseProfileSwitcher),
+                (_, KeyCode::Up) | (KeyModifiers::NONE, KeyCode::Char('k')) => Some(Action::ProfileSwitcherNavUp),
+                (_, KeyCode::Down) | (KeyModifiers::NONE, KeyCode::Char('j')) => Some(Action::ProfileSwitcherNavDown),
+                (_, KeyCode::Enter) => Some(Action::ProfileSwitcherSelect),
+                (KeyModifiers::NONE, KeyCode::Char('d')) => Some(Action::ProfileSwitcherDelete),
+                _ => None,
+            };
+        }
+
         if d1_console_active {
             return match (key.modifiers, key.code) {
                 (_, KeyCode::Esc) => Some(Action::CloseD1Console),
@@ -234,6 +280,8 @@ impl EventHandler {
         match (key.modifiers, key.code) {
             (KeyModifiers::CONTROL, KeyCode::Char('c')) => Some(Action::Quit),
             (KeyModifiers::NONE, KeyCode::Char('q')) => Some(Action::Quit),
+            (KeyModifiers::CONTROL, KeyCode::Char('p')) => Some(Action::OpenCommandPalette),
+            (KeyModifiers::CONTROL, KeyCode::Char('u')) => Some(Action::OpenProfileSwitcher),
             (KeyModifiers::NONE, KeyCode::Tab) => Some(Action::NextTab),
             (KeyModifiers::SHIFT, KeyCode::BackTab) => Some(Action::PrevTab),
             (KeyModifiers::NONE, KeyCode::Char('1')) => Some(Action::SelectTab(0)),
@@ -241,6 +289,7 @@ impl EventHandler {
             (KeyModifiers::NONE, KeyCode::Char('3')) => Some(Action::SelectTab(2)),
             (KeyModifiers::NONE, KeyCode::Char('4')) => Some(Action::SelectTab(3)),
             (KeyModifiers::NONE, KeyCode::Char('5')) => Some(Action::SelectTab(4)),
+            (KeyModifiers::NONE, KeyCode::Char('6')) => Some(Action::SelectTab(5)),
             (KeyModifiers::NONE, KeyCode::Char('j')) | (KeyModifiers::NONE, KeyCode::Down) => {
                 if active_tab == 4 {
                     Some(Action::TailNavDown)
@@ -280,6 +329,10 @@ impl EventHandler {
                 }
             }
             (KeyModifiers::NONE, KeyCode::Enter) if active_tab == 4 => Some(Action::OpenTailLogDetails),
+            (KeyModifiers::NONE, KeyCode::Enter) if active_tab == 5 => Some(Action::OpenSecurityInspector),
+            (KeyModifiers::NONE, KeyCode::Char('i')) if active_tab == 5 => Some(Action::OpenSecurityInspector),
+            (KeyModifiers::NONE, KeyCode::Char('t')) if active_tab == 5 => Some(Action::SecurityViewNextTab),
+            (KeyModifiers::NONE, KeyCode::Char('f')) if active_tab == 5 => Some(Action::SecurityViewCycleFilter),
             (KeyModifiers::NONE, KeyCode::Char('i')) if active_tab == 3 => {
                 if is_storage_kv_focused {
                     Some(Action::OpenKvModal)
@@ -308,6 +361,7 @@ mod tests {
             enter_key, false, false, false, false, false, false, false, false, false, false,
             true,  // d1_console_active
             false, // kv_modal_active
+            false, false, false,
             3, false, false,
         );
         assert_eq!(action, Some(Action::D1ConsoleExecuteQuery));
@@ -315,28 +369,28 @@ mod tests {
         let tab_key = KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE);
         let action = EventHandler::map_key_to_action(
             tab_key, false, false, false, false, false, false, false, false, false, false,
-            true, false, 3, false, false,
+            true, false, false, false, false, 3, false, false,
         );
         assert_eq!(action, Some(Action::D1ConsoleSwitchPane));
 
         let esc_key = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
         let action = EventHandler::map_key_to_action(
             esc_key, false, false, false, false, false, false, false, false, false, false,
-            true, false, 3, false, false,
+            true, false, false, false, false, 3, false, false,
         );
         assert_eq!(action, Some(Action::CloseD1Console));
 
         let pgdn_key = KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE);
         let action = EventHandler::map_key_to_action(
             pgdn_key, false, false, false, false, false, false, false, false, false, false,
-            true, false, 3, false, false,
+            true, false, false, false, false, 3, false, false,
         );
         assert_eq!(action, Some(Action::D1ConsolePageDown));
 
         let home_key = KeyEvent::new(KeyCode::Home, KeyModifiers::NONE);
         let action = EventHandler::map_key_to_action(
             home_key, false, false, false, false, false, false, false, false, false, false,
-            true, false, 3, false, false,
+            true, false, false, false, false, 3, false, false,
         );
         assert_eq!(action, Some(Action::D1ConsoleHome));
     }
@@ -348,23 +402,59 @@ mod tests {
         // Tab 3 with D1 focused
         let action = EventHandler::map_key_to_action(
             enter_key, false, false, false, false, false, false, false, false, false, false,
-            false, false, 3, false, false,
+            false, false, false, false, false, 3, false, false,
         );
         assert_eq!(action, Some(Action::OpenD1Console));
 
         // Tab 3 with KV focused
         let action = EventHandler::map_key_to_action(
             enter_key, false, false, false, false, false, false, false, false, false, false,
-            false, false, 3, false, true,
+            false, false, false, false, false, 3, false, true,
         );
         assert_eq!(action, Some(Action::OpenKvModal));
 
         // Inside KV modal
         let action = EventHandler::map_key_to_action(
             enter_key, false, false, false, false, false, false, false, false, false, false,
-            false, true, 3, false, true,
+            false, true, false, false, false, 3, false, true,
         );
         assert_eq!(action, Some(Action::KvModalFetchValue));
+    }
+
+    #[test]
+    fn test_command_palette_event_mapping() {
+        let esc_key = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+        let action = EventHandler::map_key_to_action(
+            esc_key, false, false, false, false, false, false, false, false, false, false,
+            false, false,
+            true,  // command_palette_active
+            false, false, 0, false, false,
+        );
+        assert_eq!(action, Some(Action::CloseCommandPalette));
+
+        let enter_key = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        let action = EventHandler::map_key_to_action(
+            enter_key, false, false, false, false, false, false, false, false, false, false,
+            false, false, true, false, false, 0, false, false,
+        );
+        assert_eq!(action, Some(Action::CommandPaletteExecute));
+    }
+
+    #[test]
+    fn test_security_and_palette_global_hotkeys() {
+        let ctrl_p = KeyEvent::new(KeyCode::Char('p'), KeyModifiers::CONTROL);
+        let action = EventHandler::map_key_to_action(
+            ctrl_p, false, false, false, false, false, false, false, false, false, false,
+            false, false, false, false, false, 0, false, false,
+        );
+        assert_eq!(action, Some(Action::OpenCommandPalette));
+
+        let tab_6 = KeyEvent::new(KeyCode::Char('6'), KeyModifiers::NONE);
+        let action = EventHandler::map_key_to_action(
+            tab_6, false, false, false, false, false, false, false, false, false, false,
+            false, false, false, false, false, 0, false, false,
+        );
+        assert_eq!(action, Some(Action::SelectTab(5)));
     }
 }
 
