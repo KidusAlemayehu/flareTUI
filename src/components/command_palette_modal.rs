@@ -6,7 +6,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::palette::{CommandCategory, PaletteAction, PaletteCommand, PaletteEngine, ScoredCommand};
+use crate::palette::{CommandCategory, PaletteCommand, PaletteEngine, ScoredCommand};
 use crate::theme::Theme;
 
 pub struct CommandPaletteModal {
@@ -364,6 +364,7 @@ impl CommandPaletteModal {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::palette::PaletteAction;
 
     #[test]
     fn test_modal_query_and_results() {
