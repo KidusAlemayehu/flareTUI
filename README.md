@@ -40,8 +40,12 @@
 - **Workers Inspector & Realtime Live Tail**: Inspect script metadata, route patterns, and active bindings (D1, KV, R2, Queues). Stream live Worker execution logs over WebSockets with exception decoding, regex filtering (`/`), and auto-follow mode (`f`).
 - **Cloudflare Pages & Instant Rollback**: Track deployment statuses across preview and production environments, inspect build stages and logs, and execute rollbacks directly from your terminal.
 - **Storage & Edge Databases (D1 & KV)**: Interactive D1 SQL Console with table schema explorer, quick query presets, tabular result grid, query history buffer (`↑`/`↓`), and live execution duration metrics. Workers KV key browser with real-time prefix filtering (`/`) and formatted JSON syntax viewer.
+- **WAF & Security Analytics Dashboard**: Zone-wide threat score gauge (0-100), interactive security event log explorer with action filter cycling (`f`: Block, Managed Challenge, JS Challenge, Log), and threat timeline distribution.
+- **Security Event Inspector**: Deep-dive inspector modal (`Enter`/`i`) displaying request details (client IP, ASN, Ray ID, HTTP method, path, user agent), WAF rule expression, and raw JSON payload with quick clipboard buffer copying (`c` for IP, `r` for Ray ID).
+- **Universal Command Palette (`Ctrl+P`)**: Blazing-fast fuzzy search powered by `nucleo-matcher` with real-time character highlighting, category filters (`Tab`/`Shift+Tab`), and single-keystroke action dispatch across views, API sync, cache purges, and tool modals.
+- **Multi-Account Profile Switcher (`Ctrl+U`)**: Seamless hot-swapping between multiple Cloudflare accounts and API profiles at runtime without restarting flareTUI.
 - **Defensive Safety Safeguards**: Irreversible modifications (deleting records, purging edge cache, rolling back builds) are guarded by interactive confirmation dialogs.
-- **Ergonomic Vim Keybindings**: Single-stroke navigation (`j`/`k`, numeric view switching `1`-`5`, `Tab`/`s` pane toggle, and `/` search).
+- **Ergonomic Vim Keybindings**: Single-stroke navigation (`j`/`k`, numeric view switching `1`-`6`, `Tab`/`s` pane toggle, and `/` search).
 
 ---
 
@@ -49,7 +53,7 @@
 
 ```text
   flareTUI    Account: dev@example.com's Account       Cloudflare Live                Cache: SQLite Local
- 1: Zones & DNS │ 2: Workers │ 3: Pages │ 4: D1 & KV │ 5: Live Tail
+ 1: Zones & DNS │ 2: Workers │ 3: Pages │ 4: D1 & KV │ 5: Live Tail │ 6: Security & WAF
 ┌ Zones (Press 's' to switch) ─┐┌ DNS Records: example.com (Total: 6) ──────────────────────────────────────────┐
 │▶ example.com     Enterprise   ││ Type    Name               Content / Target            Proxy Status    TTL    │
 │  staging-edge.io Pro          ││▶ A       api.example.com    192.0.2.42                  [o] Proxied     Auto   │
@@ -59,7 +63,7 @@
 │                               ││  TXT     _dmarc.example.com "v=DMARC1; p=reject;..."    [ ] DNS Only    Auto   │
 │                               ││  TXT     example.com        "v=spf1 include:_spf...~all"[ ] DNS Only    3600s  │
 └───────────────────────────────┘└──────────────────────────────────────────────────────────────────────────────┘
- [1-5] Tabs  [s/Tab] Switch Pane  [p] Proxy  [n] New  [e] Edit  [d] Delete  [i] Zone Settings  [?] Help  [q] Quit
+ [Ctrl+P] Command Palette  [Ctrl+U] Profiles  [1-6] Tabs  [s/Tab] Switch Pane  [p] Proxy  [?] Help  [q] Quit
 ```
 
 ---
@@ -115,18 +119,31 @@ Create a Cloudflare **User API Token** at [dash.cloudflare.com/profile/api-token
 | **Account ➔ Cloudflare Pages** | All Accounts | **Read / Edit** | View deployments, build logs, and trigger rollbacks |
 | **Account ➔ D1** | All Accounts | **Read / Edit** | Query and browse D1 databases |
 | **Account ➔ Workers KV Storage** | All Accounts | **Read** | List namespaces, browse keys, inspect values |
+| **Zone ➔ Security Events** | All Zones (or Specific Zone) | **Read** | Inspect WAF firewall events, threat scores, and blocked IPs |
+| **Zone ➔ WAF Rulesets** | All Zones (or Specific Zone) | **Read** | View firewall rules and rule expression triggers |
 
 > [!TIP]
 > Always generate a **User API Token** under **User Profile (top-right avatar) ➔ My Profile ➔ API Tokens** rather than an Account API Token to ensure zone-level DNS listing and modifications succeed.
 
 ### Configuration File
-Credentials and account metadata are stored locally in `~/.config/flaretui/config.toml`:
+Credentials and account profiles are stored locally in `~/.config/flaretui/config.toml`:
 
 ```toml
-api_token = "cfut_sample_token_abcdef1234567890"
+# Currently active profile
+current_profile = "production"
+
+# Multi-account profile configurations
+[[profiles]]
+name = "production"
+api_token = "cfut_prod_token_abcdef1234567890"
 account_id = "0123456789abcdef0123456789abcdef"
 account_name = "Production Team"
-theme = "default"
+
+[[profiles]]
+name = "staging"
+api_token = "cfut_staging_token_1234567890abcdef"
+account_id = "fedcba9876543210fedcba9876543210"
+account_name = "Staging Environment"
 ```
 
 ---
@@ -136,7 +153,9 @@ theme = "default"
 ### Global Navigation
 | Keybinding | Action |
 | :--- | :--- |
-| `1` .. `5` | Switch active tab (`1: Zones & DNS`, `2: Workers`, `3: Pages`, `4: D1 & KV`, `5: Live Tail`) |
+| `Ctrl+P` | Open **Universal Command Palette** with fuzzy search and actions |
+| `Ctrl+U` | Open **Multi-Account Profile Switcher** |
+| `1` .. `6` | Switch active tab (`1: Zones & DNS`, `2: Workers`, `3: Pages`, `4: D1 & KV`, `5: Live Tail`, `6: Security & WAF`) |
 | `j` / `k` or `↓` / `↑` | Move row selection down / up |
 | `Tab` / `Shift+Tab` | Cycle focus between panes |
 | `r` | Hard refresh live data from Cloudflare API |
@@ -188,6 +207,30 @@ theme = "default"
 | `/` | In KV Inspector: open real-time key/prefix search filter bar |
 | `Enter` / `Space` | In KV Inspector: load and inspect key value with formatted JSON syntax viewer |
 
+### Security & WAF View (`Tab 6`)
+| Keybinding | Action |
+| :--- | :--- |
+| `t` | Cycle sub-tabs between **Events**, **WAF Rules**, and **Analytics & Threats** |
+| `f` | Cycle action filter (`ALL` ➔ `BLOCK` ➔ `MANAGED_CHALLENGE` ➔ `CHALLENGE` ➔ `JS_CHALLENGE` ➔ `RATE_LIMIT` ➔ `LOG`) |
+| `Enter` / `i` | Open **Security Event Inspector** for selected event |
+| `/` | Open real-time event search filter |
+| `j` / `k` or `↓` / `↑` | Navigate security events and WAF rules list |
+| `Tab` / `Shift+Tab` | In Event Inspector: cycle tabs (**Event Details**, **WAF Rule Expression**, **Raw JSON**) |
+| `c` | In Event Inspector: copy client IP address to clipboard buffer |
+| `r` | In Event Inspector: copy Cloudflare Ray ID to clipboard buffer |
+| `Esc` / `q` | Close Security Event Inspector modal |
+
+### Universal Command Palette (`Ctrl+P`)
+| Keybinding | Action |
+| :--- | :--- |
+| `Any character` | Real-time fuzzy query with character match highlighting |
+| `Tab` / `Shift+Tab` | Cycle category filter (`All`, `Navigation`, `Cloudflare`, `Security`, `Storage`, `Workers`, `Profiles`, `System`) |
+| `Enter` | Execute selected command action |
+| `↑` / `↓` | Move command selection up / down |
+| `Home` / `End` | Jump to top / bottom of filtered command results |
+| `Ctrl+U` | Clear current search query |
+| `Esc` | Close Command Palette modal |
+
 ---
 
 ## Architecture
@@ -198,8 +241,8 @@ theme = "default"
 flowchart TD
     subgraph UI ["Terminal Presentation (Ratatui + Crossterm)"]
         Header["Header Bar (Account & Live Status)"]
-        Views["View Stack (DNS | Workers | Pages | Storage | Tail)"]
-        Modals["Modals (Auth | DNS Edit | Delete Guard | Inspector)"]
+        Views["View Stack (DNS | Workers | Pages | Storage | Tail | Security)"]
+        Modals["Modals (Auth | Palette | Inspector | Profile | D1 | KV | Guard)"]
         StatusBar["Status Bar & Diagnostics"]
     end
 
@@ -207,6 +250,7 @@ flowchart TD
         EventHandler["EventHandler (200ms Tick & Keyboard Ingestion)"]
         ActionQueue["MPSC Action Channel"]
         App["Central App State"]
+        PaletteEngine["Nucleo-Matcher Fuzzy Command Engine"]
     end
 
     subgraph Storage ["Offline Cache Layer (SQLite)"]
@@ -221,6 +265,7 @@ flowchart TD
 
     EventHandler -->|Key / Tick Events| ActionQueue
     ActionQueue --> App
+    PaletteEngine -->|Matched Actions| App
     App -->|Draw Frame| UI
     App -->|Write-Through & Read| CacheDb
     App -->|Async Actions| Client
@@ -242,7 +287,7 @@ flowchart TD
 - [x] **Milestone 7**: Realtime Worker live tail session dispatcher over WebSockets with in-memory filtering & follow mode.
 - [x] **Milestone 8**: Pages projects overview, deployment history, build log viewer, and rollback dispatcher.
 - [x] **Milestone 9**: Storage Browser (Interactive D1 SQL query runner and KV namespace key-value explorer).
-- [ ] **Milestone 10**: WAF & Security analytics dashboard, multi-account fuzzy command palette (`Ctrl+P`).
+- [x] **Milestone 10**: WAF & Security analytics dashboard, multi-account fuzzy command palette (`Ctrl+P`), runtime profile switcher.
 
 ---
 

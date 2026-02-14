@@ -35,6 +35,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and adher
 
 ---
 
+## 0.5.0 (2026-02-14)
+
+### Added
+
+- Core security wiring, Command Palette (Ctrl+P), and profile switcher integration - ([13e38b2](https://github.com/KidusAlemayehu/flareTUI/commit/13e38b2))
+  - Connected interactive Security & WAF dashboard view to central application state as tab 6 (`6`)
+  - Integrated nucleo-matcher powered universal Command Palette overlay (`Ctrl+P`) with category badges and action execution
+  - Added runtime multi-account profile switcher (`Ctrl+U`) with instant API client reinitialization and cache refresh
+
+- Multi-account profile configuration and runtime switcher modal - ([dc1a6ba](https://github.com/KidusAlemayehu/flareTUI/commit/dc1a6ba))
+  - Added multi-profile TOML configuration schema supporting distinct API tokens, account IDs, and friendly names
+  - Implemented interactive profile selector modal displaying masked tokens, active indicators, and deletion safeguards
+
+- Universal Command Palette modal with category badges and actions - ([b5c76df](https://github.com/KidusAlemayehu/flareTUI/commit/b5c76df))
+  - Full-featured command palette modal with dynamic query search and match character highlighting
+  - Category filter cycling (`Tab`/`Shift+Tab`) across Navigation, Cloudflare, Security, Storage, Workers, Profiles, and System
+
+- Nucleo-matcher powered fuzzy command palette engine - ([4071c79](https://github.com/KidusAlemayehu/flareTUI/commit/4071c79))
+  - High-performance fuzzy matching engine registering application commands with title, description, category, and shortcuts
+  - Exact match character indexing for visual highlight styling in the terminal
+
+- Security event inspector modal with IP lookup and rule details - ([c135cc2](https://github.com/KidusAlemayehu/flareTUI/commit/c135cc2))
+  - Deep-dive inspector modal featuring sub-tabs for Event Details, WAF Rule Expression, and formatted Raw JSON
+  - In-memory clipboard buffer copy triggers for client IP (`c`) and Cloudflare Ray ID (`r`)
+
+- Interactive Security & WAF Analytics dashboard view - ([9962d35](https://github.com/KidusAlemayehu/flareTUI/commit/9962d35))
+  - Interactive Security dashboard with Events, WAF Rules, and Analytics & Threats sub-tabs (`t`)
+  - Real-time action filter cycling (`f`: Block, Managed Challenge, JS Challenge, Log) and zone-wide threat level gauge
+
+- Security analytics data aggregation and threat level calculators - ([ebbcab3](https://github.com/KidusAlemayehu/flareTUI/commit/ebbcab3))
+  - Aggregation engine computing top targeted paths, top attacking IPs and ASNs, action distributions, and 24-hour threat timelines
+  - Algorithmic threat score calculator (0-100) classifying zone threat levels into Low, Guarded, Elevated, High, and Critical
+
+- Security events and WAF rules SQLite caching layer - ([beb84e6](https://github.com/KidusAlemayehu/flareTUI/commit/beb84e6))
+  - Added `security_events` and `waf_rules` tables to local SQLite cache database with zone foreign key indexing
+  - Extended cache models and synchronization routines in `CloudflareSync::sync_all`
+
+- Cloudflare WAF, security events, and firewall rules client models - ([5b22e11](https://github.com/KidusAlemayehu/flareTUI/commit/5b22e11))
+  - Added typed data models for security events, firewall rulesets, and analytics summaries
+  - Implemented Cloudflare v4 client endpoints: `get_security_events`, `get_waf_rules`, `get_security_summary`
+
+---
+
 ## 0.4.0 (2025-12-05)
 
 ### Added
