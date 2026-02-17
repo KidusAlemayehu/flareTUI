@@ -67,12 +67,25 @@ pub struct TimeSeriesBucket {
     pub challenged: usize,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct TimelineSparklineData {
+    pub total_sparkline: Vec<u64>,
+    pub blocked_sparkline: Vec<u64>,
+    pub challenged_sparkline: Vec<u64>,
+    pub peak_hour: Option<String>,
+    pub peak_volume: u64,
+    pub anomaly_detected: bool,
+    pub anomaly_description: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SecurityAnalyticsReport {
     pub total_events: usize,
     pub threats_blocked: usize,
     pub threats_challenged: usize,
     pub rate_limited: usize,
+    pub total_mitigated: usize,
+    pub mitigation_rate: f64,
     pub threat_score: u8,
     pub threat_level: ThreatLevel,
     pub action_breakdown: Vec<ActionBreakdown>,
@@ -81,6 +94,7 @@ pub struct SecurityAnalyticsReport {
     pub top_paths: Vec<PathStat>,
     pub rule_hits: Vec<RuleHitStat>,
     pub timeline: Vec<TimeSeriesBucket>,
+    pub sparkline: TimelineSparklineData,
 }
 
 pub struct SecurityAnalyticsEngine;
@@ -290,14 +304,23 @@ impl SecurityAnalyticsEngine {
         }
         rule_hits.sort_by(|a, b| b.hits.cmp(&a.hits));
 
-        // Timeline bucket grouping
-        let timeline = Self::generate_timeline(events);
+        // Timeline and sparkline generation
+        let total_mitigated = threats_blocked + threats_challenged + rate_limited;
+        let mitigation_rate = if total_events > 0 {
+            (total_mitigated as f64 / total_events as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        let (timeline, sparkline) = Self::generate_timeline_and_sparklines(events);
 
         SecurityAnalyticsReport {
             total_events,
             threats_blocked,
             threats_challenged,
             rate_limited,
+            total_mitigated,
+            mitigation_rate,
             threat_score,
             threat_level,
             action_breakdown,
@@ -306,43 +329,169 @@ impl SecurityAnalyticsEngine {
             top_paths,
             rule_hits,
             timeline,
+            sparkline,
         }
     }
 
-    fn generate_timeline(events: &[CachedSecurityEvent]) -> Vec<TimeSeriesBucket> {
+    pub fn generate_timeline(events: &[CachedSecurityEvent]) -> Vec<TimeSeriesBucket> {
+        Self::generate_timeline_and_sparklines(events).0
+    }
+
+    pub fn generate_timeline_and_sparklines(
+        events: &[CachedSecurityEvent],
+    ) -> (Vec<TimeSeriesBucket>, TimelineSparklineData) {
         if events.is_empty() {
-            return Vec::new();
+            return (Vec::new(), TimelineSparklineData::default());
         }
 
         let mut sorted = events.to_vec();
         sorted.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
 
-        let bucket_count = 8.min(sorted.len());
-        let chunk_size = (sorted.len() + bucket_count - 1) / bucket_count;
-        let mut buckets = Vec::new();
+        // 1. Group consecutive events that share the same time label
+        let mut raw_buckets: Vec<TimeSeriesBucket> = Vec::new();
+        for ev in &sorted {
+            let label = if ev.timestamp.len() >= 16 {
+                ev.timestamp[11..16].to_string()
+            } else {
+                ev.timestamp.clone()
+            };
 
-        for chunk in sorted.chunks(chunk_size) {
-            if let Some(first) = chunk.first() {
-                let label = if first.timestamp.len() >= 16 {
-                    first.timestamp[11..16].to_string()
-                } else {
-                    first.timestamp.clone()
-                };
+            let is_block = ev.action.to_lowercase().contains("block");
+            let is_chal = ev.action.to_lowercase().contains("challenge");
 
-                let total = chunk.len();
-                let blocked = chunk.iter().filter(|e| e.action.to_lowercase().contains("block")).count();
-                let challenged = chunk.iter().filter(|e| e.action.to_lowercase().contains("challenge")).count();
+            if let Some(last) = raw_buckets.last_mut() {
+                if last.label == label {
+                    last.total += 1;
+                    if is_block {
+                        last.blocked += 1;
+                    }
+                    if is_chal {
+                        last.challenged += 1;
+                    }
+                    continue;
+                }
+            }
 
-                buckets.push(TimeSeriesBucket {
-                    label,
-                    total,
-                    blocked,
-                    challenged,
-                });
+            raw_buckets.push(TimeSeriesBucket {
+                label,
+                total: 1,
+                blocked: if is_block { 1 } else { 0 },
+                challenged: if is_chal { 1 } else { 0 },
+            });
+        }
+
+        // 2. Condense into at most 16 buckets for terminal display
+        let buckets: Vec<TimeSeriesBucket> = if raw_buckets.len() <= 16 {
+            raw_buckets
+        } else {
+            let chunk_size = (raw_buckets.len() + 15) / 16;
+            raw_buckets
+                .chunks(chunk_size)
+                .map(|chunk| {
+                    let first = chunk.first().unwrap();
+                    let label = first.label.clone();
+                    let total = chunk.iter().map(|b| b.total).sum();
+                    let blocked = chunk.iter().map(|b| b.blocked).sum();
+                    let challenged = chunk.iter().map(|b| b.challenged).sum();
+                    TimeSeriesBucket {
+                        label,
+                        total,
+                        blocked,
+                        challenged,
+                    }
+                })
+                .collect()
+        };
+
+        // 3. Extract sparklines and detect anomalies
+        let mut total_sparkline = Vec::with_capacity(buckets.len());
+        let mut blocked_sparkline = Vec::with_capacity(buckets.len());
+        let mut challenged_sparkline = Vec::with_capacity(buckets.len());
+
+        let mut peak_volume: u64 = 0;
+        let mut peak_hour: Option<String> = None;
+        let mut total_sum: u64 = 0;
+
+        for b in &buckets {
+            let total = b.total as u64;
+            let blocked = b.blocked as u64;
+            let challenged = b.challenged as u64;
+
+            if total > peak_volume {
+                peak_volume = total;
+                peak_hour = Some(format!("{} ({} events)", b.label, b.total));
+            }
+            total_sum += total;
+
+            total_sparkline.push(total);
+            blocked_sparkline.push(blocked);
+            challenged_sparkline.push(challenged);
+        }
+
+        let bucket_num = buckets.len();
+        let mean = if bucket_num > 0 {
+            total_sum as f64 / bucket_num as f64
+        } else {
+            0.0
+        };
+
+        let mut anomaly_detected = false;
+        let mut anomaly_description = None;
+
+        if bucket_num >= 3 && mean > 0.0 && (peak_volume as f64) >= (mean * 2.0) {
+            anomaly_detected = true;
+            let ratio = ((peak_volume as f64 / mean) - 1.0) * 100.0;
+            if let Some(p_hour) = &peak_hour {
+                anomaly_description = Some(format!(
+                    "Traffic spike detected at {p_hour} (+{ratio:.0}% above baseline)"
+                ));
             }
         }
 
-        buckets
+        let sparkline_data = TimelineSparklineData {
+            total_sparkline,
+            blocked_sparkline,
+            challenged_sparkline,
+            peak_hour,
+            peak_volume,
+            anomaly_detected,
+            anomaly_description,
+        };
+
+        (buckets, sparkline_data)
+    }
+
+    pub fn format_horizontal_meter(ratio: f64, width: usize) -> String {
+        if width == 0 {
+            return String::new();
+        }
+        let clamped = ratio.clamp(0.0, 1.0);
+        let filled_count = (clamped * width as f64).round() as usize;
+        let filled = "█".repeat(filled_count.min(width));
+        let empty = "░".repeat(width.saturating_sub(filled_count));
+        format!("{filled}{empty}")
+    }
+
+    pub fn format_sparkline_text(values: &[u64]) -> String {
+        if values.is_empty() {
+            return String::new();
+        }
+        let max_val = *values.iter().max().unwrap_or(&1);
+        let symbols = [' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+        let mut out = String::with_capacity(values.len());
+
+        for &val in values {
+            let index = if max_val == 0 {
+                0
+            } else {
+                let scaled =
+                    ((val as f64 / max_val as f64) * (symbols.len() - 1) as f64).round() as usize;
+                scaled.min(symbols.len() - 1)
+            };
+            out.push(symbols[index]);
+        }
+
+        out
     }
 
     pub fn filter_events(
@@ -539,5 +688,65 @@ mod tests {
         let timeline = SecurityAnalyticsEngine::generate_timeline(&events);
         assert!(!timeline.is_empty());
         assert_eq!(timeline[0].label, "10:00");
+    }
+
+    #[test]
+    fn test_sparkline_timeline_and_anomaly_detection() {
+        let mut events = sample_events();
+        // Add additional events to create a spike at 10:15
+        for i in 4..12 {
+            events.push(CachedSecurityEvent {
+                ray_id: format!("ray-spike-{i}"),
+                zone_id: "zone-1".to_string(),
+                timestamp: "2026-01-10T10:15:00Z".to_string(),
+                action: "block".to_string(),
+                source: "waf".to_string(),
+                rule_id: "rule-sqli".to_string(),
+                rule_description: "Block SQL injection attack".to_string(),
+                client_ip: "198.51.100.42".to_string(),
+                client_country: "US".to_string(),
+                client_asn: 13335,
+                client_as_org: "Example ISP".to_string(),
+                http_method: "POST".to_string(),
+                http_host: "api.example.com".to_string(),
+                http_path: "/login".to_string(),
+                user_agent: "curl/7.88.1".to_string(),
+            });
+        }
+
+        let (timeline, sparkline) = SecurityAnalyticsEngine::generate_timeline_and_sparklines(&events);
+        assert!(!timeline.is_empty());
+        assert!(!sparkline.total_sparkline.is_empty());
+        assert!(!sparkline.blocked_sparkline.is_empty());
+        assert!(sparkline.peak_volume >= 8);
+        assert!(sparkline.peak_hour.is_some());
+        assert!(sparkline.anomaly_detected);
+        assert!(sparkline.anomaly_description.is_some());
+    }
+
+    #[test]
+    fn test_format_horizontal_meter() {
+        let empty = SecurityAnalyticsEngine::format_horizontal_meter(0.0, 10);
+        assert_eq!(empty, "░░░░░░░░░░");
+
+        let half = SecurityAnalyticsEngine::format_horizontal_meter(0.5, 10);
+        assert_eq!(half, "█████░░░░░");
+
+        let full = SecurityAnalyticsEngine::format_horizontal_meter(1.0, 10);
+        assert_eq!(full, "██████████");
+
+        let clamped = SecurityAnalyticsEngine::format_horizontal_meter(1.5, 10);
+        assert_eq!(clamped, "██████████");
+    }
+
+    #[test]
+    fn test_format_sparkline_text() {
+        let empty = SecurityAnalyticsEngine::format_sparkline_text(&[]);
+        assert_eq!(empty, "");
+
+        let spark = SecurityAnalyticsEngine::format_sparkline_text(&[0, 5, 10]);
+        assert_eq!(spark.chars().count(), 3);
+        assert_eq!(spark.chars().next().unwrap(), ' ');
+        assert_eq!(spark.chars().last().unwrap(), '█');
     }
 }
