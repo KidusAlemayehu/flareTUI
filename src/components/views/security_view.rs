@@ -2,7 +2,10 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, Tabs},
+    widgets::{
+        Bar, BarChart, BarGroup, Block, BorderType, Borders, Cell, Paragraph, Row, Sparkline,
+        Table, Tabs,
+    },
     Frame,
 };
 
@@ -551,6 +554,78 @@ impl SecurityView {
     }
 
     fn render_action_breakdown(&self, f: &mut Frame, area: Rect, theme: &Theme) {
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(theme.border))
+            .title(Span::styled(" Action Breakdown ", theme.title()));
+
+        if self.analytics.action_breakdown.is_empty() {
+            let p = Paragraph::new("No security actions recorded.")
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(Color::DarkGray))
+                .block(block);
+            f.render_widget(p, area);
+            return;
+        }
+
+        let inner = block.inner(area);
+        f.render_widget(block, area);
+
+        let (chart_area, table_area) = if inner.height >= 7 {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(4), Constraint::Min(3)])
+                .split(inner);
+            (Some(chunks[0]), chunks[1])
+        } else {
+            (None, inner)
+        };
+
+        if let Some(c_area) = chart_area {
+            let bars: Vec<Bar> = self
+                .analytics
+                .action_breakdown
+                .iter()
+                .take(5)
+                .map(|ab| {
+                    let color = match ab.action.to_lowercase().as_str() {
+                        "block" => theme.error,
+                        "managed_challenge" | "challenge" | "js_challenge" => theme.warning,
+                        "rate_limit" => theme.info,
+                        _ => theme.secondary,
+                    };
+                    let label = match ab.action.as_str() {
+                        "managed_challenge" => "m_chal",
+                        "js_challenge" => "js_chal",
+                        "rate_limit" => "rate_lim",
+                        other => other,
+                    };
+                    Bar::default()
+                        .value(ab.count as u64)
+                        .label(label.into())
+                        .style(Style::default().fg(color))
+                        .value_style(Style::default().fg(theme.text).add_modifier(Modifier::BOLD))
+                })
+                .collect();
+
+            let bar_group = BarGroup::default().bars(&bars);
+            let max_val = self
+                .analytics
+                .action_breakdown
+                .iter()
+                .map(|a| a.count as u64)
+                .max()
+                .unwrap_or(1);
+
+            let bar_chart = BarChart::default()
+                .data(bar_group)
+                .bar_width(8)
+                .bar_gap(1)
+                .max(max_val);
+            f.render_widget(bar_chart, c_area);
+        }
+
         let rows = self.analytics.action_breakdown.iter().map(|ab| {
             let color = match ab.action.to_lowercase().as_str() {
                 "block" => theme.error,
@@ -577,19 +652,98 @@ impl SecurityView {
             Row::new(["Action", "Count", "Share"])
                 .style(theme.header_style())
                 .bottom_margin(1),
-        )
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(theme.border))
-                .title(Span::styled(" Action Breakdown ", theme.title())),
         );
 
-        f.render_widget(table, area);
+        f.render_widget(table, table_area);
     }
 
     fn render_timeline(&self, f: &mut Frame, area: Rect, theme: &Theme) {
+        let mut title_spans = vec![
+            Span::styled(" Threat Activity Timeline ", theme.title()),
+        ];
+        if self.analytics.sparkline.anomaly_detected {
+            title_spans.push(Span::styled(
+                " [! SPIKE] ",
+                Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
+            ));
+        }
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(theme.border))
+            .title(Line::from(title_spans));
+
+        if self.analytics.timeline.is_empty() {
+            let p = Paragraph::new("No activity timeline recorded.")
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(Color::DarkGray))
+                .block(block);
+            f.render_widget(p, area);
+            return;
+        }
+
+        let inner = block.inner(area);
+        f.render_widget(block, area);
+
+        let (spark_area, table_area) = if inner.height >= 7 {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(3), Constraint::Min(4)])
+                .split(inner);
+            (Some(chunks[0]), chunks[1])
+        } else {
+            (None, inner)
+        };
+
+        if let Some(s_area) = spark_area {
+            let cols = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .split(s_area);
+
+            // Left: Total Activity sparkline
+            let total_rows = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(1), Constraint::Length(2)])
+                .split(cols[0]);
+
+            let total_label = Line::from(vec![
+                Span::styled("Total: ", Style::default().fg(theme.text_dim)),
+                Span::styled(
+                    format!("{}/bucket", self.analytics.sparkline.peak_volume),
+                    Style::default().fg(theme.info).add_modifier(Modifier::BOLD),
+                ),
+            ]);
+            f.render_widget(Paragraph::new(total_label), total_rows[0]);
+
+            let total_sparkline = Sparkline::default()
+                .data(&self.analytics.sparkline.total_sparkline)
+                .style(Style::default().fg(theme.info));
+            f.render_widget(total_sparkline, total_rows[1]);
+
+            // Right: Blocked Threats sparkline
+            let blocked_rows = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(1), Constraint::Length(2)])
+                .split(cols[1]);
+
+            let blocked_sum: u64 = self.analytics.sparkline.blocked_sparkline.iter().sum();
+            let blocked_label = Line::from(vec![
+                Span::styled("Blocked: ", Style::default().fg(theme.text_dim)),
+                Span::styled(
+                    format!("{blocked_sum}"),
+                    Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
+                ),
+            ]);
+            f.render_widget(Paragraph::new(blocked_label), blocked_rows[0]);
+
+            let blocked_sparkline = Sparkline::default()
+                .data(&self.analytics.sparkline.blocked_sparkline)
+                .style(Style::default().fg(theme.error));
+            f.render_widget(blocked_sparkline, blocked_rows[1]);
+        }
+
         let rows = self.analytics.timeline.iter().map(|tb| {
             Row::new(vec![
                 Cell::from(tb.label.clone()),
@@ -612,16 +766,9 @@ impl SecurityView {
             Row::new(["Time", "Total", "Block", "Chal"])
                 .style(theme.header_style())
                 .bottom_margin(1),
-        )
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(theme.border))
-                .title(Span::styled(" Threat Activity Timeline ", theme.title())),
         );
 
-        f.render_widget(table, area);
+        f.render_widget(table, table_area);
     }
 
     fn render_top_countries(&self, f: &mut Frame, area: Rect, theme: &Theme) {
@@ -911,5 +1058,27 @@ mod tests {
         view.search_query = "198.51.100.42".to_string();
         assert_eq!(view.filtered_events().len(), 1);
         assert_eq!(view.selected_event().unwrap().ray_id, "8472a1bf001");
+    }
+
+    #[test]
+    fn test_security_view_analytics_tab_rendering() {
+        let (db, zone_id) = setup_test_db();
+        let mut view = SecurityView::new(db);
+        view.set_zone(&zone_id);
+        view.active_tab = SecurityTab::Analytics;
+
+        let backend = ratatui::backend::TestBackend::new(140, 45);
+        let mut terminal = ratatui::Terminal::new(backend).expect("create test terminal");
+        let theme = Theme::default();
+
+        terminal
+            .draw(|f| {
+                view.render(f, f.area(), &theme);
+            })
+            .expect("draw analytics tab");
+
+        assert_eq!(view.analytics.total_events, 2);
+        assert_eq!(view.analytics.sparkline.total_sparkline.len(), 2);
+        assert_eq!(view.analytics.action_breakdown.len(), 2);
     }
 }
