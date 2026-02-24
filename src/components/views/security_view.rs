@@ -251,7 +251,7 @@ impl SecurityView {
 
         let zone_name = self.current_zone_id.as_deref().unwrap_or("No Zone");
 
-        let text = vec![Line::from(vec![
+        let mut spans = vec![
             Span::styled("Zone: ", Style::default().fg(Color::DarkGray)),
             Span::styled(format!("{zone_name}  |  "), Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
             Span::styled("Threat Level: ", Style::default().fg(Color::DarkGray)),
@@ -259,20 +259,32 @@ impl SecurityView {
                 format!(" {} ", self.analytics.threat_level.as_str()),
                 Style::default().fg(level_color).bg(level_bg).add_modifier(Modifier::BOLD),
             ),
-            Span::styled("  Threat Score: ", Style::default().fg(Color::DarkGray)),
+            Span::styled("  Score: ", Style::default().fg(Color::DarkGray)),
             Span::styled(
                 format!("{}/100", self.analytics.threat_score),
                 Style::default().fg(level_color).add_modifier(Modifier::BOLD),
             ),
             Span::styled("  |  Total: ", Style::default().fg(Color::DarkGray)),
             Span::styled(format!("{} ", self.analytics.total_events), Style::default().fg(theme.text)),
+            Span::styled("Mitigated: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                format!("{} ({:.1}%) ", self.analytics.total_mitigated, self.analytics.mitigation_rate),
+                Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
+            ),
             Span::styled("Blocked: ", Style::default().fg(Color::DarkGray)),
             Span::styled(format!("{} ", self.analytics.threats_blocked), Style::default().fg(theme.error)),
             Span::styled("Challenged: ", Style::default().fg(Color::DarkGray)),
             Span::styled(format!("{} ", self.analytics.threats_challenged), Style::default().fg(theme.warning)),
             Span::styled("Rate Limited: ", Style::default().fg(Color::DarkGray)),
             Span::styled(format!("{}", self.analytics.rate_limited), Style::default().fg(theme.info)),
-        ])];
+        ];
+
+        if let Some(peak) = &self.analytics.sparkline.peak_hour {
+            spans.push(Span::styled("  |  Peak: ", Style::default().fg(Color::DarkGray)));
+            spans.push(Span::styled(peak.clone(), Style::default().fg(theme.secondary)));
+        }
+
+        let text = vec![Line::from(spans)];
 
         let block = Block::default()
             .borders(Borders::ALL)
@@ -772,11 +784,30 @@ impl SecurityView {
     }
 
     fn render_top_countries(&self, f: &mut Frame, area: Rect, theme: &Theme) {
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(theme.border))
+            .title(Span::styled(" Top Origin Countries ", theme.title()));
+
+        if self.analytics.top_countries.is_empty() {
+            let p = Paragraph::new("No origin countries recorded.")
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(Color::DarkGray))
+                .block(block);
+            f.render_widget(p, area);
+            return;
+        }
+
         let rows = self.analytics.top_countries.iter().take(6).map(|cs| {
+            let meter = SecurityAnalyticsEngine::format_horizontal_meter(cs.percentage / 100.0, 8);
             Row::new(vec![
                 Cell::from(cs.country.clone()).style(Style::default().add_modifier(Modifier::BOLD)),
                 Cell::from(cs.count.to_string()),
-                Cell::from(format!("{:.1}%", cs.percentage)),
+                Cell::from(Line::from(vec![
+                    Span::styled(meter, Style::default().fg(theme.primary)),
+                    Span::raw(format!(" {:.0}%", cs.percentage)),
+                ])),
                 Cell::from(cs.blocked_count.to_string()).style(Style::default().fg(theme.error)),
             ])
         });
@@ -784,128 +815,179 @@ impl SecurityView {
         let table = Table::new(
             rows,
             [
-                Constraint::Percentage(30),
-                Constraint::Percentage(25),
-                Constraint::Percentage(25),
+                Constraint::Percentage(22),
+                Constraint::Percentage(20),
+                Constraint::Percentage(38),
                 Constraint::Percentage(20),
             ],
         )
         .header(
-            Row::new(["Country", "Events", "Share", "Blocked"])
+            Row::new(["Country", "Events", "Distribution", "Blocked"])
                 .style(theme.header_style())
                 .bottom_margin(1),
         )
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(theme.border))
-                .title(Span::styled(" Top Origin Countries ", theme.title())),
-        );
+        .block(block);
 
         f.render_widget(table, area);
     }
 
     fn render_top_asns(&self, f: &mut Frame, area: Rect, theme: &Theme) {
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(theme.border))
+            .title(Span::styled(" Top Origin ASNs ", theme.title()));
+
+        if self.analytics.top_asns.is_empty() {
+            let p = Paragraph::new("No origin ASNs recorded.")
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(Color::DarkGray))
+                .block(block);
+            f.render_widget(p, area);
+            return;
+        }
+
         let rows = self.analytics.top_asns.iter().take(6).map(|as_stat| {
             let asn_label = if as_stat.asn > 0 {
                 format!("AS{}", as_stat.asn)
             } else {
                 "-".to_string()
             };
+            let meter = SecurityAnalyticsEngine::format_horizontal_meter(as_stat.percentage / 100.0, 6);
             Row::new(vec![
                 Cell::from(asn_label).style(Style::default().fg(theme.secondary)),
                 Cell::from(as_stat.org.clone()),
                 Cell::from(as_stat.count.to_string()),
+                Cell::from(Line::from(vec![
+                    Span::styled(meter, Style::default().fg(theme.secondary)),
+                    Span::raw(format!(" {:.0}%", as_stat.percentage)),
+                ])),
             ])
         });
 
         let table = Table::new(
             rows,
             [
-                Constraint::Length(10),
-                Constraint::Min(15),
-                Constraint::Length(8),
+                Constraint::Length(9),
+                Constraint::Min(14),
+                Constraint::Length(7),
+                Constraint::Length(14),
             ],
         )
         .header(
-            Row::new(["ASN", "Organization", "Hits"])
+            Row::new(["ASN", "Organization", "Hits", "Share"])
                 .style(theme.header_style())
                 .bottom_margin(1),
         )
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(theme.border))
-                .title(Span::styled(" Top Origin ASNs ", theme.title())),
-        );
+        .block(block);
 
         f.render_widget(table, area);
     }
 
     fn render_top_paths(&self, f: &mut Frame, area: Rect, theme: &Theme) {
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(theme.border))
+            .title(Span::styled(" Targeted Endpoints ", theme.title()));
+
+        if self.analytics.top_paths.is_empty() {
+            let p = Paragraph::new("No targeted paths recorded.")
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(Color::DarkGray))
+                .block(block);
+            f.render_widget(p, area);
+            return;
+        }
+
+        let total_ev = self.analytics.total_events.max(1) as f64;
         let rows = self.analytics.top_paths.iter().take(6).map(|ps| {
+            let ratio = ps.count as f64 / total_ev;
+            let meter = SecurityAnalyticsEngine::format_horizontal_meter(ratio, 6);
+            let action_color = match ps.top_action.to_lowercase().as_str() {
+                "block" => theme.error,
+                "managed_challenge" | "challenge" | "js_challenge" => theme.warning,
+                "rate_limit" => theme.info,
+                _ => theme.primary,
+            };
             Row::new(vec![
                 Cell::from(ps.path.clone()).style(Style::default().fg(theme.text)),
                 Cell::from(ps.count.to_string()),
-                Cell::from(ps.top_action.clone()).style(Style::default().fg(theme.primary)),
+                Cell::from(Line::from(vec![
+                    Span::styled(meter, Style::default().fg(theme.warning)),
+                    Span::raw(format!(" {:.0}%", ratio * 100.0)),
+                ])),
+                Cell::from(ps.top_action.clone()).style(Style::default().fg(action_color)),
             ])
         });
 
         let table = Table::new(
             rows,
             [
-                Constraint::Min(20),
-                Constraint::Length(8),
+                Constraint::Min(16),
+                Constraint::Length(6),
                 Constraint::Length(14),
+                Constraint::Length(12),
             ],
         )
         .header(
-            Row::new(["Target Path", "Hits", "Top Action"])
+            Row::new(["Target Path", "Hits", "Activity", "Action"])
                 .style(theme.header_style())
                 .bottom_margin(1),
         )
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(theme.border))
-                .title(Span::styled(" Targeted Endpoints ", theme.title())),
-        );
+        .block(block);
 
         f.render_widget(table, area);
     }
 
     fn render_rule_hits(&self, f: &mut Frame, area: Rect, theme: &Theme) {
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(theme.border))
+            .title(Span::styled(" WAF Rule Hit Leaderboard ", theme.title()));
+
+        if self.analytics.rule_hits.is_empty() {
+            let p = Paragraph::new("No WAF rule hits recorded.")
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(Color::DarkGray))
+                .block(block);
+            f.render_widget(p, area);
+            return;
+        }
+
+        let total_hits: usize = self.analytics.rule_hits.iter().map(|rh| rh.hits).sum();
+        let total_base = total_hits.max(1) as f64;
+
         let rows = self.analytics.rule_hits.iter().take(6).map(|rh| {
+            let ratio = rh.hits as f64 / total_base;
+            let meter = SecurityAnalyticsEngine::format_horizontal_meter(ratio, 6);
             Row::new(vec![
                 Cell::from(rh.description.clone()),
                 Cell::from(rh.action.clone()).style(Style::default().fg(theme.primary)),
                 Cell::from(rh.hits.to_string()).style(Style::default().add_modifier(Modifier::BOLD)),
+                Cell::from(Line::from(vec![
+                    Span::styled(meter, Style::default().fg(theme.primary)),
+                    Span::raw(format!(" {:.0}%", ratio * 100.0)),
+                ])),
             ])
         });
 
         let table = Table::new(
             rows,
             [
-                Constraint::Min(20),
+                Constraint::Min(18),
+                Constraint::Length(10),
+                Constraint::Length(6),
                 Constraint::Length(14),
-                Constraint::Length(8),
             ],
         )
         .header(
-            Row::new(["Rule Description", "Action", "Hits"])
+            Row::new(["Rule Description", "Action", "Hits", "Impact"])
                 .style(theme.header_style())
                 .bottom_margin(1),
         )
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(theme.border))
-                .title(Span::styled(" WAF Rule Hit Leaderboard ", theme.title())),
-        );
+        .block(block);
 
         f.render_widget(table, area);
     }
@@ -1080,5 +1162,28 @@ mod tests {
         assert_eq!(view.analytics.total_events, 2);
         assert_eq!(view.analytics.sparkline.total_sparkline.len(), 2);
         assert_eq!(view.analytics.action_breakdown.len(), 2);
+    }
+
+    #[test]
+    fn test_security_view_analytics_empty_state_rendering() {
+        let db = CacheDb::open_in_memory().expect("open test db");
+        let mut view = SecurityView::new(db);
+        view.active_tab = SecurityTab::Analytics;
+
+        let backend = ratatui::backend::TestBackend::new(120, 40);
+        let mut terminal = ratatui::Terminal::new(backend).expect("create test terminal");
+        let theme = Theme::default();
+
+        terminal
+            .draw(|f| {
+                view.render(f, f.area(), &theme);
+            })
+            .expect("draw empty analytics tab");
+
+        assert_eq!(view.analytics.total_events, 0);
+        assert!(view.analytics.top_countries.is_empty());
+        assert!(view.analytics.top_asns.is_empty());
+        assert!(view.analytics.top_paths.is_empty());
+        assert!(view.analytics.rule_hits.is_empty());
     }
 }
