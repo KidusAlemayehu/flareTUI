@@ -35,6 +35,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and adher
 
 ---
 
+## 0.6.0 (2026-02-27)
+
+### Added
+
+- Visual distribution meters and mitigation cards in Security Analytics - ([99f0f81](https://github.com/KidusAlemayehu/flareTUI/commit/99f0f81))
+  - Rendered Unicode horizontal density meters across Top Origin Countries, Origin ASNs, Targeted Endpoints, and WAF Rule Hit Leaderboard
+  - Enhanced WAF Overview banner with Total Mitigated count, mitigation percentage rate, and peak velocity indicator
+
+- Ratatui Sparkline and BarChart widgets in Security Analytics tab - ([0a2112a](https://github.com/KidusAlemayehu/flareTUI/commit/0a2112a))
+  - Implemented responsive `BarChart` widget displaying action breakdown (Block, Managed Challenge, JS Challenge, Rate Limit)
+  - Added dual-layer `Sparkline` widgets rendering Total Activity and Blocked Threats trends side by side
+  - Added traffic spike badge (`[! SPIKE]`) in the timeline block header when an anomaly is detected
+
+- Hourly bucket aggregation and sparkline anomaly detection engine - ([f952eb3](https://github.com/KidusAlemayehu/flareTUI/commit/f952eb3))
+  - Added `TimelineSparklineData` and `generate_timeline_and_sparklines` for condensing security events into at most 16 uniform display buckets
+  - Algorithmic traffic spike detection alerting when peak bucket volume exceeds twice the mean baseline rate
+  - Formatting helpers `format_horizontal_meter` and `format_sparkline_text` for terminal density visualization
+
+---
+
 ## 0.5.0 (2026-02-14)
 
 ### Added
