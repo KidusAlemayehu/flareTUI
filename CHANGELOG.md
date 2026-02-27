@@ -37,6 +37,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and adher
 
 ## 0.6.0 (2026-02-27)
 
+### Changed
+
+- Reverted Security Analytics view to clean tabular multi-column dashboard
+  - Restored 3-column tabular layout for Action Breakdown, Threat Activity Timeline, Top Origin Countries, Top ASNs, Targeted Endpoints, and WAF Rule Hit Leaderboard
+  - Streamlined terminal rendering to avoid graph rendering artifacts and maintain clean tabular presentation
+
 ### Added
 
 - Visual distribution meters and mitigation cards in Security Analytics - ([99f0f81](https://github.com/KidusAlemayehu/flareTUI/commit/99f0f81))

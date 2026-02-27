@@ -41,7 +41,7 @@
 - **Cloudflare Pages & Instant Rollback**: Track deployment statuses across preview and production environments, inspect build stages and logs, and execute rollbacks directly from your terminal.
 - **Storage & Edge Databases (D1 & KV)**: Interactive D1 SQL Console with table schema explorer, quick query presets, tabular result grid, query history buffer (`↑`/`↓`), and live execution duration metrics. Workers KV key browser with real-time prefix filtering (`/`) and formatted JSON syntax viewer.
 - **WAF & Security Analytics Dashboard**: Zone-wide threat score gauge (0-100), interactive security event log explorer with action filter cycling (`f`: Block, Managed Challenge, JS Challenge, Log), and threat timeline distribution.
-- **Security & Threat Analytics Visual Dashboard**: Native Ratatui Sparklines for traffic velocity and blocked attack spikes, dynamic BarChart mitigation breakdown, anomaly detection alerting (+% spikes above baseline), and proportional horizontal density meters across top countries, ASNs, endpoints, and WAF rule hits.
+- **Security & Threat Analytics Dashboard**: Clean 3-column multi-table intelligence grid displaying action breakdown, threat activity timeline, top origin countries, ASNs, targeted endpoints, and WAF rule hit leaderboards.
 - **Security Event Inspector**: Deep-dive inspector modal (`Enter`/`i`) displaying request details (client IP, ASN, Ray ID, HTTP method, path, user agent), WAF rule expression, and raw JSON payload with quick clipboard buffer copying (`c` for IP, `r` for Ray ID).
 - **Universal Command Palette (`Ctrl+P`)**: Blazing-fast fuzzy search powered by `nucleo-matcher` with real-time character highlighting, category filters (`Tab`/`Shift+Tab`), and single-keystroke action dispatch across views, API sync, cache purges, and tool modals.
 - **Multi-Account Profile Switcher (`Ctrl+U`)**: Seamless hot-swapping between multiple Cloudflare accounts and API profiles at runtime without restarting flareTUI.
@@ -289,7 +289,7 @@ flowchart TD
 - [x] **Milestone 8**: Pages projects overview, deployment history, build log viewer, and rollback dispatcher.
 - [x] **Milestone 9**: Storage Browser (Interactive D1 SQL query runner and KV namespace key-value explorer).
 - [x] **Milestone 10**: WAF & Security analytics dashboard, multi-account fuzzy command palette (`Ctrl+P`), runtime profile switcher.
-- [x] **Milestone 11**: Security Analytics visual dashboard (Ratatui Sparklines, BarChart mitigation breakdown, anomaly detection, horizontal distribution meters).
+- [x] **Milestone 11**: Security & Threat Analytics dashboard (3-column multi-table grid, threat scoring, activity timeline, origin country & ASN breakdown).
 
 ---
 

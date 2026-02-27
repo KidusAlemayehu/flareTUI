@@ -2,11 +2,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    symbols::Marker,
-    widgets::{
-        Axis, Bar, BarChart, BarGroup, Block, BorderType, Borders, Cell, Chart, Dataset, GraphType,
-        Paragraph, Row, Table, Tabs,
-    },
+    widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, Tabs},
     Frame,
 };
 
@@ -532,307 +528,41 @@ impl SecurityView {
     }
 
     fn render_analytics_tab(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        if area.height >= 16 {
-            let main_chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Percentage(45), // Top: Full-width Time-Series Line Graph (like Cloudflare Dashboard)
-                    Constraint::Percentage(55), // Bottom: 3-column Analytical Breakdown
-                ])
-                .split(area);
+        let columns = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(33),
+                Constraint::Percentage(33),
+                Constraint::Percentage(34),
+            ])
+            .split(area);
 
-            self.render_threat_line_chart(f, main_chunks[0], theme);
+        // Column 1: Action Breakdown & Timeline
+        let col1_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(columns[0]);
+        self.render_action_breakdown(f, col1_chunks[0], theme);
+        self.render_timeline(f, col1_chunks[1], theme);
 
-            let bottom_cols = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([
-                    Constraint::Percentage(33),
-                    Constraint::Percentage(33),
-                    Constraint::Percentage(34),
-                ])
-                .split(main_chunks[1]);
+        // Column 2: Top Countries & Top ASNs
+        let col2_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(columns[1]);
+        self.render_top_countries(f, col2_chunks[0], theme);
+        self.render_top_asns(f, col2_chunks[1], theme);
 
-            self.render_action_breakdown(f, bottom_cols[0], theme);
-
-            let col2_chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-                .split(bottom_cols[1]);
-            self.render_top_countries(f, col2_chunks[0], theme);
-            self.render_top_asns(f, col2_chunks[1], theme);
-
-            let col3_chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-                .split(bottom_cols[2]);
-            self.render_top_paths(f, col3_chunks[0], theme);
-            self.render_rule_hits(f, col3_chunks[1], theme);
-        } else {
-            let columns = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([
-                    Constraint::Percentage(33),
-                    Constraint::Percentage(33),
-                    Constraint::Percentage(34),
-                ])
-                .split(area);
-
-            let col1_chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-                .split(columns[0]);
-            self.render_action_breakdown(f, col1_chunks[0], theme);
-            self.render_threat_line_chart(f, col1_chunks[1], theme);
-
-            let col2_chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-                .split(columns[1]);
-            self.render_top_countries(f, col2_chunks[0], theme);
-            self.render_top_asns(f, col2_chunks[1], theme);
-
-            let col3_chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-                .split(columns[2]);
-            self.render_top_paths(f, col3_chunks[0], theme);
-            self.render_rule_hits(f, col3_chunks[1], theme);
-        }
-    }
-
-    fn render_threat_line_chart(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let mut title_spans = vec![
-            Span::styled(" Threat Activity & Traffic Velocity ", theme.title()),
-        ];
-        if self.analytics.sparkline.anomaly_detected {
-            title_spans.push(Span::styled(
-                " [! SPIKE DETECTED] ",
-                Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
-            ));
-        }
-
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(theme.border))
-            .title(Line::from(title_spans));
-
-        if self.analytics.timeline.is_empty() {
-            let p = Paragraph::new("No time-series security events recorded for this zone.")
-                .alignment(Alignment::Center)
-                .style(Style::default().fg(Color::DarkGray))
-                .block(block);
-            f.render_widget(p, area);
-            return;
-        }
-
-        let inner = block.inner(area);
-        f.render_widget(block, area);
-
-        let (chart_area, table_area) = if inner.width >= 90 && inner.height >= 6 {
-            let chunks = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([Constraint::Percentage(68), Constraint::Percentage(32)])
-                .split(inner);
-            (chunks[0], Some(chunks[1]))
-        } else {
-            (inner, None)
-        };
-
-        let buckets = &self.analytics.timeline;
-        let n = buckets.len();
-
-        let total_data: Vec<(f64, f64)> = if n == 1 {
-            vec![(0.0, buckets[0].total as f64), (1.0, buckets[0].total as f64)]
-        } else {
-            buckets.iter().enumerate().map(|(i, b)| (i as f64, b.total as f64)).collect()
-        };
-
-        let blocked_data: Vec<(f64, f64)> = if n == 1 {
-            vec![(0.0, buckets[0].blocked as f64), (1.0, buckets[0].blocked as f64)]
-        } else {
-            buckets.iter().enumerate().map(|(i, b)| (i as f64, b.blocked as f64)).collect()
-        };
-
-        let challenged_data: Vec<(f64, f64)> = if n == 1 {
-            vec![(0.0, buckets[0].challenged as f64), (1.0, buckets[0].challenged as f64)]
-        } else {
-            buckets.iter().enumerate().map(|(i, b)| (i as f64, b.challenged as f64)).collect()
-        };
-
-        let max_val = self.analytics.sparkline.peak_volume.max(1) as f64;
-        let y_max = (max_val * 1.15).ceil();
-        let x_max = if n <= 1 { 1.0 } else { (n - 1) as f64 };
-
-        let x_labels: Vec<Span> = if n <= 1 {
-            let lbl = buckets.first().map(|b| b.label.as_str()).unwrap_or("00:00");
-            vec![Span::raw(lbl)]
-        } else if n == 2 {
-            vec![
-                Span::raw(buckets.first().unwrap().label.clone()),
-                Span::raw(buckets.last().unwrap().label.clone()),
-            ]
-        } else {
-            vec![
-                Span::raw(buckets.first().unwrap().label.clone()),
-                Span::raw(buckets[n / 2].label.clone()),
-                Span::raw(buckets.last().unwrap().label.clone()),
-            ]
-        };
-
-        let y_mid = (y_max / 2.0).round();
-        let y_labels = vec![
-            Span::raw("0"),
-            Span::raw(format!("{y_mid:.0}")),
-            Span::raw(format!("{y_max:.0}")),
-        ];
-
-        let mut datasets = vec![
-            Dataset::default()
-                .name(format!("Total ({})", self.analytics.total_events))
-                .marker(Marker::Braille)
-                .graph_type(GraphType::Line)
-                .style(Style::default().fg(theme.info))
-                .data(&total_data),
-            Dataset::default()
-                .name(format!("Blocked ({})", self.analytics.threats_blocked))
-                .marker(Marker::Braille)
-                .graph_type(GraphType::Line)
-                .style(Style::default().fg(theme.error))
-                .data(&blocked_data),
-        ];
-
-        if self.analytics.threats_challenged > 0 {
-            datasets.push(
-                Dataset::default()
-                    .name(format!("Challenged ({})", self.analytics.threats_challenged))
-                    .marker(Marker::Braille)
-                    .graph_type(GraphType::Line)
-                    .style(Style::default().fg(theme.warning))
-                    .data(&challenged_data),
-            );
-        }
-
-        let chart = Chart::new(datasets)
-            .x_axis(
-                Axis::default()
-                    .title(Span::styled(" Time ", Style::default().fg(theme.text_dim)))
-                    .style(Style::default().fg(theme.border))
-                    .bounds([0.0, x_max])
-                    .labels(x_labels),
-            )
-            .y_axis(
-                Axis::default()
-                    .title(Span::styled(" Requests ", Style::default().fg(theme.text_dim)))
-                    .style(Style::default().fg(theme.border))
-                    .bounds([0.0, y_max])
-                    .labels(y_labels),
-            );
-
-        f.render_widget(chart, chart_area);
-
-        if let Some(t_area) = table_area {
-            let rows = self.analytics.timeline.iter().map(|tb| {
-                Row::new(vec![
-                    Cell::from(tb.label.clone()),
-                    Cell::from(tb.total.to_string()),
-                    Cell::from(tb.blocked.to_string()).style(Style::default().fg(theme.error)),
-                    Cell::from(tb.challenged.to_string()).style(Style::default().fg(theme.warning)),
-                ])
-            });
-
-            let table = Table::new(
-                rows,
-                [
-                    Constraint::Percentage(40),
-                    Constraint::Percentage(20),
-                    Constraint::Percentage(20),
-                    Constraint::Percentage(20),
-                ],
-            )
-            .header(
-                Row::new(["Time", "Total", "Block", "Chal"])
-                    .style(theme.header_style())
-                    .bottom_margin(1),
-            );
-
-            f.render_widget(table, t_area);
-        }
+        // Column 3: Top Targeted Paths & Rule Hits
+        let col3_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(columns[2]);
+        self.render_top_paths(f, col3_chunks[0], theme);
+        self.render_rule_hits(f, col3_chunks[1], theme);
     }
 
     fn render_action_breakdown(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(theme.border))
-            .title(Span::styled(" Action Breakdown ", theme.title()));
-
-        if self.analytics.action_breakdown.is_empty() {
-            let p = Paragraph::new("No security actions recorded.")
-                .alignment(Alignment::Center)
-                .style(Style::default().fg(Color::DarkGray))
-                .block(block);
-            f.render_widget(p, area);
-            return;
-        }
-
-        let inner = block.inner(area);
-        f.render_widget(block, area);
-
-        let (chart_area, table_area) = if inner.height >= 7 {
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Length(4), Constraint::Min(3)])
-                .split(inner);
-            (Some(chunks[0]), chunks[1])
-        } else {
-            (None, inner)
-        };
-
-        if let Some(c_area) = chart_area {
-            let bars: Vec<Bar> = self
-                .analytics
-                .action_breakdown
-                .iter()
-                .take(5)
-                .map(|ab| {
-                    let color = match ab.action.to_lowercase().as_str() {
-                        "block" => theme.error,
-                        "managed_challenge" | "challenge" | "js_challenge" => theme.warning,
-                        "rate_limit" => theme.info,
-                        _ => theme.secondary,
-                    };
-                    let label = match ab.action.as_str() {
-                        "managed_challenge" => "m_chal",
-                        "js_challenge" => "js_chal",
-                        "rate_limit" => "rate_lim",
-                        other => other,
-                    };
-                    Bar::default()
-                        .value(ab.count as u64)
-                        .label(label.into())
-                        .style(Style::default().fg(color))
-                        .value_style(Style::default().fg(theme.text).add_modifier(Modifier::BOLD))
-                })
-                .collect();
-
-            let bar_group = BarGroup::default().bars(&bars);
-            let max_val = self
-                .analytics
-                .action_breakdown
-                .iter()
-                .map(|a| a.count as u64)
-                .max()
-                .unwrap_or(1);
-
-            let bar_chart = BarChart::default()
-                .data(bar_group)
-                .bar_width(8)
-                .bar_gap(1)
-                .max(max_val);
-            f.render_widget(bar_chart, c_area);
-        }
-
         let rows = self.analytics.action_breakdown.iter().map(|ab| {
             let color = match ab.action.to_lowercase().as_str() {
                 "block" => theme.error,
@@ -859,36 +589,59 @@ impl SecurityView {
             Row::new(["Action", "Count", "Share"])
                 .style(theme.header_style())
                 .bottom_margin(1),
+        )
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(theme.border))
+                .title(Span::styled(" Action Breakdown ", theme.title())),
         );
 
-        f.render_widget(table, table_area);
+        f.render_widget(table, area);
+    }
+
+    fn render_timeline(&self, f: &mut Frame, area: Rect, theme: &Theme) {
+        let rows = self.analytics.timeline.iter().map(|tb| {
+            Row::new(vec![
+                Cell::from(tb.label.clone()),
+                Cell::from(tb.total.to_string()),
+                Cell::from(tb.blocked.to_string()).style(Style::default().fg(theme.error)),
+                Cell::from(tb.challenged.to_string()).style(Style::default().fg(theme.warning)),
+            ])
+        });
+
+        let table = Table::new(
+            rows,
+            [
+                Constraint::Percentage(40),
+                Constraint::Percentage(20),
+                Constraint::Percentage(20),
+                Constraint::Percentage(20),
+            ],
+        )
+        .header(
+            Row::new(["Time", "Total", "Block", "Chal"])
+                .style(theme.header_style())
+                .bottom_margin(1),
+        )
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(theme.border))
+                .title(Span::styled(" Threat Activity Timeline ", theme.title())),
+        );
+
+        f.render_widget(table, area);
     }
 
     fn render_top_countries(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(theme.border))
-            .title(Span::styled(" Top Origin Countries ", theme.title()));
-
-        if self.analytics.top_countries.is_empty() {
-            let p = Paragraph::new("No origin countries recorded.")
-                .alignment(Alignment::Center)
-                .style(Style::default().fg(Color::DarkGray))
-                .block(block);
-            f.render_widget(p, area);
-            return;
-        }
-
         let rows = self.analytics.top_countries.iter().take(6).map(|cs| {
-            let meter = SecurityAnalyticsEngine::format_horizontal_meter(cs.percentage / 100.0, 8);
             Row::new(vec![
                 Cell::from(cs.country.clone()).style(Style::default().add_modifier(Modifier::BOLD)),
                 Cell::from(cs.count.to_string()),
-                Cell::from(Line::from(vec![
-                    Span::styled(meter, Style::default().fg(theme.primary)),
-                    Span::raw(format!(" {:.0}%", cs.percentage)),
-                ])),
+                Cell::from(format!("{:.1}%", cs.percentage)),
                 Cell::from(cs.blocked_count.to_string()).style(Style::default().fg(theme.error)),
             ])
         });
@@ -896,179 +649,128 @@ impl SecurityView {
         let table = Table::new(
             rows,
             [
-                Constraint::Percentage(22),
-                Constraint::Percentage(20),
-                Constraint::Percentage(38),
+                Constraint::Percentage(30),
+                Constraint::Percentage(25),
+                Constraint::Percentage(25),
                 Constraint::Percentage(20),
             ],
         )
         .header(
-            Row::new(["Country", "Events", "Distribution", "Blocked"])
+            Row::new(["Country", "Events", "Share", "Blocked"])
                 .style(theme.header_style())
                 .bottom_margin(1),
         )
-        .block(block);
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(theme.border))
+                .title(Span::styled(" Top Origin Countries ", theme.title())),
+        );
 
         f.render_widget(table, area);
     }
 
     fn render_top_asns(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(theme.border))
-            .title(Span::styled(" Top Origin ASNs ", theme.title()));
-
-        if self.analytics.top_asns.is_empty() {
-            let p = Paragraph::new("No origin ASNs recorded.")
-                .alignment(Alignment::Center)
-                .style(Style::default().fg(Color::DarkGray))
-                .block(block);
-            f.render_widget(p, area);
-            return;
-        }
-
         let rows = self.analytics.top_asns.iter().take(6).map(|as_stat| {
             let asn_label = if as_stat.asn > 0 {
                 format!("AS{}", as_stat.asn)
             } else {
                 "-".to_string()
             };
-            let meter = SecurityAnalyticsEngine::format_horizontal_meter(as_stat.percentage / 100.0, 6);
             Row::new(vec![
                 Cell::from(asn_label).style(Style::default().fg(theme.secondary)),
                 Cell::from(as_stat.org.clone()),
                 Cell::from(as_stat.count.to_string()),
-                Cell::from(Line::from(vec![
-                    Span::styled(meter, Style::default().fg(theme.secondary)),
-                    Span::raw(format!(" {:.0}%", as_stat.percentage)),
-                ])),
             ])
         });
 
         let table = Table::new(
             rows,
             [
-                Constraint::Length(9),
-                Constraint::Min(14),
-                Constraint::Length(7),
-                Constraint::Length(14),
+                Constraint::Length(10),
+                Constraint::Min(15),
+                Constraint::Length(8),
             ],
         )
         .header(
-            Row::new(["ASN", "Organization", "Hits", "Share"])
+            Row::new(["ASN", "Organization", "Hits"])
                 .style(theme.header_style())
                 .bottom_margin(1),
         )
-        .block(block);
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(theme.border))
+                .title(Span::styled(" Top Origin ASNs ", theme.title())),
+        );
 
         f.render_widget(table, area);
     }
 
     fn render_top_paths(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(theme.border))
-            .title(Span::styled(" Targeted Endpoints ", theme.title()));
-
-        if self.analytics.top_paths.is_empty() {
-            let p = Paragraph::new("No targeted paths recorded.")
-                .alignment(Alignment::Center)
-                .style(Style::default().fg(Color::DarkGray))
-                .block(block);
-            f.render_widget(p, area);
-            return;
-        }
-
-        let total_ev = self.analytics.total_events.max(1) as f64;
         let rows = self.analytics.top_paths.iter().take(6).map(|ps| {
-            let ratio = ps.count as f64 / total_ev;
-            let meter = SecurityAnalyticsEngine::format_horizontal_meter(ratio, 6);
-            let action_color = match ps.top_action.to_lowercase().as_str() {
-                "block" => theme.error,
-                "managed_challenge" | "challenge" | "js_challenge" => theme.warning,
-                "rate_limit" => theme.info,
-                _ => theme.primary,
-            };
             Row::new(vec![
                 Cell::from(ps.path.clone()).style(Style::default().fg(theme.text)),
                 Cell::from(ps.count.to_string()),
-                Cell::from(Line::from(vec![
-                    Span::styled(meter, Style::default().fg(theme.warning)),
-                    Span::raw(format!(" {:.0}%", ratio * 100.0)),
-                ])),
-                Cell::from(ps.top_action.clone()).style(Style::default().fg(action_color)),
+                Cell::from(ps.top_action.clone()).style(Style::default().fg(theme.primary)),
             ])
         });
 
         let table = Table::new(
             rows,
             [
-                Constraint::Min(16),
-                Constraint::Length(6),
+                Constraint::Min(20),
+                Constraint::Length(8),
                 Constraint::Length(14),
-                Constraint::Length(12),
             ],
         )
         .header(
-            Row::new(["Target Path", "Hits", "Activity", "Action"])
+            Row::new(["Target Path", "Hits", "Top Action"])
                 .style(theme.header_style())
                 .bottom_margin(1),
         )
-        .block(block);
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(theme.border))
+                .title(Span::styled(" Targeted Endpoints ", theme.title())),
+        );
 
         f.render_widget(table, area);
     }
 
     fn render_rule_hits(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(theme.border))
-            .title(Span::styled(" WAF Rule Hit Leaderboard ", theme.title()));
-
-        if self.analytics.rule_hits.is_empty() {
-            let p = Paragraph::new("No WAF rule hits recorded.")
-                .alignment(Alignment::Center)
-                .style(Style::default().fg(Color::DarkGray))
-                .block(block);
-            f.render_widget(p, area);
-            return;
-        }
-
-        let total_hits: usize = self.analytics.rule_hits.iter().map(|rh| rh.hits).sum();
-        let total_base = total_hits.max(1) as f64;
-
         let rows = self.analytics.rule_hits.iter().take(6).map(|rh| {
-            let ratio = rh.hits as f64 / total_base;
-            let meter = SecurityAnalyticsEngine::format_horizontal_meter(ratio, 6);
             Row::new(vec![
                 Cell::from(rh.description.clone()),
                 Cell::from(rh.action.clone()).style(Style::default().fg(theme.primary)),
                 Cell::from(rh.hits.to_string()).style(Style::default().add_modifier(Modifier::BOLD)),
-                Cell::from(Line::from(vec![
-                    Span::styled(meter, Style::default().fg(theme.primary)),
-                    Span::raw(format!(" {:.0}%", ratio * 100.0)),
-                ])),
             ])
         });
 
         let table = Table::new(
             rows,
             [
-                Constraint::Min(18),
-                Constraint::Length(10),
-                Constraint::Length(6),
+                Constraint::Min(20),
                 Constraint::Length(14),
+                Constraint::Length(8),
             ],
         )
         .header(
-            Row::new(["Rule Description", "Action", "Hits", "Impact"])
+            Row::new(["Rule Description", "Action", "Hits"])
                 .style(theme.header_style())
                 .bottom_margin(1),
         )
-        .block(block);
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(theme.border))
+                .title(Span::styled(" WAF Rule Hit Leaderboard ", theme.title())),
+        );
 
         f.render_widget(table, area);
     }
