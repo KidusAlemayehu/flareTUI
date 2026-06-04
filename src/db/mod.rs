@@ -123,6 +123,24 @@ pub struct CachedWafRule {
     pub ref_code: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct CachedR2Bucket {
+    pub name: String,
+    pub account_id: String,
+    pub creation_date: String,
+    pub location: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct CachedR2Object {
+    pub bucket_name: String,
+    pub key: String,
+    pub size: u64,
+    pub etag: String,
+    pub uploaded: String,
+    pub storage_class: String,
+}
+
 #[derive(Clone)]
 pub struct CacheDb {
     conn: Arc<Mutex<Connection>>,
@@ -712,6 +730,113 @@ impl CacheDb {
             .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(rows)
     }
+
+    pub fn replace_r2_buckets(&self, account_id: &str, buckets: &[CachedR2Bucket]) -> Result<()> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        tx.execute("DELETE FROM r2_buckets WHERE account_id = ?1", params![account_id])?;
+        for b in buckets {
+            tx.execute(
+                "INSERT INTO r2_buckets (name, account_id, creation_date, location)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![b.name, b.account_id, b.creation_date, b.location],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn get_r2_buckets(&self, account_id: &str) -> Result<Vec<CachedR2Bucket>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT name, account_id, creation_date, location
+             FROM r2_buckets
+             WHERE account_id = ?1
+             ORDER BY name ASC",
+        )?;
+        let rows = stmt
+            .query_map(params![account_id], |row| {
+                Ok(CachedR2Bucket {
+                    name: row.get(0)?,
+                    account_id: row.get(1)?,
+                    creation_date: row.get(2)?,
+                    location: row.get(3)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    pub fn replace_r2_objects(&self, bucket_name: &str, objects: &[CachedR2Object]) -> Result<()> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        tx.execute("DELETE FROM r2_objects WHERE bucket_name = ?1", params![bucket_name])?;
+        for obj in objects {
+            tx.execute(
+                "INSERT INTO r2_objects (bucket_name, key, size, etag, uploaded, storage_class)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    obj.bucket_name,
+                    obj.key,
+                    obj.size as i64,
+                    obj.etag,
+                    obj.uploaded,
+                    obj.storage_class,
+                ],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn get_r2_objects(&self, bucket_name: &str) -> Result<Vec<CachedR2Object>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT bucket_name, key, size, etag, uploaded, storage_class
+             FROM r2_objects
+             WHERE bucket_name = ?1
+             ORDER BY key ASC",
+        )?;
+        let rows = stmt
+            .query_map(params![bucket_name], |row| {
+                let size_i64: i64 = row.get(2)?;
+                Ok(CachedR2Object {
+                    bucket_name: row.get(0)?,
+                    key: row.get(1)?,
+                    size: size_i64.max(0) as u64,
+                    etag: row.get(3)?,
+                    uploaded: row.get(4)?,
+                    storage_class: row.get(5)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    pub fn get_r2_objects_by_prefix(&self, bucket_name: &str, prefix: &str) -> Result<Vec<CachedR2Object>> {
+        let conn = self.conn.lock().unwrap();
+        let pattern = format!("{}%", prefix);
+        let mut stmt = conn.prepare(
+            "SELECT bucket_name, key, size, etag, uploaded, storage_class
+             FROM r2_objects
+             WHERE bucket_name = ?1 AND key LIKE ?2
+             ORDER BY key ASC",
+        )?;
+        let rows = stmt
+            .query_map(params![bucket_name, pattern], |row| {
+                let size_i64: i64 = row.get(2)?;
+                Ok(CachedR2Object {
+                    bucket_name: row.get(0)?,
+                    key: row.get(1)?,
+                    size: size_i64.max(0) as u64,
+                    etag: row.get(3)?,
+                    uploaded: row.get(4)?,
+                    storage_class: row.get(5)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
 }
 
 #[cfg(test)]
@@ -920,6 +1045,70 @@ mod tests {
         assert_eq!(retrieved[0].priority, 1);
         assert_eq!(retrieved[1].id, "rule-2");
         assert_eq!(retrieved[1].priority, 2);
+    }
+
+    #[test]
+    fn test_r2_buckets_and_objects_cache() {
+        let db = CacheDb::open_in_memory().expect("open db");
+        let account_id = "test-account-123";
+
+        let buckets = vec![
+            CachedR2Bucket {
+                name: "backup-assets".to_string(),
+                account_id: account_id.to_string(),
+                creation_date: "2026-03-01T10:00:00Z".to_string(),
+                location: "weur".to_string(),
+            },
+            CachedR2Bucket {
+                name: "public-cdn".to_string(),
+                account_id: account_id.to_string(),
+                creation_date: "2026-03-05T12:00:00Z".to_string(),
+                location: "wnam".to_string(),
+            },
+        ];
+
+        db.replace_r2_buckets(account_id, &buckets).expect("replace r2 buckets");
+        let retrieved_buckets = db.get_r2_buckets(account_id).expect("get r2 buckets");
+        assert_eq!(retrieved_buckets.len(), 2);
+        assert_eq!(retrieved_buckets[0].name, "backup-assets");
+        assert_eq!(retrieved_buckets[1].name, "public-cdn");
+
+        let objects = vec![
+            CachedR2Object {
+                bucket_name: "public-cdn".to_string(),
+                key: "static/css/style.css".to_string(),
+                size: 24500,
+                etag: "\"abc123etag\"".to_string(),
+                uploaded: "2026-03-05T12:10:00Z".to_string(),
+                storage_class: "Standard".to_string(),
+            },
+            CachedR2Object {
+                bucket_name: "public-cdn".to_string(),
+                key: "static/images/logo.svg".to_string(),
+                size: 1048576,
+                etag: "\"def456etag\"".to_string(),
+                uploaded: "2026-03-05T12:15:00Z".to_string(),
+                storage_class: "Standard".to_string(),
+            },
+            CachedR2Object {
+                bucket_name: "public-cdn".to_string(),
+                key: "index.html".to_string(),
+                size: 4096,
+                etag: "\"ghi789etag\"".to_string(),
+                uploaded: "2026-03-05T12:20:00Z".to_string(),
+                storage_class: "Standard".to_string(),
+            },
+        ];
+
+        db.replace_r2_objects("public-cdn", &objects).expect("replace r2 objects");
+        let all_objects = db.get_r2_objects("public-cdn").expect("get r2 objects");
+        assert_eq!(all_objects.len(), 3);
+        assert_eq!(all_objects[0].key, "index.html");
+
+        let static_objects = db.get_r2_objects_by_prefix("public-cdn", "static/").expect("get prefix");
+        assert_eq!(static_objects.len(), 2);
+        assert_eq!(static_objects[0].key, "static/css/style.css");
+        assert_eq!(static_objects[1].key, "static/images/logo.svg");
     }
 }
 

@@ -109,4 +109,22 @@ CREATE TABLE IF NOT EXISTS waf_rules (
     ref_code TEXT NOT NULL DEFAULT '',
     FOREIGN KEY(zone_id) REFERENCES zones(id)
 );
+
+CREATE TABLE IF NOT EXISTS r2_buckets (
+    name TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    creation_date TEXT NOT NULL,
+    location TEXT NOT NULL DEFAULT 'auto'
+);
+
+CREATE TABLE IF NOT EXISTS r2_objects (
+    bucket_name TEXT NOT NULL,
+    key TEXT NOT NULL,
+    size INTEGER NOT NULL DEFAULT 0,
+    etag TEXT NOT NULL DEFAULT '',
+    uploaded TEXT NOT NULL DEFAULT '',
+    storage_class TEXT NOT NULL DEFAULT 'Standard',
+    PRIMARY KEY (bucket_name, key),
+    FOREIGN KEY(bucket_name) REFERENCES r2_buckets(name) ON DELETE CASCADE
+);
 "#;
