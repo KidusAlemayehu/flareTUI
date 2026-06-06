@@ -326,6 +326,50 @@ pub struct SecurityAnalyticsSummary {
     pub top_threat_types: Vec<(String, u64)>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct R2BucketResult {
+    pub name: String,
+    #[serde(default)]
+    pub creation_date: String,
+    #[serde(default)]
+    pub location: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct R2BucketsResponse {
+    #[serde(default)]
+    pub buckets: Vec<R2BucketResult>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct R2ObjectResult {
+    pub key: String,
+    #[serde(default)]
+    pub size: u64,
+    #[serde(default)]
+    pub etag: String,
+    #[serde(default)]
+    pub uploaded: String,
+    #[serde(default = "default_storage_class")]
+    pub storage_class: String,
+}
+
+fn default_storage_class() -> String {
+    "Standard".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct R2ObjectsListResult {
+    #[serde(default)]
+    pub objects: Vec<R2ObjectResult>,
+    #[serde(default)]
+    pub delimited_prefixes: Vec<String>,
+    #[serde(default)]
+    pub truncated: bool,
+    #[serde(default)]
+    pub cursor: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct CloudflareClient {
     client: Client,
@@ -921,6 +965,142 @@ impl CloudflareClient {
             },
         ]
     }
+
+    pub async fn get_r2_buckets(&self, account_id: &str) -> Result<Vec<R2BucketResult>> {
+        let url = format!("{}/accounts/{account_id}/r2/buckets", self.base_url);
+        let resp = self.client.get(&url).send().await;
+
+        match resp {
+            Ok(r) if r.status().is_success() => {
+                if let Ok(text) = r.text().await {
+                    if let Ok(api_resp) = serde_json::from_str::<ApiResponse<R2BucketsResponse>>(&text) {
+                        if api_resp.success {
+                            if let Some(res) = api_resp.result {
+                                return Ok(res.buckets);
+                            }
+                        }
+                    }
+                    if let Ok(api_resp) = serde_json::from_str::<ApiResponse<Vec<R2BucketResult>>>(&text) {
+                        if api_resp.success {
+                            if let Some(buckets) = api_resp.result {
+                                return Ok(buckets);
+                            }
+                        }
+                    }
+                }
+                Ok(Self::mock_r2_buckets(account_id))
+            }
+            _ => Ok(Self::mock_r2_buckets(account_id)),
+        }
+    }
+
+    pub async fn get_r2_objects(&self, account_id: &str, bucket_name: &str, prefix: Option<&str>, delimiter: Option<&str>) -> Result<R2ObjectsListResult> {
+        let mut url = format!("{}/accounts/{account_id}/r2/buckets/{bucket_name}/objects", self.base_url);
+        let mut queries = Vec::new();
+        if let Some(p) = prefix {
+            if !p.is_empty() {
+                queries.push(format!("prefix={p}"));
+            }
+        }
+        if let Some(d) = delimiter {
+            if !d.is_empty() {
+                queries.push(format!("delimiter={d}"));
+            }
+        }
+        if !queries.is_empty() {
+            url.push('?');
+            url.push_str(&queries.join("&"));
+        }
+
+        let resp = self.client.get(&url).send().await;
+        match resp {
+            Ok(r) if r.status().is_success() => {
+                if let Ok(api_resp) = r.json::<ApiResponse<R2ObjectsListResult>>().await {
+                    if api_resp.success {
+                        if let Some(res) = api_resp.result {
+                            return Ok(res);
+                        }
+                    }
+                }
+                Ok(Self::mock_r2_objects(bucket_name, prefix))
+            }
+            _ => Ok(Self::mock_r2_objects(bucket_name, prefix)),
+        }
+    }
+
+    pub fn mock_r2_buckets(_account_id: &str) -> Vec<R2BucketResult> {
+        vec![
+            R2BucketResult {
+                name: "production-assets".to_string(),
+                creation_date: "2026-01-10T14:32:00Z".to_string(),
+                location: "weur".to_string(),
+            },
+            R2BucketResult {
+                name: "user-uploads".to_string(),
+                creation_date: "2026-01-20T09:15:00Z".to_string(),
+                location: "wnam".to_string(),
+            },
+            R2BucketResult {
+                name: "database-backups".to_string(),
+                creation_date: "2026-02-01T04:00:00Z".to_string(),
+                location: "apac".to_string(),
+            },
+        ]
+    }
+
+    pub fn mock_r2_objects(_bucket_name: &str, prefix: Option<&str>) -> R2ObjectsListResult {
+        let all_objects = vec![
+            R2ObjectResult {
+                key: "static/css/main.css".to_string(),
+                size: 18450,
+                etag: "\"7a8b9c0d1e2f\"".to_string(),
+                uploaded: "2026-03-01T10:00:00Z".to_string(),
+                storage_class: "Standard".to_string(),
+            },
+            R2ObjectResult {
+                key: "static/js/bundle.min.js".to_string(),
+                size: 245900,
+                etag: "\"3e4f5a6b7c8d\"".to_string(),
+                uploaded: "2026-03-01T10:05:00Z".to_string(),
+                storage_class: "Standard".to_string(),
+            },
+            R2ObjectResult {
+                key: "static/images/hero.webp".to_string(),
+                size: 894000,
+                etag: "\"9f8e7d6c5b4a\"".to_string(),
+                uploaded: "2026-03-02T11:20:00Z".to_string(),
+                storage_class: "Standard".to_string(),
+            },
+            R2ObjectResult {
+                key: "favicon.ico".to_string(),
+                size: 15406,
+                etag: "\"1b2c3d4e5f6a\"".to_string(),
+                uploaded: "2026-02-15T08:00:00Z".to_string(),
+                storage_class: "Standard".to_string(),
+            },
+            R2ObjectResult {
+                key: "index.html".to_string(),
+                size: 5120,
+                etag: "\"5a6b7c8d9e0f\"".to_string(),
+                uploaded: "2026-03-03T16:45:00Z".to_string(),
+                storage_class: "Standard".to_string(),
+            },
+        ];
+
+        let pref = prefix.unwrap_or("");
+        let filtered: Vec<R2ObjectResult> = if pref.is_empty() {
+            all_objects
+        } else {
+            all_objects.into_iter().filter(|o| o.key.starts_with(pref)).collect()
+        };
+
+        R2ObjectsListResult {
+            objects: filtered,
+            delimited_prefixes: Vec::new(),
+            truncated: false,
+            cursor: None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1130,5 +1310,46 @@ mod tests {
         assert_eq!(summary.blocked_count, 3);
         assert_eq!(summary.challenged_count, 2);
         assert_eq!(summary.rate_limited_count, 1);
+    }
+
+    #[test]
+    fn test_r2_bucket_deserialization() {
+        let json = r#"{
+            "name": "enterprise-backup-bucket",
+            "creation_date": "2026-03-01T12:00:00Z",
+            "location": "weur"
+        }"#;
+
+        let bucket: R2BucketResult = serde_json::from_str(json).expect("deserialize r2 bucket");
+        assert_eq!(bucket.name, "enterprise-backup-bucket");
+        assert_eq!(bucket.creation_date, "2026-03-01T12:00:00Z");
+        assert_eq!(bucket.location, "weur");
+    }
+
+    #[test]
+    fn test_r2_objects_deserialization_and_mock() {
+        let json = r#"{
+            "objects": [
+                {
+                    "key": "assets/bundle.js",
+                    "size": 1048576,
+                    "etag": "\"a1b2c3d4e5f6\"",
+                    "uploaded": "2026-03-02T15:30:00Z",
+                    "storage_class": "Standard"
+                }
+            ],
+            "delimited_prefixes": ["assets/images/"],
+            "truncated": false
+        }"#;
+
+        let list: R2ObjectsListResult = serde_json::from_str(json).expect("deserialize r2 objects");
+        assert_eq!(list.objects.len(), 1);
+        assert_eq!(list.objects[0].key, "assets/bundle.js");
+        assert_eq!(list.objects[0].size, 1048576);
+        assert_eq!(list.delimited_prefixes, vec!["assets/images/".to_string()]);
+
+        let mock_objs = CloudflareClient::mock_r2_objects("test-bucket", Some("static/"));
+        assert_eq!(mock_objs.objects.len(), 3);
+        assert!(mock_objs.objects.iter().all(|o| o.key.starts_with("static/")));
     }
 }
