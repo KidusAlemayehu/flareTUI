@@ -748,6 +748,24 @@ impl CacheDb {
 
     pub fn get_r2_buckets(&self, account_id: &str) -> Result<Vec<CachedR2Bucket>> {
         let conn = self.conn.lock().unwrap();
+        if account_id.is_empty() {
+            let mut stmt = conn.prepare(
+                "SELECT name, account_id, creation_date, location
+                 FROM r2_buckets
+                 ORDER BY name ASC",
+            )?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok(CachedR2Bucket {
+                        name: row.get(0)?,
+                        account_id: row.get(1)?,
+                        creation_date: row.get(2)?,
+                        location: row.get(3)?,
+                    })
+                })?
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+            return Ok(rows);
+        }
         let mut stmt = conn.prepare(
             "SELECT name, account_id, creation_date, location
              FROM r2_buckets
