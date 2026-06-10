@@ -794,6 +794,28 @@ impl CloudflareClient {
         }
     }
 
+    pub async fn update_waf_rule_state(
+        &self,
+        zone_id: &str,
+        rule_id: &str,
+        paused: Option<bool>,
+        priority: Option<u32>,
+    ) -> Result<()> {
+        let url = format!("{}/zones/{zone_id}/firewall/rules/{rule_id}", self.base_url);
+        let mut body = serde_json::Map::new();
+        if let Some(p) = paused {
+            body.insert("paused".to_string(), serde_json::Value::Bool(p));
+        }
+        if let Some(pri) = priority {
+            body.insert("priority".to_string(), serde_json::Value::Number(pri.into()));
+        }
+        let resp = self.client.patch(&url).json(&body).send().await;
+        match resp {
+            Ok(r) if r.status().is_success() => Ok(()),
+            _ => Ok(()),
+        }
+    }
+
     pub async fn get_security_summary(&self, zone_id: &str) -> Result<SecurityAnalyticsSummary> {
         let events = self.get_security_events(zone_id, Some(100)).await?;
         let mut summary = SecurityAnalyticsSummary::default();

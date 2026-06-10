@@ -731,6 +731,24 @@ impl CacheDb {
         Ok(rows)
     }
 
+    pub fn update_waf_rule_paused(&self, rule_id: &str, paused: bool) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE waf_rules SET paused = ?1 WHERE id = ?2",
+            params![if paused { 1 } else { 0 }, rule_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_waf_rule_priority(&self, rule_id: &str, priority: u32) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE waf_rules SET priority = ?1 WHERE id = ?2",
+            params![priority, rule_id],
+        )?;
+        Ok(())
+    }
+
     pub fn replace_r2_buckets(&self, account_id: &str, buckets: &[CachedR2Bucket]) -> Result<()> {
         let mut conn = self.conn.lock().unwrap();
         let tx = conn.transaction()?;

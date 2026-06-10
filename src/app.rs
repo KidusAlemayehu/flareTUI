@@ -1852,6 +1852,35 @@ impl App {
                         .set_status(format!("WAF Event Filter: {filter_label}"));
                 }
             }
+            Action::SecurityViewToggleWafRule => {
+                if self.header.active_tab == 5 && self.security_view.active_tab == crate::components::views::security_view::SecurityTab::WafRules {
+                    if let Some((rule_id, paused)) = self.security_view.toggle_selected_rule_pause() {
+                        let status_str = if paused { "Paused" } else { "Activated" };
+                        self.status_bar.set_status(format!("WAF Rule {rule_id}: {status_str}"));
+                        if let (Some(client), Some(zone_id)) = (&self.cf_client, &self.security_view.current_zone_id) {
+                            let client = client.clone();
+                            let zone_id = zone_id.clone();
+                            tokio::spawn(async move {
+                                let _ = client.update_waf_rule_state(&zone_id, &rule_id, Some(paused), None).await;
+                            });
+                        }
+                    }
+                }
+            }
+            Action::SecurityViewShiftWafPriority(delta) => {
+                if self.header.active_tab == 5 && self.security_view.active_tab == crate::components::views::security_view::SecurityTab::WafRules {
+                    if let Some((rule_id, new_prio)) = self.security_view.shift_selected_rule_priority(delta) {
+                        self.status_bar.set_status(format!("WAF Rule {rule_id}: Priority updated to {new_prio}"));
+                        if let (Some(client), Some(zone_id)) = (&self.cf_client, &self.security_view.current_zone_id) {
+                            let client = client.clone();
+                            let zone_id = zone_id.clone();
+                            tokio::spawn(async move {
+                                let _ = client.update_waf_rule_state(&zone_id, &rule_id, None, Some(new_prio)).await;
+                            });
+                        }
+                    }
+                }
+            }
 
             // Command Palette Actions (Ctrl+P)
             Action::OpenCommandPalette => {

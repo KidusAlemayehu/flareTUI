@@ -307,6 +307,9 @@ impl EventHandler {
             (KeyModifiers::NONE, KeyCode::Char('h')) | (KeyModifiers::NONE, KeyCode::Left) => Some(Action::NavLeft),
             (KeyModifiers::NONE, KeyCode::Char('l')) | (KeyModifiers::NONE, KeyCode::Right) => Some(Action::NavRight),
             (KeyModifiers::NONE, KeyCode::Char('s')) => Some(Action::SwitchPane),
+            (KeyModifiers::NONE, KeyCode::Char('p')) if active_tab == 5 => Some(Action::SecurityViewToggleWafRule),
+            (KeyModifiers::NONE, KeyCode::Char('+')) if active_tab == 5 => Some(Action::SecurityViewShiftWafPriority(1)),
+            (KeyModifiers::NONE, KeyCode::Char('-')) if active_tab == 5 => Some(Action::SecurityViewShiftWafPriority(-1)),
             (KeyModifiers::NONE, KeyCode::Char('p')) => Some(Action::ToggleProxy),
             (KeyModifiers::NONE, KeyCode::Char('r')) => Some(Action::Refresh),
             (KeyModifiers::NONE, KeyCode::Char('?')) => Some(Action::ToggleHelp),
@@ -455,6 +458,23 @@ mod tests {
             false, false, false, false, false, 0, false, false,
         );
         assert_eq!(action, Some(Action::SelectTab(5)));
+    }
+
+    #[test]
+    fn test_waf_rules_key_events() {
+        let p_key = KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE);
+        let action = EventHandler::map_key_to_action(
+            p_key, false, false, false, false, false, false, false, false, false, false,
+            false, false, false, false, false, 5, false, false,
+        );
+        assert_eq!(action, Some(Action::SecurityViewToggleWafRule));
+
+        let plus_key = KeyEvent::new(KeyCode::Char('+'), KeyModifiers::NONE);
+        let action = EventHandler::map_key_to_action(
+            plus_key, false, false, false, false, false, false, false, false, false, false,
+            false, false, false, false, false, 5, false, false,
+        );
+        assert_eq!(action, Some(Action::SecurityViewShiftWafPriority(1)));
     }
 }
 

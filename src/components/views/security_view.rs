@@ -218,6 +218,50 @@ impl SecurityView {
         self.selected_event_idx = 0;
     }
 
+    pub fn selected_rule_mut(&mut self) -> Option<&mut CachedWafRule> {
+        self.rules.get_mut(self.selected_rule_idx)
+    }
+
+    pub fn toggle_selected_rule_pause(&mut self) -> Option<(String, bool)> {
+        if let Some(rule) = self.selected_rule_mut() {
+            rule.paused = !rule.paused;
+            let rule_id = rule.id.clone();
+            let new_state = rule.paused;
+            let _ = self.db.update_waf_rule_paused(&rule_id, new_state);
+            Some((rule_id, new_state))
+        } else {
+            None
+        }
+    }
+
+    pub fn shift_selected_rule_priority(&mut self, delta: i32) -> Option<(String, u32)> {
+        if self.rules.is_empty() {
+            return None;
+        }
+        let cur_idx = self.selected_rule_idx;
+        let new_idx = if delta < 0 {
+            if cur_idx > 0 { cur_idx - 1 } else { return None; }
+        } else if cur_idx + 1 < self.rules.len() {
+            cur_idx + 1
+        } else {
+            return None;
+        };
+
+        let p1 = self.rules[cur_idx].priority;
+        let p2 = self.rules[new_idx].priority;
+        let target_priority = if p1 == p2 {
+            if delta < 0 { p1.saturating_sub(1) } else { p1 + 1 }
+        } else {
+            p2
+        };
+        self.rules[cur_idx].priority = target_priority;
+        let rule_id = self.rules[cur_idx].id.clone();
+        let _ = self.db.update_waf_rule_priority(&rule_id, target_priority);
+        self.rules.swap(cur_idx, new_idx);
+        self.selected_rule_idx = new_idx;
+        Some((rule_id, target_priority))
+    }
+
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -516,7 +560,7 @@ impl SecurityView {
                 .border_style(Style::default().fg(theme.border))
                 .title(Span::styled(
                     format!(
-                        " Configured WAF Rules [{}/{}] ",
+                        " Configured WAF Rules [{}/{}] - [Space/p] Toggle Pause | [+/-] Priority ",
                         self.selected_rule_idx + 1,
                         self.rules.len()
                     ),
@@ -968,5 +1012,33 @@ mod tests {
         assert!(view.analytics.top_asns.is_empty());
         assert!(view.analytics.top_paths.is_empty());
         assert!(view.analytics.rule_hits.is_empty());
+    }
+
+    #[test]
+    fn test_security_view_waf_rule_mutations() {
+        let (db, zone_id) = setup_test_db();
+        let mut view = SecurityView::new(db.clone());
+        view.set_zone(&zone_id);
+        view.active_tab = SecurityTab::WafRules;
+
+        assert_eq!(view.selected_rule().unwrap().id, "rule-sqli");
+        assert!(!view.selected_rule().unwrap().paused);
+
+        // Toggle pause: false -> true
+        let (id, state) = view.toggle_selected_rule_pause().unwrap();
+        assert_eq!(id, "rule-sqli");
+        assert!(state);
+        assert!(view.selected_rule().unwrap().paused);
+
+        // Verify local DB was updated
+        let db_rules = db.get_waf_rules(&zone_id).unwrap();
+        assert!(db_rules.iter().find(|r| r.id == "rule-sqli").unwrap().paused);
+
+        // Shift priority down (swaps with rule-bot)
+        assert_eq!(view.selected_rule_idx, 0);
+        let (shifted_id, new_prio) = view.shift_selected_rule_priority(1).unwrap();
+        assert_eq!(shifted_id, "rule-sqli");
+        assert_eq!(new_prio, 2);
+        assert_eq!(view.selected_rule_idx, 1);
     }
 }

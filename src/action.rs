@@ -154,6 +154,8 @@ pub enum Action {
     SecurityViewNextTab,
     SecurityViewPrevTab,
     SecurityViewCycleFilter,
+    SecurityViewToggleWafRule,
+    SecurityViewShiftWafPriority(i32),
 
     // Command Palette Actions (Ctrl+P)
     OpenCommandPalette,
