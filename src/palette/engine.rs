@@ -37,6 +37,7 @@ pub enum PaletteAction {
     OpenSecurityInspector,
     OpenProfileSwitcher,
     OpenHelp,
+    SetTheme(String),
     Quit,
     Custom(String),
 }
@@ -231,6 +232,44 @@ impl PaletteEngine {
                 keywords: vec!["quit".into(), "exit".into(), "close".into()],
                 action: PaletteAction::Quit,
             },
+
+            // Theme Switching
+            PaletteCommand {
+                id: "theme_cf_dark".to_string(),
+                title: "Theme: Cloudflare Dark (Default)".to_string(),
+                description: "Switch to official Cloudflare Dark orange and navy palette".to_string(),
+                category: CommandCategory::System,
+                shortcut: None,
+                keywords: vec!["theme".into(), "cloudflare".into(), "dark".into(), "orange".into(), "color".into()],
+                action: PaletteAction::SetTheme("Cloudflare Dark".to_string()),
+            },
+            PaletteCommand {
+                id: "theme_catppuccin".to_string(),
+                title: "Theme: Catppuccin Mocha".to_string(),
+                description: "Switch to soothing Catppuccin Mocha pastel palette".to_string(),
+                category: CommandCategory::System,
+                shortcut: None,
+                keywords: vec!["theme".into(), "catppuccin".into(), "mocha".into(), "pastel".into(), "mauve".into()],
+                action: PaletteAction::SetTheme("Catppuccin Mocha".to_string()),
+            },
+            PaletteCommand {
+                id: "theme_tokyo_night".to_string(),
+                title: "Theme: Tokyo Night".to_string(),
+                description: "Switch to vibrant Tokyo Night neon cyan and purple palette".to_string(),
+                category: CommandCategory::System,
+                shortcut: None,
+                keywords: vec!["theme".into(), "tokyo".into(), "night".into(), "neon".into(), "cyan".into()],
+                action: PaletteAction::SetTheme("Tokyo Night".to_string()),
+            },
+            PaletteCommand {
+                id: "theme_nord".to_string(),
+                title: "Theme: Nord".to_string(),
+                description: "Switch to arctic, north-bluish Nord palette".to_string(),
+                category: CommandCategory::System,
+                shortcut: None,
+                keywords: vec!["theme".into(), "nord".into(), "arctic".into(), "blue".into(), "frost".into()],
+                action: PaletteAction::SetTheme("Nord".to_string()),
+            },
         ];
 
         self.register_all(defaults);
@@ -361,5 +400,15 @@ mod tests {
         let results = engine.search("example.com");
         assert!(!results.is_empty());
         assert_eq!(results[0].command.id, "zone_example_com");
+    }
+
+    #[test]
+    fn test_palette_theme_commands() {
+        let mut engine = PaletteEngine::new();
+        let results = engine.search("theme");
+        assert!(results.len() >= 4);
+        assert!(results.iter().any(|r| r.command.id == "theme_catppuccin"));
+        assert!(results.iter().any(|r| r.command.id == "theme_tokyo_night"));
+        assert!(results.iter().any(|r| r.command.id == "theme_nord"));
     }
 }

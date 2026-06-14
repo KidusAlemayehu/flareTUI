@@ -42,7 +42,7 @@ use crate::components::{
 };
 use crate::db::{CacheDb, DnsRecord};
 use crate::palette::{PaletteAction, PaletteEngine};
-use crate::theme::Theme;
+use crate::theme::{Theme, ThemePreset};
 
 pub struct App {
     pub theme: Theme,
@@ -1985,6 +1985,16 @@ impl App {
                             }
                             PaletteAction::OpenHelp => {
                                 let _ = self.action_tx.send(Action::ToggleHelp);
+                            }
+                            PaletteAction::SetTheme(theme_name) => {
+                                let preset = match theme_name.as_str() {
+                                    "Catppuccin Mocha" => ThemePreset::CatppuccinMocha,
+                                    "Tokyo Night" => ThemePreset::TokyoNight,
+                                    "Nord" => ThemePreset::Nord,
+                                    _ => ThemePreset::CloudflareDark,
+                                };
+                                self.theme = Theme::from_preset(preset);
+                                self.status_bar.set_status(format!("Applied theme: {}", preset.name()));
                             }
                             PaletteAction::Quit => {
                                 let _ = self.action_tx.send(Action::Quit);
