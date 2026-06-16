@@ -39,7 +39,9 @@
 - **Interactive DNS & Zone Management**: Instant orange/grey cloud proxy toggling (`p`), inline record creation/editing with safety checks, and single-click BIND zone export (`x`).
 - **Workers Inspector & Realtime Live Tail**: Inspect script metadata, route patterns, and active bindings (D1, KV, R2, Queues). Stream live Worker execution logs over WebSockets with exception decoding, regex filtering (`/`), and auto-follow mode (`f`).
 - **Cloudflare Pages & Instant Rollback**: Track deployment statuses across preview and production environments, inspect build stages and logs, and execute rollbacks directly from your terminal.
-- **Storage & Edge Databases (D1 & KV)**: Interactive D1 SQL Console with table schema explorer, quick query presets, tabular result grid, query history buffer (`↑`/`↓`), and live execution duration metrics. Workers KV key browser with real-time prefix filtering (`/`) and formatted JSON syntax viewer.
+- **Storage & Edge Databases (D1, KV, and R2)**: Interactive D1 SQL Console with table schema explorer, quick query presets, tabular result grid, query history buffer (`↑`/`↓`), and live execution duration metrics. Workers KV key browser with real-time prefix filtering (`/`) and formatted JSON syntax viewer. 3-pane R2 object storage explorer with bucket overview and virtual directory traversal.
+- **Interactive WAF Rule Control Engine**: Live rule management in Security View (`Space`/`t` to toggle active/pause, `+`/`-` to reorder priority) with direct Cloudflare Rulesets API persistence.
+- **Universal Theme Engine**: Hot-swappable color themes via Command Palette (`Ctrl+P` -> `Theme: ...`) supporting Cloudflare Dark, Catppuccin Mocha, Tokyo Night, and Nord palettes.
 - **WAF & Security Analytics Dashboard**: Zone-wide threat score gauge (0-100), interactive security event log explorer with action filter cycling (`f`: Block, Managed Challenge, JS Challenge, Log), and threat timeline distribution.
 - **Security & Threat Analytics Dashboard**: Clean 3-column multi-table intelligence grid displaying action breakdown, threat activity timeline, top origin countries, ASNs, targeted endpoints, and WAF rule hit leaderboards.
 - **Security Event Inspector**: Deep-dive inspector modal (`Enter`/`i`) displaying request details (client IP, ASN, Ray ID, HTTP method, path, user agent), WAF rule expression, and raw JSON payload with quick clipboard buffer copying (`c` for IP, `r` for Ray ID).
@@ -290,6 +292,10 @@ flowchart TD
 - [x] **Milestone 9**: Storage Browser (Interactive D1 SQL query runner and KV namespace key-value explorer).
 - [x] **Milestone 10**: WAF & Security analytics dashboard, multi-account fuzzy command palette (`Ctrl+P`), runtime profile switcher.
 - [x] **Milestone 11**: Security & Threat Analytics dashboard (3-column multi-table grid, threat scoring, activity timeline, origin country & ASN breakdown).
+- [x] **Milestone 12**: R2 Object Storage Explorer (3-pane bucket and object hierarchy navigation, virtual directory traversal, local SQLite schema caching).
+- [x] **Milestone 13**: Interactive WAF Control Engine (live rule toggling, priority reordering, safety confirmations, and ruleset mutations).
+- [x] **Milestone 14**: Universal Theme Engine (runtime palette switching via Command Palette: Cloudflare Dark, Catppuccin Mocha, Tokyo Night, Nord).
+- [x] **Milestone 15**: Release Documentation & Packaging (v0.7.0 crate release, expanded feature documentation, changelog synchronization).
 
 ---
 

@@ -35,6 +35,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and adher
 
 ---
 
+## 0.7.0 (2026-06-16)
+
+### Added
+
+- R2 Object Storage explorer and virtual directory browser - ([ab73110](https://github.com/KidusAlemayehu/flareTUI/commit/ab73110), [7ef56de](https://github.com/KidusAlemayehu/flareTUI/commit/7ef56de), [96499d3](https://github.com/KidusAlemayehu/flareTUI/commit/96499d3))
+  - Embedded SQLite cache schema and migration for R2 buckets and objects
+  - Typed Cloudflare API v4 client methods `list_r2_buckets` and `list_r2_objects` with delimiter support
+  - 3-pane Storage View explorer (`D1 Databases`, `Workers KV`, `R2 Buckets`) with folder hierarchy navigation and search
+- Interactive WAF rule control engine - ([07b4686](https://github.com/KidusAlemayehu/flareTUI/commit/07b4686))
+  - Hotkeys to toggle rules active/paused (`Space`/`t`) and shift rule execution priorities (`+`/`-`)
+  - Integration with Cloudflare Rulesets API to persist rule state modifications directly to the edge
+  - Local database cache write-through and status bar dispatch notifications
+- Runtime Universal Theme Engine - ([38a9222](https://github.com/KidusAlemayehu/flareTUI/commit/38a9222))
+  - Dynamic palette switching across 4 built-in presets: Cloudflare Dark, Catppuccin Mocha, Tokyo Night, and Nord
+  - Integrated theme selector commands registered directly in the Universal Command Palette (`Ctrl+P`)
+  - Full propagation of updated palette styles across all views, modal dialogs, headers, and status bars
+
+---
+
 ## 0.6.0 (2026-02-27)
 
 ### Changed
