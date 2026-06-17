@@ -124,6 +124,15 @@ impl Config {
             false
         }
     }
+
+    pub fn logout_active_profile(&mut self) -> bool {
+        let active_name = self.current_profile.clone().unwrap_or_else(|| "default".to_string());
+        if let Some(pos) = self.profiles.iter().position(|p| p.name == active_name) {
+            self.profiles[pos].api_token.clear();
+        }
+        self.api_token = None;
+        true
+    }
 }
 
 pub struct AuthManager;
@@ -190,11 +199,40 @@ impl AuthManager {
             Ok(None)
         }
     }
+
+    pub fn logout() -> Result<()> {
+        let mut config = Self::load_config();
+        config.logout_active_profile();
+        Self::save_config(&config)?;
+        std::env::remove_var("CLOUDFLARE_API_TOKEN");
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_logout_active_profile() {
+        let mut config = Config {
+            current_profile: Some("prod".to_string()),
+            profiles: vec![AccountProfile {
+                name: "prod".to_string(),
+                api_token: "secret_tok_123".to_string(),
+                account_id: None,
+                account_name: None,
+                default_zone_id: None,
+            }],
+            api_token: Some("secret_tok_123".to_string()),
+            account_id: None,
+            account_name: None,
+        };
+
+        assert!(config.active_token().is_some());
+        config.logout_active_profile();
+        assert!(config.active_token().is_none());
+    }
 
     #[test]
     fn test_config_legacy_fallback() {
