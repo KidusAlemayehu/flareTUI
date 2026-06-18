@@ -372,6 +372,18 @@ impl App {
                     }
                 }
             }
+            Action::Logout => {
+                let _ = AuthManager::logout();
+                self.cf_client = None;
+                self.header.is_live = false;
+                self.header.account_name = "Logged Out".to_string();
+                if let Some(cancel) = self.active_tail_cancel.take() {
+                    let _ = cancel.send(true);
+                }
+                self.active_tail_worker = None;
+                self.active_tail_id = None;
+                self.status_bar.set_status("Logged out successfully. In offline cached mode (press 'a' to log in).".to_string());
+            }
             Action::ToggleAuth => {
                 self.show_auth_modal = !self.show_auth_modal;
                 if self.show_auth_modal {

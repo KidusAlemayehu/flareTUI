@@ -24,6 +24,7 @@ pub enum Action {
     ToggleHelp,
     ToggleSearch,
     ToggleAuth,
+    Logout,
 
     // Zone Inspector Actions
     OpenZoneInspector,
