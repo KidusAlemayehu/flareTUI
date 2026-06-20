@@ -93,6 +93,13 @@ impl ProfileModal {
         }
     }
 
+    pub fn logout_selected(&mut self) -> bool {
+        let _ = AuthManager::logout();
+        self.status_msg = Some("Logged out active session".to_string());
+        self.reload();
+        true
+    }
+
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
         let popup_width = 82.min(area.width.saturating_sub(4));
         let popup_height = 18.min(area.height.saturating_sub(2));
@@ -210,7 +217,7 @@ impl ProfileModal {
 
     fn render_footer(&self, f: &mut Frame, area: Rect, _theme: &Theme) {
         let p = Paragraph::new(
-            " [Enter] Switch Profile  [d] Delete Profile  [↑/↓] Navigate  [Esc/q] Close ",
+            " [Enter] Switch Profile  [d] Delete  [l] Logout  [↑/↓] Navigate  [Esc/q] Close ",
         )
         .alignment(Alignment::Center)
         .style(Style::default().fg(Color::DarkGray));

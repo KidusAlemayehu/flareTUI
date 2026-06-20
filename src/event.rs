@@ -119,6 +119,7 @@ impl EventHandler {
                 (_, KeyCode::Down) | (KeyModifiers::NONE, KeyCode::Char('j')) => Some(Action::ProfileSwitcherNavDown),
                 (_, KeyCode::Enter) => Some(Action::ProfileSwitcherSelect),
                 (KeyModifiers::NONE, KeyCode::Char('d')) => Some(Action::ProfileSwitcherDelete),
+                (KeyModifiers::NONE, KeyCode::Char('l')) | (KeyModifiers::CONTROL, KeyCode::Char('l')) => Some(Action::Logout),
                 _ => None,
             };
         }
@@ -282,6 +283,7 @@ impl EventHandler {
             (KeyModifiers::NONE, KeyCode::Char('q')) => Some(Action::Quit),
             (KeyModifiers::CONTROL, KeyCode::Char('p')) => Some(Action::OpenCommandPalette),
             (KeyModifiers::CONTROL, KeyCode::Char('u')) => Some(Action::OpenProfileSwitcher),
+            (KeyModifiers::CONTROL, KeyCode::Char('l')) => Some(Action::Logout),
             (KeyModifiers::NONE, KeyCode::Tab) => Some(Action::NextTab),
             (KeyModifiers::SHIFT, KeyCode::BackTab) => Some(Action::PrevTab),
             (KeyModifiers::NONE, KeyCode::Char('1')) => Some(Action::SelectTab(0)),
