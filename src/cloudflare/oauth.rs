@@ -1,0 +1,48 @@
+pub const CLOUDFLARE_OAUTH_AUTH_URL: &str = "https://dash.cloudflare.com/oauth2/auth";
+pub const DEFAULT_CLIENT_ID: &str = "flare-tui-cli";
+pub const DEFAULT_SCOPES: &str = "account:read zone:read dns:edit workers:read pages:read";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OAuthSuccessPayload {
+    pub token: String,
+    pub account_id: Option<String>,
+    pub account_name: Option<String>,
+}
+
+pub fn url_encode(input: &str) -> String {
+    let mut encoded = String::new();
+    for byte in input.bytes() {
+        match byte {
+            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                encoded.push(byte as char);
+            }
+            _ => {
+                encoded.push_str(&format!("%{:02X}", byte));
+            }
+        }
+    }
+    encoded
+}
+
+pub fn build_auth_url(port: u16, state: &str) -> String {
+    let redirect_uri = format!("http://127.0.0.1:{port}/callback");
+    let encoded_redirect = url_encode(&redirect_uri);
+    let encoded_scopes = url_encode(DEFAULT_SCOPES);
+    format!(
+        "{CLOUDFLARE_OAUTH_AUTH_URL}?response_type=code&client_id={DEFAULT_CLIENT_ID}&redirect_uri={encoded_redirect}&scope={encoded_scopes}&state={state}"
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_auth_url() {
+        let url = build_auth_url(8976, "secret_state_123");
+        assert!(url.contains("client_id=flare-tui-cli"));
+        assert!(url.contains("state=secret_state_123"));
+        assert!(url.contains("redirect_uri="));
+        assert!(url.contains("8976"));
+    }
+}
