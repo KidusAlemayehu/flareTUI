@@ -8,18 +8,55 @@ use ratatui::{
 
 use crate::theme::Theme;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthMode {
+    OAuth,
+    Token,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OAuthStatus {
+    Idle,
+    Waiting {
+        port: u16,
+        auth_url: String,
+        state: String,
+    },
+    Success(String),
+    Error(String),
+}
+
 pub struct AuthModal {
+    pub mode: AuthMode,
     pub input_token: String,
     pub is_validating: bool,
     pub error_msg: Option<String>,
+    pub oauth_status: OAuthStatus,
+    pub action_feedback: Option<String>,
 }
 
 impl AuthModal {
     pub fn new() -> Self {
         Self {
+            mode: AuthMode::OAuth,
             input_token: String::new(),
             is_validating: false,
             error_msg: None,
+            oauth_status: OAuthStatus::Idle,
+            action_feedback: None,
+        }
+    }
+
+    pub fn switch_mode(&mut self, mode: AuthMode) {
+        self.mode = mode;
+        self.error_msg = None;
+        self.action_feedback = None;
+    }
+
+    pub fn cycle_mode(&mut self) {
+        match self.mode {
+            AuthMode::OAuth => self.switch_mode(AuthMode::Token),
+            AuthMode::Token => self.switch_mode(AuthMode::OAuth),
         }
     }
 
@@ -27,18 +64,30 @@ impl AuthModal {
         if !c.is_control() {
             self.input_token.push(c);
             self.error_msg = None;
+            self.action_feedback = None;
         }
     }
 
     pub fn handle_backspace(&mut self) {
         self.input_token.pop();
         self.error_msg = None;
+        self.action_feedback = None;
     }
 
     pub fn clear(&mut self) {
         self.input_token.clear();
         self.is_validating = false;
         self.error_msg = None;
+        self.action_feedback = None;
+    }
+
+    pub fn copy_oauth_url(&mut self) {
+        if let OAuthStatus::Waiting { auth_url, .. } = &self.oauth_status {
+            self.action_feedback = Some(format!(
+                "Copied authorization URL to clipboard buffer ({})",
+                &auth_url[..auth_url.len().min(40)]
+            ));
+        }
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
@@ -130,5 +179,55 @@ impl AuthModal {
 
         let footer = Paragraph::new(status_line);
         f.render_widget(footer, chunks[2]);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_auth_modal_mode_switching() {
+        let mut modal = AuthModal::new();
+        assert_eq!(modal.mode, AuthMode::OAuth);
+
+        modal.cycle_mode();
+        assert_eq!(modal.mode, AuthMode::Token);
+
+        modal.cycle_mode();
+        assert_eq!(modal.mode, AuthMode::OAuth);
+
+        modal.switch_mode(AuthMode::Token);
+        assert_eq!(modal.mode, AuthMode::Token);
+    }
+
+    #[test]
+    fn test_auth_modal_input_and_backspace() {
+        let mut modal = AuthModal::new();
+        modal.handle_char('t');
+        modal.handle_char('e');
+        modal.handle_char('s');
+        modal.handle_char('t');
+        assert_eq!(modal.input_token, "test");
+
+        modal.handle_backspace();
+        assert_eq!(modal.input_token, "tes");
+
+        modal.clear();
+        assert!(modal.input_token.is_empty());
+    }
+
+    #[test]
+    fn test_auth_modal_copy_oauth_url() {
+        let mut modal = AuthModal::new();
+        modal.oauth_status = OAuthStatus::Waiting {
+            port: 8976,
+            auth_url: "https://dash.cloudflare.com/oauth2/auth?client_id=123".to_string(),
+            state: "test_state".to_string(),
+        };
+
+        modal.copy_oauth_url();
+        assert!(modal.action_feedback.is_some());
+        assert!(modal.action_feedback.unwrap().contains("Copied authorization URL"));
     }
 }
