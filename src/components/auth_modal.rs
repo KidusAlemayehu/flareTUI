@@ -1,11 +1,12 @@
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
     Frame,
 };
 
+use crate::cloudflare::auth::AuthManager;
 use crate::theme::Theme;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -91,8 +92,8 @@ impl AuthModal {
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let popup_width = 72.min(area.width.saturating_sub(4));
-        let popup_height = 14.min(area.height.saturating_sub(2));
+        let popup_width = 78.min(area.width.saturating_sub(4));
+        let popup_height = 19.min(area.height.saturating_sub(2));
 
         let popup_area = Rect {
             x: (area.width.saturating_sub(popup_width)) / 2,
@@ -103,18 +104,12 @@ impl AuthModal {
 
         f.render_widget(Clear, popup_area);
 
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(4), // Instructions
-                Constraint::Length(3), // Input box
-                Constraint::Length(3), // Status & Hints
-            ])
-            .margin(1)
-            .split(popup_area);
+        let config = AuthManager::load_config();
+        let active_profile = config.active_profile();
+        let is_authenticated = config.active_token().is_some();
 
         let block = Block::default()
-            .title(" 🔐 Connect Cloudflare Account (API Token) ")
+            .title(" Cloudflare Account Authentication ")
             .title_style(theme.title())
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
@@ -122,22 +117,231 @@ impl AuthModal {
 
         f.render_widget(block, popup_area);
 
-        // 1. Instructions
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Mode Tabs & Account Status
+                Constraint::Length(1), // Divider
+                Constraint::Min(8),    // Body Content
+                Constraint::Length(2), // Footer Keybindings
+            ])
+            .margin(1)
+            .split(popup_area);
+
+        // 1. Top Section: Mode tabs + Session indicator
+        self.render_header_tabs(f, chunks[0], theme, is_authenticated, active_profile.as_ref());
+
+        // 2. Horizontal divider
+        let div_text = Paragraph::new("─".repeat(chunks[1].width as usize))
+            .style(Style::default().fg(theme.border));
+        f.render_widget(div_text, chunks[1]);
+
+        // 3. Body Content
+        match self.mode {
+            AuthMode::OAuth => self.render_oauth_content(f, chunks[2], theme),
+            AuthMode::Token => self.render_token_content(f, chunks[2], theme),
+        }
+
+        // 4. Footer Keybindings
+        self.render_footer(f, chunks[3], theme, is_authenticated);
+    }
+
+    fn render_header_tabs(
+        &self,
+        f: &mut Frame,
+        area: Rect,
+        theme: &Theme,
+        is_authenticated: bool,
+        active_profile: Option<&crate::cloudflare::auth::AccountProfile>,
+    ) {
+        let sub = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Min(40), Constraint::Length(30)])
+            .split(area);
+
+        // Tab buttons: [1] Browser Login (OAuth)   [2] API Token (Manual)
+        let tab1_style = if self.mode == AuthMode::OAuth {
+            Style::default().fg(Color::Black).bg(theme.primary).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(theme.text_dim)
+        };
+
+        let tab2_style = if self.mode == AuthMode::Token {
+            Style::default().fg(Color::Black).bg(theme.primary).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(theme.text_dim)
+        };
+
+        let tabs = Paragraph::new(Line::from(vec![
+            Span::styled(" [1] Browser Login (OAuth) ", tab1_style),
+            Span::raw("  "),
+            Span::styled(" [2] API Token (Manual) ", tab2_style),
+        ]));
+        f.render_widget(tabs, sub[0]);
+
+        // Session indicator
+        let session_line = if is_authenticated {
+            let name = active_profile.map(|p| p.name.as_str()).unwrap_or("default");
+            Line::from(vec![
+                Span::styled("● ", Style::default().fg(theme.success)),
+                Span::styled(format!("Session: {name}"), Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            ])
+        } else {
+            Line::from(vec![
+                Span::styled("○ ", Style::default().fg(theme.warning)),
+                Span::styled("Unauthenticated", Style::default().fg(theme.text_dim)),
+            ])
+        };
+
+        let session_widget = Paragraph::new(session_line).alignment(Alignment::Right);
+        f.render_widget(session_widget, sub[1]);
+    }
+
+    fn render_oauth_content(&self, f: &mut Frame, area: Rect, theme: &Theme) {
+        let content_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Info banner
+                Constraint::Length(4), // Action / URL box
+                Constraint::Length(3), // Fallback input or status
+            ])
+            .split(area);
+
+        match &self.oauth_status {
+            OAuthStatus::Idle => {
+                let intro = Paragraph::new(vec![
+                    Line::from(vec![
+                        Span::styled("Browser-based OAuth sign-in (redirect flow):", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+                    ]),
+                    Line::from(vec![
+                        Span::styled("flareTUI spawns a local loopback callback server on 127.0.0.1 to securely capture your token.", Style::default().fg(theme.text_dim)),
+                    ]),
+                ]);
+                f.render_widget(intro, content_chunks[0]);
+
+                let action_box = Paragraph::new(vec![
+                    Line::from(""),
+                    Line::from(vec![
+                        Span::styled("  ▶ Press [Enter] or [o] to Launch Browser & Authorize  ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                    ]),
+                ])
+                .alignment(Alignment::Center)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::default().fg(theme.secondary)),
+                );
+                f.render_widget(action_box, content_chunks[1]);
+
+                let hint = if let Some(err) = &self.error_msg {
+                    Line::from(vec![
+                        Span::styled("Error: ", Style::default().fg(theme.error).add_modifier(Modifier::BOLD)),
+                        Span::styled(err, Style::default().fg(theme.error)),
+                    ])
+                } else {
+                    Line::from(vec![
+                        Span::styled("No browser? Press [Tab] to switch to manual API Token input.", Style::default().fg(theme.text_dim)),
+                    ])
+                };
+                f.render_widget(Paragraph::new(hint), content_chunks[2]);
+            }
+            OAuthStatus::Waiting { port, auth_url, .. } => {
+                let status_header = Paragraph::new(vec![
+                    Line::from(vec![
+                        Span::styled("Waiting for browser authorization...", Style::default().fg(theme.warning).add_modifier(Modifier::BOLD)),
+                        Span::styled(format!(" (Listening on http://127.0.0.1:{port}/callback)"), Style::default().fg(theme.text_dim)),
+                    ]),
+                ]);
+                f.render_widget(status_header, content_chunks[0]);
+
+                let display_url = if auth_url.len() > 68 {
+                    format!("{}...", &auth_url[..65])
+                } else {
+                    auth_url.clone()
+                };
+
+                let url_box = Paragraph::new(vec![
+                    Line::from(vec![
+                        Span::styled(" URL: ", Style::default().fg(theme.info).add_modifier(Modifier::BOLD)),
+                        Span::styled(display_url, Style::default().fg(Color::Cyan).add_modifier(Modifier::UNDERLINED)),
+                    ]),
+                    Line::from(vec![
+                        Span::styled(" [c] Copy URL to clipboard buffer", Style::default().fg(theme.text_dim)),
+                    ]),
+                ])
+                .block(
+                    Block::default()
+                        .title(" Authorization Link ")
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::default().fg(theme.info)),
+                );
+                f.render_widget(url_box, content_chunks[1]);
+
+                let masked_input = if self.input_token.is_empty() {
+                    Span::styled("Or paste callback token/code here...", Style::default().fg(theme.text_dim))
+                } else {
+                    Span::styled(&self.input_token, Style::default().fg(Color::White))
+                };
+
+                let fallback_box = Paragraph::new(Line::from(vec![
+                    Span::styled(" Token Fallback: ", Style::default().fg(theme.text_dim)),
+                    masked_input,
+                    Span::styled("█", Style::default().fg(theme.primary)),
+                ]));
+                f.render_widget(fallback_box, content_chunks[2]);
+            }
+            OAuthStatus::Success(msg) => {
+                let success = Paragraph::new(vec![
+                    Line::from(""),
+                    Line::from(vec![
+                        Span::styled("✓ ", Style::default().fg(theme.success).add_modifier(Modifier::BOLD)),
+                        Span::styled(msg, Style::default().fg(theme.success).add_modifier(Modifier::BOLD)),
+                    ]),
+                ])
+                .alignment(Alignment::Center);
+                f.render_widget(success, content_chunks[1]);
+            }
+            OAuthStatus::Error(err) => {
+                let err_widget = Paragraph::new(vec![
+                    Line::from(vec![
+                        Span::styled("Authorization Failed: ", Style::default().fg(theme.error).add_modifier(Modifier::BOLD)),
+                        Span::styled(err, Style::default().fg(theme.error)),
+                    ]),
+                    Line::from(""),
+                    Line::from(vec![
+                        Span::styled("Press [Enter] or [o] to retry, or [Tab] for manual token.", Style::default().fg(theme.text_dim)),
+                    ]),
+                ]);
+                f.render_widget(err_widget, content_chunks[1]);
+            }
+        }
+    }
+
+    fn render_token_content(&self, f: &mut Frame, area: Rect, theme: &Theme) {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Instructions
+                Constraint::Length(3), // Input box
+                Constraint::Length(3), // Status / error
+            ])
+            .split(area);
+
         let instructions = Paragraph::new(vec![
             Line::from(vec![
                 Span::styled("Create an API Token with Zone & Worker read/edit permissions at:", Style::default().fg(theme.text_dim)),
             ]),
             Line::from(vec![
-                Span::styled("👉 https://dash.cloudflare.com/profile/api-tokens", Style::default().fg(theme.info).add_modifier(Modifier::UNDERLINED)),
+                Span::styled("https://dash.cloudflare.com/profile/api-tokens", Style::default().fg(theme.info).add_modifier(Modifier::UNDERLINED)),
             ]),
         ]);
         f.render_widget(instructions, chunks[0]);
 
-        // 2. Input Box
         let masked_input = if self.input_token.is_empty() {
             Span::styled("Paste or type your Cloudflare API Token here...", Style::default().fg(theme.text_dim))
         } else {
-            // Mask first characters, show last 4
             let len = self.input_token.len();
             if len <= 8 {
                 Span::styled("•".repeat(len), Style::default().fg(Color::White))
@@ -160,15 +364,13 @@ impl AuthModal {
         );
         f.render_widget(input_box, chunks[1]);
 
-        // 3. Status & Hints
         let status_line = if let Some(err) = &self.error_msg {
             Line::from(vec![
-                Span::styled("❌ ", Style::default().fg(theme.error)),
+                Span::styled("Error: ", Style::default().fg(theme.error).add_modifier(Modifier::BOLD)),
                 Span::styled(err, Style::default().fg(theme.error)),
             ])
         } else if self.is_validating {
             Line::from(vec![
-                Span::styled("⏳ ", Style::default().fg(theme.warning)),
                 Span::styled("Validating token against Cloudflare API v4...", Style::default().fg(theme.warning)),
             ])
         } else {
@@ -179,6 +381,25 @@ impl AuthModal {
 
         let footer = Paragraph::new(status_line);
         f.render_widget(footer, chunks[2]);
+    }
+
+    fn render_footer(&self, f: &mut Frame, area: Rect, theme: &Theme, is_authenticated: bool) {
+        let mut spans = vec![
+            Span::styled("[Tab] Switch Mode  ", Style::default().fg(theme.text_dim)),
+        ];
+
+        if is_authenticated {
+            spans.push(Span::styled("[Ctrl+L] Log Out Active Profile  ", Style::default().fg(theme.warning)));
+        }
+
+        if let Some(fb) = &self.action_feedback {
+            spans.push(Span::styled(fb, Style::default().fg(theme.success)));
+        } else {
+            spans.push(Span::styled("[Esc] Close", Style::default().fg(theme.text_dim)));
+        }
+
+        let p = Paragraph::new(Line::from(spans)).alignment(Alignment::Center);
+        f.render_widget(p, area);
     }
 }
 
