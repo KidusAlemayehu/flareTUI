@@ -10,11 +10,12 @@ use crate::cloudflare::{
     auth::AuthManager,
     client::{CloudflareClient, SettingValue},
     export::ZoneExporter,
+    oauth::{build_auth_url, generate_state, listen_for_callback, open_browser},
     sync::CloudflareSync,
     tail::TailStream,
 };
 use crate::components::{
-    auth_modal::AuthModal,
+    auth_modal::{AuthMode, AuthModal, OAuthStatus},
     confirm_modal::ConfirmDeleteModal,
     dns_modal::DnsModal,
     header::Header,
@@ -78,6 +79,7 @@ pub struct App {
     pub active_tail_cancel: Option<tokio::sync::watch::Sender<bool>>,
     pub active_tail_worker: Option<String>,
     pub active_tail_id: Option<String>,
+    pub oauth_cancel_tx: Option<tokio::sync::oneshot::Sender<()>>,
 }
 
 impl App {
@@ -133,6 +135,7 @@ impl App {
             active_tail_cancel: None,
             active_tail_worker: None,
             active_tail_id: None,
+            oauth_cancel_tx: None,
         }
     }
 
@@ -388,15 +391,174 @@ impl App {
                 self.show_auth_modal = !self.show_auth_modal;
                 if self.show_auth_modal {
                     self.auth_modal.clear();
+                } else {
+                    if let Some(cancel) = self.oauth_cancel_tx.take() {
+                        let _ = cancel.send(());
+                    }
+                    self.auth_modal.oauth_status = OAuthStatus::Idle;
                 }
             }
             Action::AuthInputChar(c) => {
-                self.auth_modal.handle_char(c);
+                if c == '\t' {
+                    self.auth_modal.cycle_mode();
+                } else if self.auth_modal.mode == AuthMode::OAuth {
+                    match &self.auth_modal.oauth_status {
+                        OAuthStatus::Idle | OAuthStatus::Error(_) => {
+                            if c == 'o' || c == 'O' {
+                                let _ = self.action_tx.send(Action::StartOAuthLogin);
+                            } else if c == '2' {
+                                self.auth_modal.switch_mode(AuthMode::Token);
+                            }
+                        }
+                        OAuthStatus::Waiting { .. } => {
+                            if c == 'c' || c == 'C' {
+                                let _ = self.action_tx.send(Action::AuthCopyOAuthUrl);
+                            } else if !c.is_control() {
+                                self.auth_modal.handle_char(c);
+                            }
+                        }
+                        _ => {}
+                    }
+                } else {
+                    if c == '1' && self.auth_modal.input_token.is_empty() {
+                        self.auth_modal.switch_mode(AuthMode::OAuth);
+                    } else {
+                        self.auth_modal.handle_char(c);
+                    }
+                }
             }
             Action::AuthInputBackspace => {
                 self.auth_modal.handle_backspace();
             }
+            Action::AuthSwitchMode(mode) => {
+                self.auth_modal.switch_mode(mode);
+            }
+            Action::AuthCopyOAuthUrl => {
+                self.auth_modal.copy_oauth_url();
+                if let Some(fb) = &self.auth_modal.action_feedback {
+                    self.status_bar.set_status(fb.clone());
+                }
+            }
+            Action::StartOAuthLogin => {
+                self.show_auth_modal = true;
+                self.auth_modal.switch_mode(AuthMode::OAuth);
+                self.auth_modal.error_msg = None;
+
+                if let Some(cancel) = self.oauth_cancel_tx.take() {
+                    let _ = cancel.send(());
+                }
+
+                let state = generate_state();
+                let std_listener = std::net::TcpListener::bind("127.0.0.1:8976")
+                    .or_else(|_| std::net::TcpListener::bind("127.0.0.1:0"));
+
+                let listener = std_listener.and_then(|l| {
+                    l.set_nonblocking(true)?;
+                    tokio::net::TcpListener::from_std(l)
+                });
+
+                match listener {
+                    Ok(l) => {
+                        let port = l.local_addr().map(|a| a.port()).unwrap_or(8976);
+                        let auth_url = build_auth_url(port, &state);
+
+                        self.auth_modal.oauth_status = OAuthStatus::Waiting {
+                            port,
+                            auth_url: auth_url.clone(),
+                            state: state.clone(),
+                        };
+
+                        let opened = open_browser(&auth_url);
+                        if opened {
+                            self.status_bar.set_status("Launched browser for OAuth login. Waiting for authorization...".to_string());
+                        } else {
+                            self.status_bar.set_status(format!("Listening on port {port}. Open authorization URL to log in."));
+                        }
+
+                        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel::<()>();
+                        self.oauth_cancel_tx = Some(cancel_tx);
+
+                        let tx = self.action_tx.clone();
+                        tokio::spawn(async move {
+                            tokio::select! {
+                                res = listen_for_callback(l, state) => {
+                                    match res {
+                                        Ok(payload) => {
+                                            let _ = tx.send(Action::OAuthSuccess {
+                                                token: payload.token,
+                                                account_name: payload.account_name,
+                                                account_id: payload.account_id,
+                                            });
+                                        }
+                                        Err(e) => {
+                                            let _ = tx.send(Action::OAuthError(e));
+                                        }
+                                    }
+                                }
+                                _ = &mut cancel_rx => {
+                                    // User cancelled
+                                }
+                                _ = tokio::time::sleep(tokio::time::Duration::from_secs(300)) => {
+                                    let _ = tx.send(Action::OAuthError("OAuth authorization timed out (5 minutes).".to_string()));
+                                }
+                            }
+                        });
+                    }
+                    Err(e) => {
+                        let err = format!("Failed to start loopback server: {e}");
+                        self.auth_modal.oauth_status = OAuthStatus::Error(err.clone());
+                        self.status_bar.set_error(err);
+                    }
+                }
+            }
+            Action::CancelOAuthLogin => {
+                if let Some(cancel) = self.oauth_cancel_tx.take() {
+                    let _ = cancel.send(());
+                }
+                self.auth_modal.oauth_status = OAuthStatus::Idle;
+                self.status_bar.set_status("OAuth login cancelled.".to_string());
+            }
+            Action::OAuthSuccess { token, account_name, account_id } => {
+                self.oauth_cancel_tx = None;
+                let _ = AuthManager::save_token(&token, account_id.clone(), account_name.clone());
+                self.cf_client = Some(CloudflareClient::new(token));
+                self.header.is_live = true;
+                if let Some(name) = &account_name {
+                    self.header.account_name = name.clone();
+                }
+                self.show_auth_modal = false;
+                self.auth_modal.clear();
+                self.auth_modal.oauth_status = OAuthStatus::Idle;
+                self.status_bar.set_status("Authenticated via Browser OAuth! Syncing Cloudflare data...".to_string());
+                let _ = self.action_tx.send(Action::Refresh);
+            }
+            Action::OAuthError(err) => {
+                self.oauth_cancel_tx = None;
+                self.auth_modal.oauth_status = OAuthStatus::Error(err.clone());
+                self.auth_modal.error_msg = Some(err.clone());
+                self.status_bar.set_error(format!("OAuth error: {err}"));
+            }
             Action::AuthSubmit => {
+                if self.auth_modal.mode == AuthMode::OAuth {
+                    match &self.auth_modal.oauth_status {
+                        OAuthStatus::Idle | OAuthStatus::Error(_) => {
+                            let _ = self.action_tx.send(Action::StartOAuthLogin);
+                        }
+                        OAuthStatus::Waiting { .. } => {
+                            let fallback = self.auth_modal.input_token.trim().to_string();
+                            if !fallback.is_empty() {
+                                let _ = self.action_tx.send(Action::OAuthSuccess {
+                                    token: fallback,
+                                    account_name: Some("Manual (OAuth Fallback)".to_string()),
+                                    account_id: None,
+                                });
+                            }
+                        }
+                        _ => {}
+                    }
+                    return Ok(());
+                }
+
                 let token = self.auth_modal.input_token.trim().to_string();
                 if token.is_empty() {
                     self.auth_modal.error_msg = Some("Token cannot be empty".to_string());
@@ -2269,5 +2431,51 @@ mod tests {
         // Close profile switcher
         app.update(Action::CloseProfileSwitcher).unwrap();
         assert!(!app.is_profile_switcher_active());
+    }
+
+    #[test]
+    fn test_app_auth_oauth_and_logout_actions() {
+        let db = CacheDb::open_in_memory().unwrap();
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(db, tx);
+
+        // Toggle Auth Modal
+        assert!(!app.is_auth_active());
+        app.update(Action::ToggleAuth).unwrap();
+        assert!(app.is_auth_active());
+
+        // Mode Switching
+        assert_eq!(app.auth_modal.mode, AuthMode::OAuth);
+        app.update(Action::AuthSwitchMode(AuthMode::Token)).unwrap();
+        assert_eq!(app.auth_modal.mode, AuthMode::Token);
+        app.update(Action::AuthSwitchMode(AuthMode::OAuth)).unwrap();
+        assert_eq!(app.auth_modal.mode, AuthMode::OAuth);
+
+        // Cancel OAuth
+        app.auth_modal.oauth_status = OAuthStatus::Waiting {
+            port: 8976,
+            auth_url: "http://127.0.0.1:8976/callback".to_string(),
+            state: "xyz".to_string(),
+        };
+        app.update(Action::CancelOAuthLogin).unwrap();
+        assert_eq!(app.auth_modal.oauth_status, OAuthStatus::Idle);
+
+        // OAuth Success
+        app.update(Action::OAuthSuccess {
+            token: "cfut_test_oauth_success".to_string(),
+            account_name: Some("Test OAuth Account".to_string()),
+            account_id: Some("acc_test_123".to_string()),
+        }).unwrap();
+
+        assert!(app.cf_client.is_some());
+        assert!(app.header.is_live);
+        assert_eq!(app.header.account_name, "Test OAuth Account");
+        assert!(!app.is_auth_active());
+
+        // Logout
+        app.update(Action::Logout).unwrap();
+        assert!(app.cf_client.is_none());
+        assert!(!app.header.is_live);
+        assert_eq!(app.header.account_name, "Logged Out");
     }
 }

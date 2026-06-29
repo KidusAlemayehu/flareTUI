@@ -75,10 +75,20 @@ pub enum Action {
     InputSubmit,
     ClearSearch,
 
-    // Auth input
+    // Auth & OAuth input
     AuthInputChar(char),
     AuthInputBackspace,
     AuthSubmit,
+    AuthSwitchMode(crate::components::auth_modal::AuthMode),
+    AuthCopyOAuthUrl,
+    StartOAuthLogin,
+    CancelOAuthLogin,
+    OAuthSuccess {
+        token: String,
+        account_name: Option<String>,
+        account_id: Option<String>,
+    },
+    OAuthError(String),
 
     // Real-time Cloudflare Sync & Logs
     SyncStarted,

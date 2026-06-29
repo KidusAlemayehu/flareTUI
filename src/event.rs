@@ -259,11 +259,13 @@ impl EventHandler {
         }
 
         if auth_active {
-            return match key.code {
-                KeyCode::Esc => Some(Action::ToggleAuth),
-                KeyCode::Enter => Some(Action::AuthSubmit),
-                KeyCode::Backspace => Some(Action::AuthInputBackspace),
-                KeyCode::Char(c) => Some(Action::AuthInputChar(c)),
+            return match (key.modifiers, key.code) {
+                (KeyModifiers::CONTROL, KeyCode::Char('l')) => Some(Action::Logout),
+                (_, KeyCode::Esc) => Some(Action::ToggleAuth),
+                (_, KeyCode::Tab) => Some(Action::AuthInputChar('\t')),
+                (_, KeyCode::Enter) => Some(Action::AuthSubmit),
+                (_, KeyCode::Backspace) => Some(Action::AuthInputBackspace),
+                (KeyModifiers::NONE, KeyCode::Char(c)) | (KeyModifiers::SHIFT, KeyCode::Char(c)) => Some(Action::AuthInputChar(c)),
                 _ => None,
             };
         }
