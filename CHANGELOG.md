@@ -51,6 +51,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and adher
   - Dynamic palette switching across 4 built-in presets: Cloudflare Dark, Catppuccin Mocha, Tokyo Night, and Nord
   - Integrated theme selector commands registered directly in the Universal Command Palette (`Ctrl+P`)
   - Full propagation of updated palette styles across all views, modal dialogs, headers, and status bars
+- Browser-based OAuth login redirect flow and session logout
+  - Automatic browser launching via `xdg-open`/`open`/`start` with loopback callback server on `127.0.0.1`
+  - Cryptographically secure state parameter verification and manual token fallback
+  - Dedicated authentication modal with two selectable modes (`Browser Login` vs `API Token`)
+  - Instant session logout via `Ctrl+L` and Command Palette `auth_logout` command
 
 ---
 

@@ -2157,6 +2157,12 @@ impl App {
                             PaletteAction::OpenProfileSwitcher => {
                                 let _ = self.action_tx.send(Action::OpenProfileSwitcher);
                             }
+                            PaletteAction::OpenOAuthLogin => {
+                                let _ = self.action_tx.send(Action::StartOAuthLogin);
+                            }
+                            PaletteAction::Logout => {
+                                let _ = self.action_tx.send(Action::Logout);
+                            }
                             PaletteAction::OpenHelp => {
                                 let _ = self.action_tx.send(Action::ToggleHelp);
                             }

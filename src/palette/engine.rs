@@ -36,6 +36,8 @@ pub enum PaletteAction {
     OpenKvModal,
     OpenSecurityInspector,
     OpenProfileSwitcher,
+    OpenOAuthLogin,
+    Logout,
     OpenHelp,
     SetTheme(String),
     Quit,
@@ -169,6 +171,24 @@ impl PaletteEngine {
                 shortcut: None,
                 keywords: vec!["purge".into(), "cache".into(), "flush".into(), "clear".into(), "cdn".into()],
                 action: PaletteAction::PurgeCache,
+            },
+            PaletteCommand {
+                id: "auth_oauth".to_string(),
+                title: "Login via Browser (OAuth)".to_string(),
+                description: "Authenticate flareTUI by redirecting to your web browser".to_string(),
+                category: CommandCategory::Cloudflare,
+                shortcut: None,
+                keywords: vec!["login".into(), "oauth".into(), "browser".into(), "auth".into(), "signin".into()],
+                action: PaletteAction::OpenOAuthLogin,
+            },
+            PaletteCommand {
+                id: "auth_logout".to_string(),
+                title: "Log Out Active Session".to_string(),
+                description: "Disconnect active Cloudflare account and switch to offline mode".to_string(),
+                category: CommandCategory::Cloudflare,
+                shortcut: Some("Ctrl+L".to_string()),
+                keywords: vec!["logout".into(), "signout".into(), "disconnect".into(), "auth".into()],
+                action: PaletteAction::Logout,
             },
 
             // Storage
@@ -410,5 +430,17 @@ mod tests {
         assert!(results.iter().any(|r| r.command.id == "theme_catppuccin"));
         assert!(results.iter().any(|r| r.command.id == "theme_tokyo_night"));
         assert!(results.iter().any(|r| r.command.id == "theme_nord"));
+    }
+
+    #[test]
+    fn test_palette_auth_commands() {
+        let mut engine = PaletteEngine::new();
+        let oauth_res = engine.search("oauth");
+        assert!(!oauth_res.is_empty());
+        assert!(oauth_res.iter().any(|r| r.command.id == "auth_oauth"));
+
+        let logout_res = engine.search("logout");
+        assert!(!logout_res.is_empty());
+        assert!(logout_res.iter().any(|r| r.command.id == "auth_logout"));
     }
 }

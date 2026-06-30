@@ -42,6 +42,7 @@
 - **Storage & Edge Databases (D1, KV, and R2)**: Interactive D1 SQL Console with table schema explorer, quick query presets, tabular result grid, query history buffer (`↑`/`↓`), and live execution duration metrics. Workers KV key browser with real-time prefix filtering (`/`) and formatted JSON syntax viewer. 3-pane R2 object storage explorer with bucket overview and virtual directory traversal.
 - **Interactive WAF Rule Control Engine**: Live rule management in Security View (`Space`/`t` to toggle active/pause, `+`/`-` to reorder priority) with direct Cloudflare Rulesets API persistence.
 - **Universal Theme Engine**: Hot-swappable color themes via Command Palette (`Ctrl+P` -> `Theme: ...`) supporting Cloudflare Dark, Catppuccin Mocha, Tokyo Night, and Nord palettes.
+- **Browser-Based OAuth Login & Session Logout**: Seamless browser redirection authentication flow using a local loopback callback server on `127.0.0.1`, automatic browser launching (`xdg-open`/`open`/`start`), authorization state validation, manual fallback token input, and one-keystroke session logout (`Ctrl+L`).
 - **WAF & Security Analytics Dashboard**: Zone-wide threat score gauge (0-100), interactive security event log explorer with action filter cycling (`f`: Block, Managed Challenge, JS Challenge, Log), and threat timeline distribution.
 - **Security & Threat Analytics Dashboard**: Clean 3-column multi-table intelligence grid displaying action breakdown, threat activity timeline, top origin countries, ASNs, targeted endpoints, and WAF rule hit leaderboards.
 - **Security Event Inspector**: Deep-dive inspector modal (`Enter`/`i`) displaying request details (client IP, ASN, Ray ID, HTTP method, path, user agent), WAF rule expression, and raw JSON payload with quick clipboard buffer copying (`c` for IP, `r` for Ray ID).
@@ -109,6 +110,12 @@ flareTUI
 ## Authentication & Token Permissions
 
 When launching `flareTUI` for the first time, an authentication modal appears automatically. Alternatively, press **`Ctrl+A`** at any point to configure or update your credentials.
+
+`flareTUI` supports two authentication flows:
+1. **Browser Login (OAuth)**: Automatically redirects to your default web browser, spawns a local loopback callback server on `127.0.0.1`, and securely captures your credentials upon approval.
+2. **API Token (Manual)**: Direct input and validation of a Cloudflare User API Token.
+
+To log out of the active profile and return to offline cached mode, press **`Ctrl+L`** or select **`Log Out Active Session`** in the Command Palette (**`Ctrl+P`**).
 
 ### Recommended Token Permissions
 Create a Cloudflare **User API Token** at [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens) using the **Edit zone DNS** template or with the following permissions:
