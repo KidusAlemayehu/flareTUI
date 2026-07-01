@@ -4,8 +4,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 pub const CLOUDFLARE_OAUTH_AUTH_URL: &str = "https://dash.cloudflare.com/oauth2/auth";
-pub const DEFAULT_CLIENT_ID: &str = "flare-tui-cli";
-pub const DEFAULT_SCOPES: &str = "account:read zone:read dns:edit workers:read pages:read";
+pub const CLOUDFLARE_OAUTH_TOKEN_URL: &str = "https://dash.cloudflare.com/oauth2/token";
+pub const DEFAULT_CLIENT_ID: &str = "54d11594-84e4-41aa-b438-e81b8fa78ee7";
+pub const DEFAULT_SCOPES: &str = "account:read user:read workers:write workers_kv:write workers_routes:write workers_scripts:write workers_tail:read pages:write zone:read offline_access";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OAuthSuccessPayload {
@@ -72,7 +73,7 @@ pub fn url_encode(input: &str) -> String {
 }
 
 pub fn build_auth_url(port: u16, state: &str) -> String {
-    let redirect_uri = format!("http://127.0.0.1:{port}/callback");
+    let redirect_uri = format!("http://localhost:{port}/oauth/callback");
     let encoded_redirect = url_encode(&redirect_uri);
     let encoded_scopes = url_encode(DEFAULT_SCOPES);
     format!(
@@ -118,6 +119,46 @@ pub fn percent_decode(input: &str) -> String {
     result
 }
 
+pub async fn exchange_code_for_token(code: &str, port: u16) -> Result<String, String> {
+    let redirect_uri = format!("http://localhost:{port}/oauth/callback");
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
+
+    let params = [
+        ("grant_type", "authorization_code"),
+        ("client_id", DEFAULT_CLIENT_ID),
+        ("code", code),
+        ("redirect_uri", &redirect_uri),
+    ];
+
+    let resp = client
+        .post(CLOUDFLARE_OAUTH_TOKEN_URL)
+        .form(&params)
+        .send()
+        .await
+        .map_err(|e| format!("Token request failed: {e}"))?;
+
+    let status = resp.status();
+    let body = resp
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response body: {e}"))?;
+
+    if !status.is_success() {
+        return Err(format!("Token exchange failed ({status}): {body}"));
+    }
+
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) {
+        if let Some(token) = v.get("access_token").and_then(|t| t.as_str()) {
+            return Ok(token.to_string());
+        }
+    }
+
+    Err(format!("Access token missing in token response: {body}"))
+}
+
 pub async fn listen_for_callback(
     listener: TcpListener,
     expected_state: String,
@@ -161,7 +202,7 @@ pub async fn listen_for_callback(
             continue;
         }
 
-        if !path.starts_with("/callback") {
+        if !path.starts_with("/oauth/callback") && !path.starts_with("/callback") {
             let resp = "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n";
             let _ = stream.write_all(resp.as_bytes()).await;
             continue;
@@ -214,7 +255,10 @@ pub async fn listen_for_callback(
             if code.starts_with("cfut_") {
                 code.clone()
             } else {
-                format!("oauth_{}", code)
+                match exchange_code_for_token(code, 8976).await {
+                    Ok(tok) => tok,
+                    Err(_) => format!("oauth_{}", code),
+                }
             }
         } else {
             let html = r#"<!DOCTYPE html>
@@ -294,10 +338,11 @@ mod tests {
     #[test]
     fn test_build_auth_url() {
         let url = build_auth_url(8976, "secret_state_123");
-        assert!(url.contains("client_id=flare-tui-cli"));
+        assert!(url.contains(&format!("client_id={DEFAULT_CLIENT_ID}")));
         assert!(url.contains("state=secret_state_123"));
         assert!(url.contains("redirect_uri="));
         assert!(url.contains("8976"));
+        assert!(url.contains("oauth%2Fcallback"));
     }
 
     #[test]
@@ -333,6 +378,31 @@ mod tests {
         let payload = server_task.await.expect("task join").expect("oauth payload");
         assert_eq!(payload.token, "cfut_prod_mock_token");
         assert_eq!(payload.account_name, Some("My Cloudflare Org".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_oauth_callback_full_path() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
+        let port = listener.local_addr().expect("local addr").port();
+        let expected_state = "test_verified_state_789".to_string();
+
+        let server_task = tokio::spawn(listen_for_callback(listener, expected_state));
+
+        let mut client = TcpStream::connect(format!("127.0.0.1:{port}"))
+            .await
+            .expect("connect to server");
+        let request = "GET /oauth/callback?code=cfut_full_path_token&state=test_verified_state_789 HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+        client.write_all(request.as_bytes()).await.expect("write request");
+
+        let mut response = Vec::new();
+        client.read_to_end(&mut response).await.expect("read response");
+        let resp_str = String::from_utf8_lossy(&response);
+
+        assert!(resp_str.contains("200 OK"));
+        assert!(resp_str.contains("Authentication Successful"));
+
+        let payload = server_task.await.expect("task join").expect("oauth payload");
+        assert_eq!(payload.token, "cfut_full_path_token");
     }
 
     #[tokio::test]
