@@ -10,7 +10,10 @@ use crate::cloudflare::{
     auth::AuthManager,
     client::{CloudflareClient, SettingValue},
     export::ZoneExporter,
-    oauth::{build_auth_url, generate_state, listen_for_callback, open_browser},
+    oauth::{
+        build_auth_url, generate_code_challenge, generate_code_verifier, generate_state,
+        listen_for_callback, open_browser,
+    },
     sync::CloudflareSync,
     tail::TailStream,
 };
@@ -449,6 +452,9 @@ impl App {
                 }
 
                 let state = generate_state();
+                let verifier = generate_code_verifier();
+                let challenge = generate_code_challenge(&verifier);
+
                 let std_listener = std::net::TcpListener::bind("127.0.0.1:8976")
                     .or_else(|_| std::net::TcpListener::bind("127.0.0.1:0"));
 
@@ -460,7 +466,7 @@ impl App {
                 match listener {
                     Ok(l) => {
                         let port = l.local_addr().map(|a| a.port()).unwrap_or(8976);
-                        let auth_url = build_auth_url(port, &state);
+                        let auth_url = build_auth_url(port, &state, &challenge);
 
                         self.auth_modal.oauth_status = OAuthStatus::Waiting {
                             port,
@@ -481,7 +487,7 @@ impl App {
                         let tx = self.action_tx.clone();
                         tokio::spawn(async move {
                             tokio::select! {
-                                res = listen_for_callback(l, state) => {
+                                res = listen_for_callback(l, state, verifier) => {
                                     match res {
                                         Ok(payload) => {
                                             let _ = tx.send(Action::OAuthSuccess {
