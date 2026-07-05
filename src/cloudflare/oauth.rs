@@ -35,22 +35,45 @@ pub fn generate_state() -> String {
     format!("{:016x}{:08x}", nanos, pid)
 }
 
+pub const DEFAULT_OAUTH_ACCOUNT_NAME: &str = "kidusalemayehu705@gmail.com";
+
 pub fn open_browser(url: &str) -> bool {
     #[cfg(target_os = "linux")]
     {
-        if std::process::Command::new("xdg-open").arg(url).spawn().is_ok() {
+        if std::process::Command::new("xdg-open")
+            .arg(url)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .is_ok()
+        {
             return true;
         }
     }
     #[cfg(target_os = "macos")]
     {
-        if std::process::Command::new("open").arg(url).spawn().is_ok() {
+        if std::process::Command::new("open")
+            .arg(url)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .is_ok()
+        {
             return true;
         }
     }
     #[cfg(target_os = "windows")]
     {
-        if std::process::Command::new("cmd").args(["/C", "start", url]).spawn().is_ok() {
+        if std::process::Command::new("cmd")
+            .args(["/C", "start", url])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .is_ok()
+        {
             return true;
         }
     }
@@ -453,7 +476,11 @@ pub async fn listen_for_callback(
         };
 
         let account_id = params.get("account_id").cloned();
-        let account_name = params.get("account_name").cloned().or_else(|| Some("OAuth User".to_string()));
+        let account_name = params
+            .get("account_name")
+            .cloned()
+            .or_else(|| params.get("email").cloned())
+            .or_else(|| Some(DEFAULT_OAUTH_ACCOUNT_NAME.to_string()));
 
         let html = r#"<!DOCTYPE html>
 <html>
@@ -604,6 +631,7 @@ mod tests {
 
         let payload = server_task.await.expect("task join").expect("oauth payload");
         assert_eq!(payload.token, "cfut_full_path_token");
+        assert_eq!(payload.account_name, Some(DEFAULT_OAUTH_ACCOUNT_NAME.to_string()));
     }
 
     #[tokio::test]

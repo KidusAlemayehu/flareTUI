@@ -29,6 +29,13 @@ pub struct Account {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct UserResult {
+    pub id: String,
+    pub email: String,
+    pub username: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct ZoneResult {
     pub id: String,
     pub name: String,
@@ -448,6 +455,16 @@ impl CloudflareClient {
         let url = format!("{}/accounts", self.base_url);
         let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<Account>>>().await?;
         Ok(resp.result.unwrap_or_default())
+    }
+
+    pub async fn get_user(&self) -> Result<UserResult> {
+        let url = format!("{}/user", self.base_url);
+        let resp = self.client.get(&url).send().await?.json::<ApiResponse<UserResult>>().await?;
+        if !resp.success {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch user".to_string());
+            color_eyre::eyre::bail!("{msg}");
+        }
+        resp.result.ok_or_else(|| color_eyre::eyre::eyre!("User object missing in API response"))
     }
 
     pub async fn get_zones(&self) -> Result<Vec<ZoneResult>> {
@@ -1128,6 +1145,19 @@ impl CloudflareClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_user_profile_deserialization() {
+        let json = r#"{
+            "id": "e50e525d4a021564b2a920f05515e6a6",
+            "email": "kidusalemayehu705@gmail.com",
+            "username": "d8c4a840a50d24cfd849155239615724"
+        }"#;
+
+        let user: UserResult = serde_json::from_str(json).expect("deserialize user");
+        assert_eq!(user.id, "e50e525d4a021564b2a920f05515e6a6");
+        assert_eq!(user.email, "kidusalemayehu705@gmail.com");
+    }
 
     #[test]
     fn test_worker_script_deserialization() {

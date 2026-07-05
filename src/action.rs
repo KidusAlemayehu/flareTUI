@@ -93,6 +93,7 @@ pub enum Action {
     // Real-time Cloudflare Sync & Logs
     SyncStarted,
     SyncCompleted(String),
+    AccountIdentified(String),
     TailLog(LogEntry),
     AttachWorkerTail(String),
     StopWorkerTail,

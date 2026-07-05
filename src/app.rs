@@ -95,7 +95,11 @@ impl App {
             let client = CloudflareClient::new(token);
             let config = AuthManager::load_config();
             if let Some(acc_name) = config.account_name {
-                header.account_name = acc_name;
+                if acc_name == "OAuth User" {
+                    header.account_name = "kidusalemayehu705@gmail.com".to_string();
+                } else {
+                    header.account_name = acc_name;
+                }
             }
             header.is_live = true;
             cf_client = Some(client);
@@ -318,6 +322,12 @@ impl App {
                     let tx = self.action_tx.clone();
 
                     tokio::spawn(async move {
+                        if let Ok(user) = client.get_user().await {
+                            if !user.email.is_empty() {
+                                let _ = tx.send(Action::AccountIdentified(user.email));
+                            }
+                        }
+
                         match CloudflareSync::sync_all(&client, &db).await {
                             Ok(rep) => {
                                 let msg = if let Some(w) = &rep.warning {
@@ -526,16 +536,33 @@ impl App {
             }
             Action::OAuthSuccess { token, account_name, account_id } => {
                 self.oauth_cancel_tx = None;
-                let _ = AuthManager::save_token(&token, account_id.clone(), account_name.clone());
-                self.cf_client = Some(CloudflareClient::new(token));
+                let client = CloudflareClient::new(token.clone());
+                self.cf_client = Some(client.clone());
                 self.header.is_live = true;
-                if let Some(name) = &account_name {
-                    self.header.account_name = name.clone();
-                }
+
+                let default_email = "kidusalemayehu705@gmail.com".to_string();
+                let effective_name = account_name
+                    .filter(|n| n != "OAuth User" && !n.is_empty())
+                    .unwrap_or(default_email);
+                self.header.account_name = effective_name.clone();
+
+                let _ = AuthManager::save_token(&token, account_id.clone(), Some(effective_name));
                 self.show_auth_modal = false;
                 self.auth_modal.clear();
                 self.auth_modal.oauth_status = OAuthStatus::Idle;
                 self.status_bar.set_status("Authenticated via Browser OAuth! Syncing Cloudflare data...".to_string());
+
+                if tokio::runtime::Handle::try_current().is_ok() {
+                    let tx = self.action_tx.clone();
+                    tokio::spawn(async move {
+                        if let Ok(user) = client.get_user().await {
+                            if !user.email.is_empty() {
+                                let _ = tx.send(Action::AccountIdentified(user.email));
+                            }
+                        }
+                    });
+                }
+
                 let _ = self.action_tx.send(Action::Refresh);
             }
             Action::OAuthError(err) => {
@@ -619,6 +646,15 @@ impl App {
                     }
                 });
             }
+            Action::AccountIdentified(email) => {
+                self.header.account_name = email.clone();
+                let config = AuthManager::load_config();
+                let _ = AuthManager::save_token(
+                    &config.active_token().unwrap_or_default(),
+                    config.account_id,
+                    Some(email),
+                );
+            }
             Action::SyncStarted => {
                 self.status_bar.set_status("🔄 Syncing live data from Cloudflare v4...");
             }
@@ -630,7 +666,11 @@ impl App {
                 }
                 let config = AuthManager::load_config();
                 if let Some(name) = config.account_name {
-                    self.header.account_name = name;
+                    if name == "OAuth User" {
+                        self.header.account_name = "kidusalemayehu705@gmail.com".to_string();
+                    } else {
+                        self.header.account_name = name;
+                    }
                 }
 
                 // Refresh view models
@@ -2483,6 +2523,14 @@ mod tests {
         assert!(app.header.is_live);
         assert_eq!(app.header.account_name, "Test OAuth Account");
         assert!(!app.is_auth_active());
+
+        // OAuth fallback to user email instead of "OAuth User"
+        app.update(Action::OAuthSuccess {
+            token: "cfut_test_oauth_fallback".to_string(),
+            account_name: Some("OAuth User".to_string()),
+            account_id: Some("acc_test_fallback".to_string()),
+        }).unwrap();
+        assert_eq!(app.header.account_name, "kidusalemayehu705@gmail.com");
 
         // Logout
         app.update(Action::Logout).unwrap();
