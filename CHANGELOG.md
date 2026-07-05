@@ -51,11 +51,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and adher
   - Dynamic palette switching across 4 built-in presets: Cloudflare Dark, Catppuccin Mocha, Tokyo Night, and Nord
   - Integrated theme selector commands registered directly in the Universal Command Palette (`Ctrl+P`)
   - Full propagation of updated palette styles across all views, modal dialogs, headers, and status bars
-- Browser-based OAuth login redirect flow and session logout
+- Browser-based OAuth login redirect flow and session logout - ([871bf2c](https://github.com/KidusAlemayehu/flareTUI/commit/871bf2c), [3436dc9](https://github.com/KidusAlemayehu/flareTUI/commit/3436dc9), [765866f](https://github.com/KidusAlemayehu/flareTUI/commit/765866f), [223951e](https://github.com/KidusAlemayehu/flareTUI/commit/223951e), [3dcee1f](https://github.com/KidusAlemayehu/flareTUI/commit/3dcee1f))
   - Automatic browser launching via `xdg-open`/`open`/`start` with loopback callback server on `127.0.0.1`
   - Cryptographically secure state parameter verification and manual token fallback
   - Dedicated authentication modal with two selectable modes (`Browser Login` vs `API Token`)
   - Instant session logout via `Ctrl+L` and Command Palette `auth_logout` command
+
+### Fixed
+
+- Browser-based OAuth client authentication, PKCE RFC 7636 challenge flow, and terminal output isolation - ([2453587](https://github.com/KidusAlemayehu/flareTUI/commit/2453587), [c2299d0](https://github.com/KidusAlemayehu/flareTUI/commit/c2299d0), [06de90c](https://github.com/KidusAlemayehu/flareTUI/commit/06de90c))
+  - Resolved `invalid_client` authorization error using Cloudflare public client ID (`54d11594-84e4-41aa-b438-e81b8fa78ee7`) and dedicated `/oauth/callback` loopback route
+  - Implemented RFC 7636 PKCE (Proof Key for Code Exchange) with `S256` code challenge generation, verifier exchange, and Appendix B test vector validation
+  - Suppressed child browser and `xdg-open` standard output and error streams via `Stdio::null()` to protect TUI terminal screen buffers from theme warnings and GTK logs
+  - Added Cloudflare v4 `/user` endpoint model and client query to dynamically identify user profile email and display real account identity on header navigation
 
 ---
 
