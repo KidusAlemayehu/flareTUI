@@ -108,6 +108,39 @@ impl AuthModal {
         let active_profile = config.active_profile();
         let is_authenticated = config.active_token().is_some();
 
+        if is_authenticated {
+            let block = Block::default()
+                .title(" Cloudflare Account Profile ")
+                .title_style(theme.title())
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(theme.primary));
+
+            f.render_widget(block, popup_area);
+
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(3), // Profile Header Banner
+                    Constraint::Length(1), // Divider
+                    Constraint::Min(8),    // Profile Details & Logout Option
+                    Constraint::Length(2), // Footer Keybindings
+                ])
+                .margin(1)
+                .split(popup_area);
+
+            self.render_authenticated_header(f, chunks[0], theme, &config, active_profile.as_ref());
+
+            let div_text = Paragraph::new("─".repeat(chunks[1].width as usize))
+                .style(Style::default().fg(theme.border));
+            f.render_widget(div_text, chunks[1]);
+
+            self.render_authenticated_content(f, chunks[2], theme, &config, active_profile.as_ref());
+
+            self.render_authenticated_footer(f, chunks[3], theme);
+            return;
+        }
+
         let block = Block::default()
             .title(" Cloudflare Account Authentication ")
             .title_style(theme.title())
@@ -401,6 +434,138 @@ impl AuthModal {
         let p = Paragraph::new(Line::from(spans)).alignment(Alignment::Center);
         f.render_widget(p, area);
     }
+
+    fn render_authenticated_header(
+        &self,
+        f: &mut Frame,
+        area: Rect,
+        theme: &Theme,
+        config: &crate::cloudflare::auth::Config,
+        active_profile: Option<&crate::cloudflare::auth::AccountProfile>,
+    ) {
+        let sub = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Min(40), Constraint::Length(30)])
+            .split(area);
+
+        let email = active_profile
+            .and_then(|p| p.account_name.as_deref())
+            .or_else(|| config.account_name.as_deref())
+            .unwrap_or("kidusalemayehu705@gmail.com");
+
+        let header_left = Paragraph::new(vec![
+            Line::from(vec![
+                Span::styled("● ", Style::default().fg(theme.success).add_modifier(Modifier::BOLD)),
+                Span::styled("Active Account: ", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+                Span::styled(email, Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(vec![
+                Span::styled("Connected to Cloudflare Edge API v4", Style::default().fg(theme.text_dim)),
+            ]),
+        ]);
+        f.render_widget(header_left, sub[0]);
+
+        let prof_name = active_profile.map(|p| p.name.as_str()).unwrap_or("default");
+        let badge_style = Style::default().fg(Color::Black).bg(theme.primary).add_modifier(Modifier::BOLD);
+        let header_right = Paragraph::new(Line::from(vec![
+            Span::styled(format!(" Profile: {prof_name} "), badge_style),
+        ]))
+        .alignment(Alignment::Right);
+        f.render_widget(header_right, sub[1]);
+    }
+
+    fn render_authenticated_content(
+        &self,
+        f: &mut Frame,
+        area: Rect,
+        theme: &Theme,
+        config: &crate::cloudflare::auth::Config,
+        active_profile: Option<&crate::cloudflare::auth::AccountProfile>,
+    ) {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(5), // Profile info card
+                Constraint::Min(5),    // Logout option box
+            ])
+            .split(area);
+
+        let email = active_profile
+            .and_then(|p| p.account_name.as_deref())
+            .or_else(|| config.account_name.as_deref())
+            .unwrap_or("kidusalemayehu705@gmail.com");
+
+        let prof_name = active_profile.map(|p| p.name.as_str()).unwrap_or("default");
+        let account_id = active_profile
+            .and_then(|p| p.account_id.as_deref())
+            .or_else(|| config.account_id.as_deref())
+            .unwrap_or("e50e525d4a021564b2a920f05515e6a6");
+
+        let raw_token = config.active_token().unwrap_or_default();
+        let masked_token = if raw_token.len() > 16 {
+            format!("{}...{}", "•".repeat(12), &raw_token[raw_token.len() - 6..])
+        } else if !raw_token.is_empty() {
+            "•".repeat(raw_token.len())
+        } else {
+            "None".to_string()
+        };
+
+        let profile_card = Paragraph::new(vec![
+            Line::from(vec![
+                Span::styled("  Account Email : ", Style::default().fg(theme.text_dim)),
+                Span::styled(email, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(vec![
+                Span::styled("  Profile Name  : ", Style::default().fg(theme.text_dim)),
+                Span::styled(prof_name, Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                Span::styled("    Account ID : ", Style::default().fg(theme.text_dim)),
+                Span::styled(account_id, Style::default().fg(theme.info)),
+            ]),
+            Line::from(vec![
+                Span::styled("  Session Status: ", Style::default().fg(theme.text_dim)),
+                Span::styled("● Active & Authenticated", Style::default().fg(theme.success)),
+                Span::styled("    Token      : ", Style::default().fg(theme.text_dim)),
+                Span::styled(masked_token, Style::default().fg(theme.text_dim)),
+            ]),
+        ])
+        .block(
+            Block::default()
+                .title(" Profile Information ")
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(theme.secondary)),
+        );
+        f.render_widget(profile_card, chunks[0]);
+
+        let logout_box = Paragraph::new(vec![
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("  ▶ Press [Enter] or [l] to Log Out of This Account  ", Style::default().fg(theme.warning).add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(vec![
+                Span::styled("Safely terminates active Cloudflare session and switches to offline cached mode", Style::default().fg(theme.text_dim)),
+            ]),
+        ])
+        .alignment(Alignment::Center)
+        .block(
+            Block::default()
+                .title(" Session Action ")
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(theme.warning)),
+        );
+        f.render_widget(logout_box, chunks[1]);
+    }
+
+    fn render_authenticated_footer(&self, f: &mut Frame, area: Rect, theme: &Theme) {
+        let p = Paragraph::new(Line::from(vec![
+            Span::styled("[Enter] / [l] Log Out  ", Style::default().fg(theme.warning).add_modifier(Modifier::BOLD)),
+            Span::styled("[p] Switch Profile  ", Style::default().fg(theme.primary)),
+            Span::styled("[Esc] Close", Style::default().fg(theme.text_dim)),
+        ]))
+        .alignment(Alignment::Center);
+        f.render_widget(p, area);
+    }
 }
 
 #[cfg(test)]
@@ -450,5 +615,60 @@ mod tests {
         modal.copy_oauth_url();
         assert!(modal.action_feedback.is_some());
         assert!(modal.action_feedback.unwrap().contains("Copied authorization URL"));
+    }
+
+    #[test]
+    fn test_auth_modal_rendering_unauthenticated_and_authenticated() {
+        let modal = AuthModal::new();
+        let backend = ratatui::backend::TestBackend::new(100, 30);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        let theme = Theme::default();
+
+        // 1. Full modal render
+        terminal.draw(|f| modal.render(f, f.area(), &theme)).unwrap();
+
+        // 2. Direct render of authenticated sections with mock profile
+        let mut auth_config = crate::cloudflare::auth::Config::default();
+        let profile = crate::cloudflare::auth::AccountProfile {
+            name: "production".to_string(),
+            api_token: "cfut_secure_token_123456789".to_string(),
+            account_id: Some("acc_abcdef123456".to_string()),
+            account_name: Some("kidusalemayehu705@gmail.com".to_string()),
+            default_zone_id: None,
+        };
+        auth_config.profiles.push(profile);
+        auth_config.current_profile = Some("production".to_string());
+        let active = auth_config.active_profile();
+
+        terminal
+            .draw(|f| {
+                let area = f.area();
+                let chunks = ratatui::layout::Layout::default()
+                    .direction(ratatui::layout::Direction::Vertical)
+                    .constraints([
+                        ratatui::layout::Constraint::Length(3),
+                        ratatui::layout::Constraint::Length(1),
+                        ratatui::layout::Constraint::Min(8),
+                        ratatui::layout::Constraint::Length(2),
+                    ])
+                    .split(area);
+
+                modal.render_authenticated_header(
+                    f,
+                    chunks[0],
+                    &theme,
+                    &auth_config,
+                    active.as_ref(),
+                );
+                modal.render_authenticated_content(
+                    f,
+                    chunks[2],
+                    &theme,
+                    &auth_config,
+                    active.as_ref(),
+                );
+                modal.render_authenticated_footer(f, chunks[3], &theme);
+            })
+            .unwrap();
     }
 }

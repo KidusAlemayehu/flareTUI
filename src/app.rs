@@ -156,6 +156,10 @@ impl App {
         self.show_auth_modal
     }
 
+    pub fn is_authenticated(&self) -> bool {
+        self.cf_client.is_some() || AuthManager::load_token().is_some()
+    }
+
     pub fn is_inspector_active(&self) -> bool {
         self.zone_inspector.is_some()
     }
@@ -393,6 +397,7 @@ impl App {
                 self.cf_client = None;
                 self.header.is_live = false;
                 self.header.account_name = "Logged Out".to_string();
+                self.show_auth_modal = false;
                 if let Some(cancel) = self.active_tail_cancel.take() {
                     let _ = cancel.send(true);
                 }
@@ -412,6 +417,20 @@ impl App {
                 }
             }
             Action::AuthInputChar(c) => {
+                if self.is_authenticated() {
+                    match c {
+                        'l' | 'L' => {
+                            let _ = self.action_tx.send(Action::Logout);
+                        }
+                        'p' | 'P' => {
+                            self.show_auth_modal = false;
+                            let _ = self.action_tx.send(Action::OpenProfileSwitcher);
+                        }
+                        _ => {}
+                    }
+                    return Ok(());
+                }
+
                 if c == '\t' {
                     self.auth_modal.cycle_mode();
                 } else if self.auth_modal.mode == AuthMode::OAuth {
@@ -572,6 +591,12 @@ impl App {
                 self.status_bar.set_error(format!("OAuth error: {err}"));
             }
             Action::AuthSubmit => {
+                if self.is_authenticated() {
+                    self.show_auth_modal = false;
+                    let _ = self.action_tx.send(Action::Logout);
+                    return Ok(());
+                }
+
                 if self.auth_modal.mode == AuthMode::OAuth {
                     match &self.auth_modal.oauth_status {
                         OAuthStatus::Idle | OAuthStatus::Error(_) => {
@@ -2206,6 +2231,9 @@ impl App {
                             PaletteAction::OpenOAuthLogin => {
                                 let _ = self.action_tx.send(Action::StartOAuthLogin);
                             }
+                            PaletteAction::ToggleAuth => {
+                                let _ = self.action_tx.send(Action::ToggleAuth);
+                            }
                             PaletteAction::Logout => {
                                 let _ = self.action_tx.send(Action::Logout);
                             }
@@ -2537,5 +2565,22 @@ mod tests {
         assert!(app.cf_client.is_none());
         assert!(!app.header.is_live);
         assert_eq!(app.header.account_name, "Logged Out");
+
+        // When authenticated, opening auth modal and submitting triggers Logout
+        app.update(Action::OAuthSuccess {
+            token: "cfut_test_auth_profile".to_string(),
+            account_name: Some("kidusalemayehu705@gmail.com".to_string()),
+            account_id: Some("acc_profile_test".to_string()),
+        }).unwrap();
+        assert!(app.is_authenticated());
+
+        app.update(Action::ToggleAuth).unwrap();
+        assert!(app.is_auth_active());
+
+        // Submitting in auth modal triggers Logout
+        app.update(Action::AuthSubmit).unwrap();
+        assert!(!app.is_auth_active());
+        app.update(Action::Logout).unwrap();
+        assert!(!app.is_authenticated());
     }
 }

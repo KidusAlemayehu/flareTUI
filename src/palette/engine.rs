@@ -37,6 +37,7 @@ pub enum PaletteAction {
     OpenSecurityInspector,
     OpenProfileSwitcher,
     OpenOAuthLogin,
+    ToggleAuth,
     Logout,
     OpenHelp,
     SetTheme(String),
@@ -171,6 +172,15 @@ impl PaletteEngine {
                 shortcut: None,
                 keywords: vec!["purge".into(), "cache".into(), "flush".into(), "clear".into(), "cdn".into()],
                 action: PaletteAction::PurgeCache,
+            },
+            PaletteCommand {
+                id: "auth_account".to_string(),
+                title: "Cloudflare Authentication & Account".to_string(),
+                description: "View account profile, manage session, or authenticate".to_string(),
+                category: CommandCategory::Profiles,
+                shortcut: Some("a".to_string()),
+                keywords: vec!["auth".into(), "account".into(), "profile".into(), "login".into(), "user".into(), "credentials".into()],
+                action: PaletteAction::ToggleAuth,
             },
             PaletteCommand {
                 id: "auth_oauth".to_string(),
