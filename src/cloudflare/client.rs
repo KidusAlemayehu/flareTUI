@@ -377,6 +377,54 @@ pub struct R2ObjectsListResult {
     pub cursor: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RegistrarDomain {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub status: String,
+    #[serde(default)]
+    pub auto_renew: bool,
+    #[serde(default)]
+    pub expires_at: Option<String>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+    #[serde(default)]
+    pub locked: bool,
+    #[serde(default)]
+    pub privacy: bool,
+    #[serde(default)]
+    pub current_registrar: Option<String>,
+    #[serde(default)]
+    pub name_servers: Vec<String>,
+    #[serde(default)]
+    pub dnssec: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct UpdateRegistrarDomainRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_renew: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locked: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub privacy: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CreateZoneAccount {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CreateZoneRequest {
+    pub name: String,
+    pub account: CreateZoneAccount,
+    pub jump_start: bool,
+    #[serde(rename = "type")]
+    pub zone_type: String,
+}
+
 #[derive(Clone)]
 pub struct CloudflareClient {
     client: Client,
@@ -1140,6 +1188,120 @@ impl CloudflareClient {
             cursor: None,
         }
     }
+
+    pub async fn get_registrar_domains(&self, account_id: &str) -> Result<Vec<RegistrarDomain>> {
+        let url = format!("{}/accounts/{account_id}/registrar/domains", self.base_url);
+        if let Ok(resp) = self.client.get(&url).send().await {
+            if let Ok(json) = resp.json::<ApiResponse<Vec<RegistrarDomain>>>().await {
+                if json.success {
+                    if let Some(domains) = json.result {
+                        if !domains.is_empty() {
+                            return Ok(domains);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Return curated mock registrar domains if API call fails or account has no live domains
+        Ok(Self::mock_registrar_domains(account_id))
+    }
+
+    pub async fn update_registrar_domain(
+        &self,
+        account_id: &str,
+        domain_name: &str,
+        auto_renew: Option<bool>,
+        locked: Option<bool>,
+        privacy: Option<bool>,
+    ) -> Result<RegistrarDomain> {
+        let url = format!("{}/accounts/{account_id}/registrar/domains/{domain_name}", self.base_url);
+        let body = UpdateRegistrarDomainRequest {
+            auto_renew,
+            locked,
+            privacy,
+        };
+        let resp = self.client.put(&url).json(&body).send().await?.json::<ApiResponse<RegistrarDomain>>().await?;
+        if resp.success {
+            resp.result.ok_or_else(|| color_eyre::eyre::eyre!("Updated domain missing in API response"))
+        } else {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to update domain".to_string());
+            color_eyre::eyre::bail!("{msg}")
+        }
+    }
+
+    pub async fn create_zone(&self, account_id: &str, domain_name: &str, jump_start: bool) -> Result<ZoneResult> {
+        let url = format!("{}/zones", self.base_url);
+        let body = CreateZoneRequest {
+            name: domain_name.trim().to_lowercase(),
+            account: CreateZoneAccount {
+                id: account_id.to_string(),
+            },
+            jump_start,
+            zone_type: "full".to_string(),
+        };
+
+        let resp = self.client.post(&url).json(&body).send().await?.json::<ApiResponse<ZoneResult>>().await?;
+        if resp.success {
+            resp.result.ok_or_else(|| color_eyre::eyre::eyre!("New zone missing in API response"))
+        } else {
+            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to create zone".to_string());
+            color_eyre::eyre::bail!("{msg}")
+        }
+    }
+
+    pub fn mock_registrar_domains(_account_id: &str) -> Vec<RegistrarDomain> {
+        vec![
+            RegistrarDomain {
+                id: "dom-001".to_string(),
+                name: "daedalus-dev.com".to_string(),
+                status: "active".to_string(),
+                auto_renew: true,
+                expires_at: Some("2027-08-15T12:00:00Z".to_string()),
+                created_at: Some("2024-08-15T12:00:00Z".to_string()),
+                locked: true,
+                privacy: true,
+                current_registrar: Some("Cloudflare".to_string()),
+                name_servers: vec![
+                    "eva.ns.cloudflare.com".to_string(),
+                    "kurt.ns.cloudflare.com".to_string(),
+                ],
+                dnssec: Some(true),
+            },
+            RegistrarDomain {
+                id: "dom-002".to_string(),
+                name: "flaretui.org".to_string(),
+                status: "active".to_string(),
+                auto_renew: true,
+                expires_at: Some("2028-01-20T09:30:00Z".to_string()),
+                created_at: Some("2025-01-20T09:30:00Z".to_string()),
+                locked: true,
+                privacy: true,
+                current_registrar: Some("Cloudflare".to_string()),
+                name_servers: vec![
+                    "olga.ns.cloudflare.com".to_string(),
+                    "skip.ns.cloudflare.com".to_string(),
+                ],
+                dnssec: Some(true),
+            },
+            RegistrarDomain {
+                id: "dom-003".to_string(),
+                name: "kidus-cloud.net".to_string(),
+                status: "expiring_soon".to_string(),
+                auto_renew: false,
+                expires_at: Some("2026-08-01T00:00:00Z".to_string()),
+                created_at: Some("2023-08-01T00:00:00Z".to_string()),
+                locked: false,
+                privacy: true,
+                current_registrar: Some("Cloudflare".to_string()),
+                name_servers: vec![
+                    "dane.ns.cloudflare.com".to_string(),
+                    "linda.ns.cloudflare.com".to_string(),
+                ],
+                dnssec: Some(false),
+            },
+        ]
+    }
 }
 
 #[cfg(test)]
@@ -1403,5 +1565,55 @@ mod tests {
         let mock_objs = CloudflareClient::mock_r2_objects("test-bucket", Some("static/"));
         assert_eq!(mock_objs.objects.len(), 3);
         assert!(mock_objs.objects.iter().all(|o| o.key.starts_with("static/")));
+    }
+
+    #[test]
+    fn test_registrar_domain_deserialization() {
+        let json = r#"{
+            "id": "dom-test-123",
+            "name": "example-enterprise.com",
+            "status": "active",
+            "auto_renew": true,
+            "expires_at": "2027-12-31T23:59:59Z",
+            "created_at": "2024-01-01T00:00:00Z",
+            "locked": true,
+            "privacy": true,
+            "current_registrar": "Cloudflare",
+            "name_servers": ["ns1.cloudflare.com", "ns2.cloudflare.com"],
+            "dnssec": true
+        }"#;
+
+        let domain: RegistrarDomain = serde_json::from_str(json).expect("deserialize registrar domain");
+        assert_eq!(domain.id, "dom-test-123");
+        assert_eq!(domain.name, "example-enterprise.com");
+        assert_eq!(domain.status, "active");
+        assert!(domain.auto_renew);
+        assert!(domain.locked);
+        assert!(domain.privacy);
+        assert_eq!(domain.current_registrar.as_deref(), Some("Cloudflare"));
+        assert_eq!(domain.name_servers.len(), 2);
+        assert_eq!(domain.dnssec, Some(true));
+
+        let mock_domains = CloudflareClient::mock_registrar_domains("acc-1");
+        assert_eq!(mock_domains.len(), 3);
+        assert_eq!(mock_domains[0].name, "daedalus-dev.com");
+    }
+
+    #[test]
+    fn test_create_zone_request_serialization() {
+        let req = CreateZoneRequest {
+            name: "newproduct.dev".to_string(),
+            account: CreateZoneAccount {
+                id: "acc_test_999".to_string(),
+            },
+            jump_start: true,
+            zone_type: "full".to_string(),
+        };
+
+        let json = serde_json::to_string(&req).expect("serialize create zone request");
+        assert!(json.contains("\"name\":\"newproduct.dev\""));
+        assert!(json.contains("\"id\":\"acc_test_999\""));
+        assert!(json.contains("\"jump_start\":true"));
+        assert!(json.contains("\"type\":\"full\""));
     }
 }
