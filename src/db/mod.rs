@@ -141,6 +141,20 @@ pub struct CachedR2Object {
     pub storage_class: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct CachedRegistrarDomain {
+    pub id: String,
+    pub account_id: String,
+    pub name: String,
+    pub status: String,
+    pub auto_renew: bool,
+    pub expires_at: String,
+    pub created_at: String,
+    pub locked: bool,
+    pub privacy: bool,
+    pub name_servers: Vec<String>,
+}
+
 #[derive(Clone)]
 pub struct CacheDb {
     conn: Arc<Mutex<Connection>>,
@@ -873,6 +887,133 @@ impl CacheDb {
             .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(rows)
     }
+
+    pub fn replace_registrar_domains(&self, account_id: &str, domains: &[CachedRegistrarDomain]) -> Result<()> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        if account_id.is_empty() {
+            tx.execute("DELETE FROM registrar_domains", [])?;
+        } else {
+            tx.execute("DELETE FROM registrar_domains WHERE account_id = ?1", params![account_id])?;
+        }
+        for d in domains {
+            let ns_json = serde_json::to_string(&d.name_servers).unwrap_or_default();
+            tx.execute(
+                "INSERT INTO registrar_domains (id, account_id, name, status, auto_renew, expires_at, created_at, locked, privacy, name_servers)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                params![
+                    d.id,
+                    d.account_id,
+                    d.name,
+                    d.status,
+                    d.auto_renew as i32,
+                    d.expires_at,
+                    d.created_at,
+                    d.locked as i32,
+                    d.privacy as i32,
+                    ns_json,
+                ],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn get_registrar_domains(&self, account_id: &str) -> Result<Vec<CachedRegistrarDomain>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = if account_id.is_empty() {
+            conn.prepare(
+                "SELECT id, account_id, name, status, auto_renew, expires_at, created_at, locked, privacy, name_servers
+                 FROM registrar_domains
+                 ORDER BY name ASC",
+            )?
+        } else {
+            conn.prepare(
+                "SELECT id, account_id, name, status, auto_renew, expires_at, created_at, locked, privacy, name_servers
+                 FROM registrar_domains
+                 WHERE account_id = ?1
+                 ORDER BY name ASC",
+            )?
+        };
+
+        let map_row = |row: &rusqlite::Row| {
+            let auto_renew_int: i32 = row.get(4)?;
+            let locked_int: i32 = row.get(7)?;
+            let privacy_int: i32 = row.get(8)?;
+            let ns_str: String = row.get(9)?;
+            let name_servers: Vec<String> = serde_json::from_str(&ns_str).unwrap_or_default();
+
+            Ok(CachedRegistrarDomain {
+                id: row.get(0)?,
+                account_id: row.get(1)?,
+                name: row.get(2)?,
+                status: row.get(3)?,
+                auto_renew: auto_renew_int != 0,
+                expires_at: row.get(5)?,
+                created_at: row.get(6)?,
+                locked: locked_int != 0,
+                privacy: privacy_int != 0,
+                name_servers,
+            })
+        };
+
+        let rows = if account_id.is_empty() {
+            stmt.query_map([], map_row)?.collect::<std::result::Result<Vec<_>, _>>()?
+        } else {
+            stmt.query_map(params![account_id], map_row)?.collect::<std::result::Result<Vec<_>, _>>()?
+        };
+
+        Ok(rows)
+    }
+
+    pub fn update_registrar_domain_auto_renew(&self, domain_name: &str, auto_renew: bool) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE registrar_domains SET auto_renew = ?1 WHERE name = ?2",
+            params![auto_renew as i32, domain_name],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_registrar_domain_locked(&self, domain_name: &str, locked: bool) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE registrar_domains SET locked = ?1 WHERE name = ?2",
+            params![locked as i32, domain_name],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_registrar_domain_privacy(&self, domain_name: &str, privacy: bool) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE registrar_domains SET privacy = ?1 WHERE name = ?2",
+            params![privacy as i32, domain_name],
+        )?;
+        Ok(())
+    }
+
+    pub fn insert_registrar_domain(&self, domain: &CachedRegistrarDomain) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let ns_json = serde_json::to_string(&domain.name_servers).unwrap_or_default();
+        conn.execute(
+            "INSERT OR REPLACE INTO registrar_domains (id, account_id, name, status, auto_renew, expires_at, created_at, locked, privacy, name_servers)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                domain.id,
+                domain.account_id,
+                domain.name,
+                domain.status,
+                domain.auto_renew as i32,
+                domain.expires_at,
+                domain.created_at,
+                domain.locked as i32,
+                domain.privacy as i32,
+                ns_json,
+            ],
+        )?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -1145,6 +1286,56 @@ mod tests {
         assert_eq!(static_objects.len(), 2);
         assert_eq!(static_objects[0].key, "static/css/style.css");
         assert_eq!(static_objects[1].key, "static/images/logo.svg");
+    }
+
+    #[test]
+    fn test_registrar_domains_cache() {
+        let db = CacheDb::open_in_memory().expect("open db");
+        let account_id = "acc_reg_test";
+
+        let domains = vec![
+            CachedRegistrarDomain {
+                id: "reg-1".to_string(),
+                account_id: account_id.to_string(),
+                name: "daedalus-dev.com".to_string(),
+                status: "active".to_string(),
+                auto_renew: true,
+                expires_at: "2027-08-15T12:00:00Z".to_string(),
+                created_at: "2024-08-15T12:00:00Z".to_string(),
+                locked: true,
+                privacy: true,
+                name_servers: vec!["eva.ns.cloudflare.com".to_string(), "kurt.ns.cloudflare.com".to_string()],
+            },
+            CachedRegistrarDomain {
+                id: "reg-2".to_string(),
+                account_id: account_id.to_string(),
+                name: "flaretui.org".to_string(),
+                status: "active".to_string(),
+                auto_renew: false,
+                expires_at: "2028-01-20T09:30:00Z".to_string(),
+                created_at: "2025-01-20T09:30:00Z".to_string(),
+                locked: false,
+                privacy: true,
+                name_servers: vec!["olga.ns.cloudflare.com".to_string(), "skip.ns.cloudflare.com".to_string()],
+            },
+        ];
+
+        db.replace_registrar_domains(account_id, &domains).expect("replace registrar domains");
+        let retrieved = db.get_registrar_domains(account_id).expect("get registrar domains");
+        assert_eq!(retrieved.len(), 2);
+        assert_eq!(retrieved[0].name, "daedalus-dev.com");
+        assert!(retrieved[0].auto_renew);
+        assert!(retrieved[0].locked);
+
+        // Test updates
+        db.update_registrar_domain_auto_renew("daedalus-dev.com", false).expect("update auto renew");
+        db.update_registrar_domain_locked("daedalus-dev.com", false).expect("update locked");
+        db.update_registrar_domain_privacy("daedalus-dev.com", false).expect("update privacy");
+
+        let updated = db.get_registrar_domains(account_id).expect("get updated domains");
+        assert!(!updated[0].auto_renew);
+        assert!(!updated[0].locked);
+        assert!(!updated[0].privacy);
     }
 }
 

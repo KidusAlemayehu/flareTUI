@@ -11,6 +11,7 @@ pub struct SyncReport {
     pub kv_count: usize,
     pub security_events_count: usize,
     pub waf_rules_count: usize,
+    pub registrar_domains_count: usize,
     pub warning: Option<String>,
 }
 
@@ -27,6 +28,7 @@ impl CloudflareSync {
             kv_count: 0,
             security_events_count: 0,
             waf_rules_count: 0,
+            registrar_domains_count: 0,
             warning: None,
         };
 
@@ -237,6 +239,27 @@ impl CloudflareSync {
                         })
                         .collect();
                     let _ = db.replace_kv_namespaces(&nss);
+                }
+
+                // Registrar Domains
+                if let Ok(cf_domains) = client.get_registrar_domains(&account.id).await {
+                    report.registrar_domains_count += cf_domains.len();
+                    let cached_domains: Vec<crate::db::CachedRegistrarDomain> = cf_domains
+                        .into_iter()
+                        .map(|d| crate::db::CachedRegistrarDomain {
+                            id: d.id,
+                            account_id: account.id.clone(),
+                            name: d.name,
+                            status: d.status,
+                            auto_renew: d.auto_renew,
+                            expires_at: d.expires_at.unwrap_or_default(),
+                            created_at: d.created_at.unwrap_or_default(),
+                            locked: d.locked,
+                            privacy: d.privacy,
+                            name_servers: d.name_servers,
+                        })
+                        .collect();
+                    let _ = db.replace_registrar_domains(&account.id, &cached_domains);
                 }
             }
         }

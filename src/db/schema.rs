@@ -127,4 +127,17 @@ CREATE TABLE IF NOT EXISTS r2_objects (
     PRIMARY KEY (bucket_name, key),
     FOREIGN KEY(bucket_name) REFERENCES r2_buckets(name) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS registrar_domains (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    auto_renew INTEGER NOT NULL DEFAULT 1,
+    expires_at TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT '',
+    locked INTEGER NOT NULL DEFAULT 1,
+    privacy INTEGER NOT NULL DEFAULT 1,
+    name_servers TEXT NOT NULL DEFAULT ''
+);
 "#;
