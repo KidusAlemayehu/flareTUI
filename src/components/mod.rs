@@ -16,3 +16,4 @@ pub mod kv_modal;
 pub mod security_inspector;
 pub mod command_palette_modal;
 pub mod profile_modal;
+pub mod domain_create_modal;
