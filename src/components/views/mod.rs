@@ -4,3 +4,4 @@ pub mod pages_view;
 pub mod storage_view;
 pub mod tail_view;
 pub mod security_view;
+pub mod domains_view;
