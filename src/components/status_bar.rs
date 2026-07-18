@@ -45,6 +45,7 @@ impl StatusBar {
             3 => " [q] Quit  [Tab] View  [j/k] Nav  [Enter] Query  [r] Sync  [Ctrl+P] Palette ",
             4 => " [Space] Pause  [/] Filter  [f] Follow  [c] Clear  [Enter] Log Details  [Ctrl+P] Palette ",
             5 => " [q] Quit  [Tab] Sec Tab  [Enter] Inspect  [f] Filter  [j/k] Nav  [Ctrl+P] Palette ",
+            6 => " [q] Quit  [n] Add Domain  [a] Auto-Renew  [l] Lock  [p] Privacy  [/] Filter  [Ctrl+P] Palette ",
             _ => " [q] Quit  [Tab] View  [Space] Pause  [c] Clear  [Ctrl+P] Palette  [?] Help ",
         };
 

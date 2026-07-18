@@ -21,6 +21,7 @@ use crate::components::{
     auth_modal::{AuthMode, AuthModal, OAuthStatus},
     confirm_modal::ConfirmDeleteModal,
     dns_modal::DnsModal,
+    domain_create_modal::DomainCreateModal,
     header::Header,
     help::HelpModal,
     pages_deployments::PagesDeploymentsModal,
@@ -29,6 +30,7 @@ use crate::components::{
     status_bar::StatusBar,
     views::{
         dns_view::{DnsFocus, DnsView},
+        domains_view::DomainsView,
         pages_view::PagesView,
         security_view::SecurityView,
         storage_view::StorageView,
@@ -66,12 +68,14 @@ pub struct App {
     pub security_inspector: Option<SecurityInspectorModal>,
     pub command_palette_modal: Option<CommandPaletteModal>,
     pub profile_modal: Option<ProfileModal>,
+    pub domain_create_modal: Option<DomainCreateModal>,
     pub dns_view: DnsView,
     pub workers_view: WorkersView,
     pub pages_view: PagesView,
     pub storage_view: StorageView,
     pub tail_view: TailView,
     pub security_view: SecurityView,
+    pub domains_view: DomainsView,
     pub show_help: bool,
     pub show_auth_modal: bool,
     pub should_quit: bool,
@@ -126,12 +130,14 @@ impl App {
             security_inspector: None,
             command_palette_modal: None,
             profile_modal: None,
+            domain_create_modal: None,
             dns_view: DnsView::new(db.clone()),
             workers_view: WorkersView::new(db.clone()),
             pages_view: PagesView::new(db.clone()),
             storage_view: StorageView::new(db.clone()),
             tail_view: TailView::new(),
             security_view: SecurityView::new(db.clone()),
+            domains_view: DomainsView::new(db.clone()),
             show_help: false,
             show_auth_modal: false,
             should_quit: false,
@@ -150,6 +156,11 @@ impl App {
         (self.header.active_tab == 0 && self.dns_view.search_active)
             || (self.header.active_tab == 4 && self.tail_view.search_active)
             || (self.header.active_tab == 5 && self.security_view.is_searching)
+            || (self.header.active_tab == 6 && self.domains_view.search_active)
+    }
+
+    pub fn is_domain_modal_active(&self) -> bool {
+        self.domain_create_modal.is_some()
     }
 
     pub fn is_auth_active(&self) -> bool {
@@ -237,6 +248,8 @@ impl App {
                 if self.header.active_tab == 5 {
                     let active_zone_id = self.dns_view.selected_zone().map(|z| z.id.clone());
                     self.security_view.reload(active_zone_id.as_deref());
+                } else if self.header.active_tab == 6 {
+                    self.domains_view.reload("");
                 }
                 self.status_bar.set_status(format!("Switched to {}", self.header.tabs[self.header.active_tab]));
             }
@@ -249,6 +262,8 @@ impl App {
                 if self.header.active_tab == 5 {
                     let active_zone_id = self.dns_view.selected_zone().map(|z| z.id.clone());
                     self.security_view.reload(active_zone_id.as_deref());
+                } else if self.header.active_tab == 6 {
+                    self.domains_view.reload("");
                 }
                 self.status_bar.set_status(format!("Switched to {}", self.header.tabs[self.header.active_tab]));
             }
@@ -258,6 +273,8 @@ impl App {
                     if self.header.active_tab == 5 {
                         let active_zone_id = self.dns_view.selected_zone().map(|z| z.id.clone());
                         self.security_view.reload(active_zone_id.as_deref());
+                    } else if self.header.active_tab == 6 {
+                        self.domains_view.reload("");
                     }
                     self.status_bar.set_status(format!("Switched to {}", self.header.tabs[idx]));
                 }
@@ -269,6 +286,7 @@ impl App {
                 3 => self.storage_view.nav_up(),
                 4 => self.tail_view.nav_up(),
                 5 => self.security_view.nav_up(),
+                6 => self.domains_view.nav_up(),
                 _ => {}
             },
             Action::NavDown => match self.header.active_tab {
@@ -278,6 +296,7 @@ impl App {
                 3 => self.storage_view.nav_down(),
                 4 => self.tail_view.nav_down(20),
                 5 => self.security_view.nav_down(),
+                6 => self.domains_view.nav_down(),
                 _ => {}
             },
             Action::NavLeft | Action::NavRight => {}
@@ -371,6 +390,7 @@ impl App {
                     self.storage_view.reload();
                     let active_zone_id = self.dns_view.selected_zone().map(|z| z.id.clone());
                     self.security_view.reload(active_zone_id.as_deref());
+                    self.domains_view.reload("");
                     self.status_bar.set_status("Cache data reloaded from SQLite");
                 }
             }
@@ -390,6 +410,8 @@ impl App {
                     if !self.security_view.is_searching {
                         self.security_view.search_query.clear();
                     }
+                } else if self.header.active_tab == 6 {
+                    self.domains_view.toggle_search();
                 }
             }
             Action::Logout => {
@@ -711,6 +733,7 @@ impl App {
                 self.storage_view.reload();
                 let active_zone_id = self.dns_view.selected_zone().map(|z| z.id.clone());
                 self.security_view.reload(active_zone_id.as_deref());
+                self.domains_view.reload("");
                 self.status_bar.set_status(msg);
             }
             Action::TailLog(entry) => {
@@ -1364,6 +1387,8 @@ impl App {
                 } else if self.header.active_tab == 5 && self.security_view.is_searching {
                     self.security_view.search_query.push(c);
                     self.security_view.selected_event_idx = 0;
+                } else if self.header.active_tab == 6 && self.domains_view.search_active {
+                    self.domains_view.input_search_char(c);
                 }
             }
             Action::InputBackspace => {
@@ -1374,6 +1399,8 @@ impl App {
                 } else if self.header.active_tab == 5 && self.security_view.is_searching {
                     self.security_view.search_query.pop();
                     self.security_view.selected_event_idx = 0;
+                } else if self.header.active_tab == 6 && self.domains_view.search_active {
+                    self.domains_view.input_search_backspace();
                 }
             }
             Action::InputSubmit => {
@@ -1383,6 +1410,8 @@ impl App {
                     self.tail_view.search_active = false;
                 } else if self.header.active_tab == 5 {
                     self.security_view.is_searching = false;
+                } else if self.header.active_tab == 6 {
+                    self.domains_view.search_active = false;
                 }
             }
             Action::ClearSearch => {
@@ -1394,6 +1423,8 @@ impl App {
                 } else if self.header.active_tab == 5 {
                     self.security_view.search_query.clear();
                     self.security_view.is_searching = false;
+                } else if self.header.active_tab == 6 {
+                    self.domains_view.clear_search();
                 }
             }
             Action::StatusMessage(msg) => {
@@ -2316,6 +2347,171 @@ impl App {
                 }
             }
 
+            // Domains & Registrar Actions
+            Action::OpenDomainCreateModal => {
+                self.domain_create_modal = Some(DomainCreateModal::new());
+            }
+            Action::CloseDomainCreateModal => {
+                self.domain_create_modal = None;
+            }
+            Action::DomainCreateModalNextField => {
+                if let Some(modal) = &mut self.domain_create_modal {
+                    modal.next_field();
+                }
+            }
+            Action::DomainCreateModalPrevField => {
+                if let Some(modal) = &mut self.domain_create_modal {
+                    modal.prev_field();
+                }
+            }
+            Action::DomainCreateModalInputChar(c) => {
+                if let Some(modal) = &mut self.domain_create_modal {
+                    modal.handle_char(c);
+                }
+            }
+            Action::DomainCreateModalInputBackspace => {
+                if let Some(modal) = &mut self.domain_create_modal {
+                    modal.handle_backspace();
+                }
+            }
+            Action::DomainCreateModalCyclePlan(fwd) => {
+                if let Some(modal) = &mut self.domain_create_modal {
+                    modal.cycle_plan(fwd);
+                }
+            }
+            Action::DomainCreateModalToggleCheckbox => {
+                if let Some(modal) = &mut self.domain_create_modal {
+                    modal.handle_char(' ');
+                }
+            }
+            Action::DomainCreateModalSubmit => {
+                if let Some(modal) = &mut self.domain_create_modal {
+                    if let Err(err) = modal.validate() {
+                        modal.error_msg = Some(err);
+                        return Ok(());
+                    }
+
+                    let domain_name = modal.domain_name.trim().to_string();
+                    let jump_start = modal.jump_start;
+                    let auto_renew = modal.auto_renew;
+                    let privacy = modal.privacy;
+                    let plan = modal.plan_name().to_string();
+
+                    let now = "2026-07-18T12:00:00Z";
+                    let expires = "2027-07-18T12:00:00Z";
+                    let new_domain = crate::db::CachedRegistrarDomain {
+                        id: format!("dom-{}", domain_name.replace('.', "-")),
+                        account_id: "default".to_string(),
+                        name: domain_name.clone(),
+                        status: "active".to_string(),
+                        auto_renew,
+                        expires_at: expires.to_string(),
+                        created_at: now.to_string(),
+                        locked: true,
+                        privacy,
+                        name_servers: vec![
+                            "eva.ns.cloudflare.com".to_string(),
+                            "kurt.ns.cloudflare.com".to_string(),
+                        ],
+                    };
+
+                    let _ = self.db.insert_registrar_domain(&new_domain);
+
+                    let new_zone = crate::db::Zone {
+                        id: format!("z-{}", domain_name.replace('.', "-")),
+                        name: domain_name.clone(),
+                        status: "active".to_string(),
+                        plan,
+                        created_on: now.to_string(),
+                    };
+                    let _ = self.db.upsert_zone(&new_zone);
+
+                    if let Some(client) = &self.cf_client {
+                        let client = client.clone();
+                        let d_name = domain_name.clone();
+                        tokio::spawn(async move {
+                            let _ = client.create_zone("", &d_name, jump_start).await;
+                        });
+                    }
+
+                    self.domain_create_modal = None;
+                    self.domains_view.reload("");
+                    self.dns_view.zones = self.db.get_zones().unwrap_or_default();
+                    self.status_bar
+                        .set_status(format!("Domain '{domain_name}' successfully onboarded to Cloudflare"));
+                }
+            }
+            Action::DomainCreated(name) => {
+                self.domains_view.reload("");
+                self.status_bar.set_status(format!("Domain '{name}' created"));
+            }
+            Action::ToggleDomainAutoRenew => {
+                if let Some(domain) = self.domains_view.selected_domain() {
+                    let d_name = domain.name.clone();
+                    let new_state = !domain.auto_renew;
+                    let _ = self.db.update_registrar_domain_auto_renew(&d_name, new_state);
+                    self.domains_view.reload("");
+                    let state_str = if new_state { "enabled" } else { "disabled" };
+                    self.domains_view.set_feedback(format!("Auto-renew {state_str} for {d_name}"));
+                    self.status_bar.set_status(format!("Auto-renew {state_str} for {d_name}"));
+
+                    if let Some(client) = &self.cf_client {
+                        let client = client.clone();
+                        tokio::spawn(async move {
+                            let _ = client.update_registrar_domain("", &d_name, Some(new_state), None, None).await;
+                        });
+                    }
+                }
+            }
+            Action::ToggleDomainLock => {
+                if let Some(domain) = self.domains_view.selected_domain() {
+                    let d_name = domain.name.clone();
+                    let new_state = !domain.locked;
+                    let _ = self.db.update_registrar_domain_locked(&d_name, new_state);
+                    self.domains_view.reload("");
+                    let state_str = if new_state { "locked" } else { "unlocked" };
+                    self.domains_view.set_feedback(format!("Transfer lock {state_str} for {d_name}"));
+                    self.status_bar.set_status(format!("Transfer lock {state_str} for {d_name}"));
+
+                    if let Some(client) = &self.cf_client {
+                        let client = client.clone();
+                        tokio::spawn(async move {
+                            let _ = client.update_registrar_domain("", &d_name, None, Some(new_state), None).await;
+                        });
+                    }
+                }
+            }
+            Action::ToggleDomainPrivacy => {
+                if let Some(domain) = self.domains_view.selected_domain() {
+                    let d_name = domain.name.clone();
+                    let new_state = !domain.privacy;
+                    let _ = self.db.update_registrar_domain_privacy(&d_name, new_state);
+                    self.domains_view.reload("");
+                    let state_str = if new_state { "enabled" } else { "disabled" };
+                    self.domains_view.set_feedback(format!("WHOIS privacy {state_str} for {d_name}"));
+                    self.status_bar.set_status(format!("WHOIS privacy {state_str} for {d_name}"));
+
+                    if let Some(client) = &self.cf_client {
+                        let client = client.clone();
+                        tokio::spawn(async move {
+                            let _ = client.update_registrar_domain("", &d_name, None, None, Some(new_state)).await;
+                        });
+                    }
+                }
+            }
+            Action::DomainsViewNavUp => {
+                self.domains_view.nav_up();
+            }
+            Action::DomainsViewNavDown => {
+                self.domains_view.nav_down();
+            }
+            Action::DomainsViewToggleSearch => {
+                self.domains_view.toggle_search();
+            }
+            Action::RegistrarDomainsLoaded(domains) => {
+                self.domains_view.domains = domains;
+            }
+
             Action::Render => {}
         }
         Ok(())
@@ -2344,6 +2540,7 @@ impl App {
             3 => self.storage_view.render(f, chunks[1], &self.theme),
             4 => self.tail_view.render(f, chunks[1], &self.theme),
             5 => self.security_view.render(f, chunks[1], &self.theme),
+            6 => self.domains_view.render(f, chunks[1], &self.theme),
             _ => {}
         }
 
@@ -2375,6 +2572,8 @@ impl App {
             inspector.render(f, area, &self.theme);
         } else if let Some(dns_modal) = &self.dns_modal {
             dns_modal.render(f, area, &self.theme);
+        } else if let Some(domain_modal) = &self.domain_create_modal {
+            domain_modal.render(f, area, &self.theme);
         } else if let Some(del_modal) = &self.delete_modal {
             del_modal.render(f, area, &self.theme);
         } else if let Some(d1_console) = &self.d1_console_modal {
@@ -2582,5 +2781,53 @@ mod tests {
         assert!(!app.is_auth_active());
         app.update(Action::Logout).unwrap();
         assert!(!app.is_authenticated());
+    }
+
+    #[test]
+    fn test_app_domain_registrar_actions() {
+        let db = CacheDb::open_in_memory().unwrap();
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(db, tx);
+
+        // Switch to Tab 7 (index 6: Domains & Registrar)
+        app.update(Action::SelectTab(6)).unwrap();
+        assert_eq!(app.header.active_tab, 6);
+
+        // Open domain create modal
+        app.update(Action::OpenDomainCreateModal).unwrap();
+        assert!(app.is_domain_modal_active());
+
+        // Input domain name
+        app.update(Action::DomainCreateModalInputChar('n')).unwrap();
+        app.update(Action::DomainCreateModalInputChar('e')).unwrap();
+        app.update(Action::DomainCreateModalInputChar('w')).unwrap();
+        app.update(Action::DomainCreateModalInputChar('.')).unwrap();
+        app.update(Action::DomainCreateModalInputChar('d')).unwrap();
+        app.update(Action::DomainCreateModalInputChar('e')).unwrap();
+        app.update(Action::DomainCreateModalInputChar('v')).unwrap();
+
+        // Submit creation
+        app.update(Action::DomainCreateModalSubmit).unwrap();
+        assert!(!app.is_domain_modal_active());
+        assert_eq!(app.domains_view.domains.len(), 1);
+        assert_eq!(app.domains_view.domains[0].name, "new.dev");
+        assert!(app.domains_view.domains[0].auto_renew);
+        assert!(app.domains_view.domains[0].locked);
+
+        // Toggle Auto-Renew
+        app.update(Action::ToggleDomainAutoRenew).unwrap();
+        assert!(!app.domains_view.selected_domain().unwrap().auto_renew);
+
+        // Toggle Lock
+        app.update(Action::ToggleDomainLock).unwrap();
+        assert!(!app.domains_view.selected_domain().unwrap().locked);
+
+        // Toggle Privacy
+        app.update(Action::ToggleDomainPrivacy).unwrap();
+        assert!(!app.domains_view.selected_domain().unwrap().privacy);
+
+        // Close modal
+        app.update(Action::CloseDomainCreateModal).unwrap();
+        assert!(!app.is_domain_modal_active());
     }
 }

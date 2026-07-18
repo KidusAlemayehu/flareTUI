@@ -192,6 +192,25 @@ pub enum Action {
     ProfileSwitcherDelete,
     ProfileSwitched(String),
 
+    // Domains & Registrar Actions
+    OpenDomainCreateModal,
+    CloseDomainCreateModal,
+    DomainCreateModalNextField,
+    DomainCreateModalPrevField,
+    DomainCreateModalInputChar(char),
+    DomainCreateModalInputBackspace,
+    DomainCreateModalCyclePlan(bool),
+    DomainCreateModalToggleCheckbox,
+    DomainCreateModalSubmit,
+    DomainCreated(String),
+    ToggleDomainAutoRenew,
+    ToggleDomainLock,
+    ToggleDomainPrivacy,
+    DomainsViewNavUp,
+    DomainsViewNavDown,
+    DomainsViewToggleSearch,
+    RegistrarDomainsLoaded(Vec<crate::db::CachedRegistrarDomain>),
+
     // Feedback
     StatusMessage(String),
     Error(String),

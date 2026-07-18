@@ -26,6 +26,7 @@ impl Header {
                 "4: D1 & KV",
                 "5: Live Tail",
                 "6: Security & WAF",
+                "7: Domains & Registrar",
             ],
             account_name: "Personal (kidus)".to_string(),
             is_live: false,
