@@ -76,6 +76,7 @@ impl EventHandler {
         command_palette_active: bool,
         security_inspector_active: bool,
         profile_modal_active: bool,
+        domain_modal_active: bool,
         active_tab: usize,
         is_zone_pane_focused: bool,
         is_storage_kv_focused: bool,
@@ -94,6 +95,22 @@ impl EventHandler {
                 (KeyModifiers::CONTROL, KeyCode::Char('u')) => Some(Action::CommandPaletteClearQuery),
                 (KeyModifiers::NONE, KeyCode::Char(c)) | (KeyModifiers::SHIFT, KeyCode::Char(c)) => {
                     Some(Action::CommandPaletteInputChar(c))
+                }
+                _ => None,
+            };
+        }
+
+        if domain_modal_active {
+            return match (key.modifiers, key.code) {
+                (_, KeyCode::Esc) => Some(Action::CloseDomainCreateModal),
+                (_, KeyCode::Enter) => Some(Action::DomainCreateModalSubmit),
+                (KeyModifiers::SHIFT, KeyCode::BackTab) => Some(Action::DomainCreateModalPrevField),
+                (_, KeyCode::Tab) | (_, KeyCode::Down) => Some(Action::DomainCreateModalNextField),
+                (_, KeyCode::Up) => Some(Action::DomainCreateModalPrevField),
+                (_, KeyCode::Backspace) => Some(Action::DomainCreateModalInputBackspace),
+                (KeyModifiers::NONE, KeyCode::Char(' ')) => Some(Action::DomainCreateModalToggleCheckbox),
+                (KeyModifiers::NONE, KeyCode::Char(c)) | (KeyModifiers::SHIFT, KeyCode::Char(c)) => {
+                    Some(Action::DomainCreateModalInputChar(c))
                 }
                 _ => None,
             };
@@ -294,6 +311,7 @@ impl EventHandler {
             (KeyModifiers::NONE, KeyCode::Char('4')) => Some(Action::SelectTab(3)),
             (KeyModifiers::NONE, KeyCode::Char('5')) => Some(Action::SelectTab(4)),
             (KeyModifiers::NONE, KeyCode::Char('6')) => Some(Action::SelectTab(5)),
+            (KeyModifiers::NONE, KeyCode::Char('7')) => Some(Action::SelectTab(6)),
             (KeyModifiers::NONE, KeyCode::Char('j')) | (KeyModifiers::NONE, KeyCode::Down) => {
                 if active_tab == 4 {
                     Some(Action::TailNavDown)
@@ -309,15 +327,18 @@ impl EventHandler {
                 }
             }
             (KeyModifiers::NONE, KeyCode::Char('h')) | (KeyModifiers::NONE, KeyCode::Left) => Some(Action::NavLeft),
+            (KeyModifiers::NONE, KeyCode::Char('l')) if active_tab == 6 => Some(Action::ToggleDomainLock),
             (KeyModifiers::NONE, KeyCode::Char('l')) | (KeyModifiers::NONE, KeyCode::Right) => Some(Action::NavRight),
             (KeyModifiers::NONE, KeyCode::Char('s')) => Some(Action::SwitchPane),
             (KeyModifiers::NONE, KeyCode::Char('p')) if active_tab == 5 => Some(Action::SecurityViewToggleWafRule),
+            (KeyModifiers::NONE, KeyCode::Char('p')) if active_tab == 6 => Some(Action::ToggleDomainPrivacy),
             (KeyModifiers::NONE, KeyCode::Char('+')) if active_tab == 5 => Some(Action::SecurityViewShiftWafPriority(1)),
             (KeyModifiers::NONE, KeyCode::Char('-')) if active_tab == 5 => Some(Action::SecurityViewShiftWafPriority(-1)),
             (KeyModifiers::NONE, KeyCode::Char('p')) => Some(Action::ToggleProxy),
             (KeyModifiers::NONE, KeyCode::Char('r')) => Some(Action::Refresh),
             (KeyModifiers::NONE, KeyCode::Char('?')) => Some(Action::ToggleHelp),
             (KeyModifiers::NONE, KeyCode::Char('/')) => Some(Action::ToggleSearch),
+            (KeyModifiers::NONE, KeyCode::Char('a')) if active_tab == 6 => Some(Action::ToggleDomainAutoRenew),
             (KeyModifiers::NONE, KeyCode::Char('a')) | (KeyModifiers::CONTROL, KeyCode::Char('a')) => Some(Action::ToggleAuth),
             (KeyModifiers::NONE, KeyCode::Char('i')) if active_tab == 0 => Some(Action::OpenZoneInspector),
             (KeyModifiers::NONE, KeyCode::Char('i')) if active_tab == 1 => Some(Action::OpenWorkerInspector),
@@ -348,6 +369,8 @@ impl EventHandler {
                 }
             }
             (KeyModifiers::NONE, KeyCode::Char('d')) if active_tab == 2 => Some(Action::OpenPagesDeployments),
+            (KeyModifiers::NONE, KeyCode::Char('n')) if active_tab == 6 => Some(Action::OpenDomainCreateModal),
+            (KeyModifiers::NONE, KeyCode::Char('c')) if active_tab == 6 => Some(Action::OpenDomainCreateModal),
             (KeyModifiers::NONE, KeyCode::Char('n')) => Some(Action::OpenCreateDnsModal),
             (KeyModifiers::NONE, KeyCode::Char('e')) => Some(Action::OpenEditDnsModal),
             (KeyModifiers::NONE, KeyCode::Char('d')) if active_tab == 0 => Some(Action::OpenDeleteDnsModal),
@@ -368,7 +391,7 @@ mod tests {
             enter_key, false, false, false, false, false, false, false, false, false, false,
             true,  // d1_console_active
             false, // kv_modal_active
-            false, false, false,
+            false, false, false, false,
             3, false, false,
         );
         assert_eq!(action, Some(Action::D1ConsoleExecuteQuery));
@@ -376,28 +399,28 @@ mod tests {
         let tab_key = KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE);
         let action = EventHandler::map_key_to_action(
             tab_key, false, false, false, false, false, false, false, false, false, false,
-            true, false, false, false, false, 3, false, false,
+            true, false, false, false, false, false, 3, false, false,
         );
         assert_eq!(action, Some(Action::D1ConsoleSwitchPane));
 
         let esc_key = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
         let action = EventHandler::map_key_to_action(
             esc_key, false, false, false, false, false, false, false, false, false, false,
-            true, false, false, false, false, 3, false, false,
+            true, false, false, false, false, false, 3, false, false,
         );
         assert_eq!(action, Some(Action::CloseD1Console));
 
         let pgdn_key = KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE);
         let action = EventHandler::map_key_to_action(
             pgdn_key, false, false, false, false, false, false, false, false, false, false,
-            true, false, false, false, false, 3, false, false,
+            true, false, false, false, false, false, 3, false, false,
         );
         assert_eq!(action, Some(Action::D1ConsolePageDown));
 
         let home_key = KeyEvent::new(KeyCode::Home, KeyModifiers::NONE);
         let action = EventHandler::map_key_to_action(
             home_key, false, false, false, false, false, false, false, false, false, false,
-            true, false, false, false, false, 3, false, false,
+            true, false, false, false, false, false, 3, false, false,
         );
         assert_eq!(action, Some(Action::D1ConsoleHome));
     }
@@ -409,21 +432,21 @@ mod tests {
         // Tab 3 with D1 focused
         let action = EventHandler::map_key_to_action(
             enter_key, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, 3, false, false,
+            false, false, false, false, false, false, 3, false, false,
         );
         assert_eq!(action, Some(Action::OpenD1Console));
 
         // Tab 3 with KV focused
         let action = EventHandler::map_key_to_action(
             enter_key, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, 3, false, true,
+            false, false, false, false, false, false, 3, false, true,
         );
         assert_eq!(action, Some(Action::OpenKvModal));
 
         // Inside KV modal
         let action = EventHandler::map_key_to_action(
             enter_key, false, false, false, false, false, false, false, false, false, false,
-            false, true, false, false, false, 3, false, true,
+            false, true, false, false, false, false, 3, false, true,
         );
         assert_eq!(action, Some(Action::KvModalFetchValue));
     }
@@ -435,14 +458,14 @@ mod tests {
             esc_key, false, false, false, false, false, false, false, false, false, false,
             false, false,
             true,  // command_palette_active
-            false, false, 0, false, false,
+            false, false, false, 0, false, false,
         );
         assert_eq!(action, Some(Action::CloseCommandPalette));
 
         let enter_key = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
         let action = EventHandler::map_key_to_action(
             enter_key, false, false, false, false, false, false, false, false, false, false,
-            false, false, true, false, false, 0, false, false,
+            false, false, true, false, false, false, 0, false, false,
         );
         assert_eq!(action, Some(Action::CommandPaletteExecute));
     }
@@ -452,16 +475,23 @@ mod tests {
         let ctrl_p = KeyEvent::new(KeyCode::Char('p'), KeyModifiers::CONTROL);
         let action = EventHandler::map_key_to_action(
             ctrl_p, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, 0, false, false,
+            false, false, false, false, false, false, 0, false, false,
         );
         assert_eq!(action, Some(Action::OpenCommandPalette));
 
         let tab_6 = KeyEvent::new(KeyCode::Char('6'), KeyModifiers::NONE);
         let action = EventHandler::map_key_to_action(
             tab_6, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, 0, false, false,
+            false, false, false, false, false, false, 0, false, false,
         );
         assert_eq!(action, Some(Action::SelectTab(5)));
+
+        let tab_7 = KeyEvent::new(KeyCode::Char('7'), KeyModifiers::NONE);
+        let action = EventHandler::map_key_to_action(
+            tab_7, false, false, false, false, false, false, false, false, false, false,
+            false, false, false, false, false, false, 0, false, false,
+        );
+        assert_eq!(action, Some(Action::SelectTab(6)));
     }
 
     #[test]
@@ -469,16 +499,58 @@ mod tests {
         let p_key = KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE);
         let action = EventHandler::map_key_to_action(
             p_key, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, 5, false, false,
+            false, false, false, false, false, false, 5, false, false,
         );
         assert_eq!(action, Some(Action::SecurityViewToggleWafRule));
 
         let plus_key = KeyEvent::new(KeyCode::Char('+'), KeyModifiers::NONE);
         let action = EventHandler::map_key_to_action(
             plus_key, false, false, false, false, false, false, false, false, false, false,
-            false, false, false, false, false, 5, false, false,
+            false, false, false, false, false, false, 5, false, false,
         );
         assert_eq!(action, Some(Action::SecurityViewShiftWafPriority(1)));
+    }
+
+    #[test]
+    fn test_domain_modal_and_registrar_hotkeys() {
+        // When domain modal is active
+        let enter_key = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        let action = EventHandler::map_key_to_action(
+            enter_key, false, false, false, false, false, false, false, false, false, false,
+            false, false, false, false, false,
+            true, // domain_modal_active
+            6, false, false,
+        );
+        assert_eq!(action, Some(Action::DomainCreateModalSubmit));
+
+        let esc_key = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+        let action = EventHandler::map_key_to_action(
+            esc_key, false, false, false, false, false, false, false, false, false, false,
+            false, false, false, false, false, true, 6, false, false,
+        );
+        assert_eq!(action, Some(Action::CloseDomainCreateModal));
+
+        // When in tab 6 (Domains & Registrar)
+        let a_key = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE);
+        let action = EventHandler::map_key_to_action(
+            a_key, false, false, false, false, false, false, false, false, false, false,
+            false, false, false, false, false, false, 6, false, false,
+        );
+        assert_eq!(action, Some(Action::ToggleDomainAutoRenew));
+
+        let l_key = KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE);
+        let action = EventHandler::map_key_to_action(
+            l_key, false, false, false, false, false, false, false, false, false, false,
+            false, false, false, false, false, false, 6, false, false,
+        );
+        assert_eq!(action, Some(Action::ToggleDomainLock));
+
+        let p_key = KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE);
+        let action = EventHandler::map_key_to_action(
+            p_key, false, false, false, false, false, false, false, false, false, false,
+            false, false, false, false, false, false, 6, false, false,
+        );
+        assert_eq!(action, Some(Action::ToggleDomainPrivacy));
     }
 }
 

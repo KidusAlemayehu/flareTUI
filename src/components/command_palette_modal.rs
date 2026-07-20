@@ -274,6 +274,7 @@ impl CommandPaletteModal {
                     CommandCategory::Security => theme.error,
                     CommandCategory::Storage => theme.warning,
                     CommandCategory::Workers => Color::Rgb(0, 229, 255),
+                    CommandCategory::Domains => Color::Rgb(80, 200, 120),
                     CommandCategory::Profiles => Color::Rgb(180, 100, 240),
                     CommandCategory::System => Color::DarkGray,
                 };

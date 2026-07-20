@@ -2268,6 +2268,22 @@ impl App {
                             PaletteAction::Logout => {
                                 let _ = self.action_tx.send(Action::Logout);
                             }
+                            PaletteAction::OpenDomainCreateModal => {
+                                let _ = self.action_tx.send(Action::SelectTab(6));
+                                let _ = self.action_tx.send(Action::OpenDomainCreateModal);
+                            }
+                            PaletteAction::ToggleDomainAutoRenew => {
+                                let _ = self.action_tx.send(Action::SelectTab(6));
+                                let _ = self.action_tx.send(Action::ToggleDomainAutoRenew);
+                            }
+                            PaletteAction::ToggleDomainLock => {
+                                let _ = self.action_tx.send(Action::SelectTab(6));
+                                let _ = self.action_tx.send(Action::ToggleDomainLock);
+                            }
+                            PaletteAction::ToggleDomainPrivacy => {
+                                let _ = self.action_tx.send(Action::SelectTab(6));
+                                let _ = self.action_tx.send(Action::ToggleDomainPrivacy);
+                            }
                             PaletteAction::OpenHelp => {
                                 let _ = self.action_tx.send(Action::ToggleHelp);
                             }

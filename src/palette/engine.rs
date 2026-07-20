@@ -9,6 +9,7 @@ pub enum CommandCategory {
     Security,
     Storage,
     Workers,
+    Domains,
     Profiles,
     System,
 }
@@ -21,6 +22,7 @@ impl CommandCategory {
             CommandCategory::Security => "Security",
             CommandCategory::Storage => "Storage",
             CommandCategory::Workers => "Workers",
+            CommandCategory::Domains => "Domains & Registrar",
             CommandCategory::Profiles => "Profiles",
             CommandCategory::System => "System",
         }
@@ -39,6 +41,10 @@ pub enum PaletteAction {
     OpenOAuthLogin,
     ToggleAuth,
     Logout,
+    OpenDomainCreateModal,
+    ToggleDomainAutoRenew,
+    ToggleDomainLock,
+    ToggleDomainPrivacy,
     OpenHelp,
     SetTheme(String),
     Quit,
@@ -153,6 +159,15 @@ impl PaletteEngine {
                 keywords: vec!["security".into(), "waf".into(), "firewall".into(), "threats".into(), "ddos".into(), "blocks".into()],
                 action: PaletteAction::SwitchView(5),
             },
+            PaletteCommand {
+                id: "nav_domains".to_string(),
+                title: "Domains & Registrar Dashboard".to_string(),
+                description: "Manage registered domains, renewals, and registrar settings".to_string(),
+                category: CommandCategory::Navigation,
+                shortcut: Some("7".to_string()),
+                keywords: vec!["domains".into(), "registrar".into(), "whois".into(), "dns".into(), "nameservers".into()],
+                action: PaletteAction::SwitchView(6),
+            },
 
             // Cloudflare Actions
             PaletteCommand {
@@ -199,6 +214,44 @@ impl PaletteEngine {
                 shortcut: Some("Ctrl+L".to_string()),
                 keywords: vec!["logout".into(), "signout".into(), "disconnect".into(), "auth".into()],
                 action: PaletteAction::Logout,
+            },
+
+            // Domains & Registrar Commands
+            PaletteCommand {
+                id: "domain_register".to_string(),
+                title: "Register / Add New Domain".to_string(),
+                description: "Onboard domain zone or register domain with Cloudflare Registrar".to_string(),
+                category: CommandCategory::Domains,
+                shortcut: Some("n".to_string()),
+                keywords: vec!["domain".into(), "register".into(), "add".into(), "new".into(), "zone".into(), "onboard".into()],
+                action: PaletteAction::OpenDomainCreateModal,
+            },
+            PaletteCommand {
+                id: "domain_toggle_autorenew".to_string(),
+                title: "Toggle Domain Auto-Renew".to_string(),
+                description: "Enable or disable automatic renewal for selected domain".to_string(),
+                category: CommandCategory::Domains,
+                shortcut: Some("a".to_string()),
+                keywords: vec!["auto-renew".into(), "renew".into(), "subscription".into(), "domain".into()],
+                action: PaletteAction::ToggleDomainAutoRenew,
+            },
+            PaletteCommand {
+                id: "domain_toggle_lock".to_string(),
+                title: "Toggle Domain Transfer Lock".to_string(),
+                description: "Enable or disable registrar transfer lock for selected domain".to_string(),
+                category: CommandCategory::Domains,
+                shortcut: Some("l".to_string()),
+                keywords: vec!["lock".into(), "transfer".into(), "domain".into(), "registrar".into()],
+                action: PaletteAction::ToggleDomainLock,
+            },
+            PaletteCommand {
+                id: "domain_toggle_privacy".to_string(),
+                title: "Toggle WHOIS Privacy Protection".to_string(),
+                description: "Enable or disable WHOIS privacy redaction for selected domain".to_string(),
+                category: CommandCategory::Domains,
+                shortcut: Some("p".to_string()),
+                keywords: vec!["privacy".into(), "whois".into(), "redact".into(), "domain".into()],
+                action: PaletteAction::ToggleDomainPrivacy,
             },
 
             // Storage
@@ -452,5 +505,16 @@ mod tests {
         let logout_res = engine.search("logout");
         assert!(!logout_res.is_empty());
         assert!(logout_res.iter().any(|r| r.command.id == "auth_logout"));
+    }
+
+    #[test]
+    fn test_palette_domain_commands() {
+        let mut engine = PaletteEngine::new();
+        let dom_res = engine.search("registrar");
+        assert!(!dom_res.is_empty());
+        assert!(dom_res.iter().any(|r| r.command.id == "nav_domains"));
+        assert!(dom_res.iter().any(|r| r.command.id == "domain_register"));
+        assert!(dom_res.iter().any(|r| r.command.id == "domain_toggle_autorenew"));
+        assert!(dom_res.iter().any(|r| r.command.id == "domain_toggle_lock"));
     }
 }

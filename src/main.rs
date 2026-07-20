@@ -80,6 +80,7 @@ async fn main() -> Result<()> {
                         let command_palette_active = app.is_command_palette_active();
                         let security_inspector_active = app.is_security_inspector_active();
                         let profile_modal_active = app.is_profile_switcher_active();
+                        let domain_modal_active = app.is_domain_modal_active();
                         let active_tab = app.header.active_tab;
                         let is_zone_pane_focused = app.is_zone_pane_focused();
                         let is_storage_kv_focused = app.is_storage_kv_focused();
@@ -100,6 +101,7 @@ async fn main() -> Result<()> {
                             command_palette_active,
                             security_inspector_active,
                             profile_modal_active,
+                            domain_modal_active,
                             active_tab,
                             is_zone_pane_focused,
                             is_storage_kv_focused,
