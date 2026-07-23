@@ -35,6 +35,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and adher
 
 ---
 
+## 0.8.0 (2026-07-23)
+
+### Added
+
+- Cloudflare Domain Registrar dashboard and inspector view (Tab 7) - ([288ebc9](https://github.com/KidusAlemayehu/flareTUI/commit/288ebc9), [5e32072](https://github.com/KidusAlemayehu/flareTUI/commit/5e32072))
+  - Dual-pane layout featuring an interactive registered domains table and deep-dive domain inspector panel
+  - Real-time display of domain statuses, expiration countdowns, assigned nameservers, and security flags
+  - Instant hotkey actions: toggle auto-renew (`a`), transfer lock (`l`), and WHOIS privacy protection (`p`)
+  - Dedicated search filter (`/`) with real-time fuzzy matching across domain names and registry states
+- Interactive Domain Registration & Zone Onboarding modal - ([77ddb7f](https://github.com/KidusAlemayehu/flareTUI/commit/77ddb7f))
+  - Modal form dialog with real-time FQDN validation, plan tier selector (`Free`, `Pro`, `Business`), and jump-start DNS scan toggle
+  - Automated write-through to local SQLite cache and asynchronous propagation to Cloudflare Edge API v4
+- Cloudflare Registrar API client methods & SQLite persistence - ([834edbe](https://github.com/KidusAlemayehu/flareTUI/commit/834edbe), [ac540f7](https://github.com/KidusAlemayehu/flareTUI/commit/ac540f7))
+  - Typed client methods `get_registrar_domains`, `update_registrar_domain`, and `create_zone`
+  - SQLite table schema `registrar_domains` with full CRUD support, transactions, and background sync integration in `CloudflareSync`
+- Command Palette domain management commands and global keybindings - ([0ec74c8](https://github.com/KidusAlemayehu/flareTUI/commit/0ec74c8))
+  - Global hotkey `7` mapped to switch directly to Domains & Registrar view
+  - Registered `domain_register`, `domain_toggle_autorenew`, `domain_toggle_lock`, and `domain_toggle_privacy` commands under the `Domains & Registrar` palette category
+
+---
+
 ## 0.7.0 (2026-06-16)
 
 ### Added
