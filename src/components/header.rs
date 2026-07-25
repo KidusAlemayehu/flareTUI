@@ -13,6 +13,8 @@ pub struct Header {
     pub tabs: Vec<&'static str>,
     pub account_name: String,
     pub is_live: bool,
+    pub fast_sync: bool,
+    pub sync_interval_secs: u64,
 }
 
 impl Header {
@@ -30,6 +32,8 @@ impl Header {
             ],
             account_name: "Personal (kidus)".to_string(),
             is_live: false,
+            fast_sync: true,
+            sync_interval_secs: 15,
         }
     }
 
@@ -71,10 +75,16 @@ impl Header {
         ]));
         f.render_widget(badge, top_chunks[1]);
 
-        // Cache mode indicator
+        // Cache & FastSync mode indicator
+        let (sync_icon, sync_label, sync_color) = if self.is_live && self.fast_sync {
+            ("⚡ FastSync: ", format!("{}s Poll", self.sync_interval_secs), theme.success)
+        } else {
+            ("⚡ Cache: ", "SQLite Local".to_string(), theme.info)
+        };
+
         let cache_info = Paragraph::new(Line::from(vec![
-            Span::styled("⚡ Cache: ", Style::default().fg(theme.text_dim)),
-            Span::styled("SQLite Local", Style::default().fg(theme.info).add_modifier(Modifier::BOLD)),
+            Span::styled(sync_icon, Style::default().fg(theme.text_dim)),
+            Span::styled(sync_label, Style::default().fg(sync_color).add_modifier(Modifier::BOLD)),
         ]))
         .alignment(ratatui::layout::Alignment::Right);
         f.render_widget(cache_info, top_chunks[2]);

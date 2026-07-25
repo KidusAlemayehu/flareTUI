@@ -33,6 +33,10 @@ impl CommandCategory {
 pub enum PaletteAction {
     SwitchView(usize),
     TriggerSync,
+    FastSyncActiveView,
+    ToggleFastSync,
+    CycleSyncInterval,
+    ToggleAutoSyncOnTabChange,
     PurgeCache,
     OpenD1Console,
     OpenKvModal,
@@ -178,6 +182,15 @@ impl PaletteEngine {
                 shortcut: Some("s".to_string()),
                 keywords: vec!["sync".into(), "refresh".into(), "reload".into(), "fetch".into(), "update".into()],
                 action: PaletteAction::TriggerSync,
+            },
+            PaletteCommand {
+                id: "cf_fast_sync".to_string(),
+                title: "Fast Sync Active View".to_string(),
+                description: "Immediately revalidate Cloudflare live data for active view tab".to_string(),
+                category: CommandCategory::Cloudflare,
+                shortcut: Some("r".to_string()),
+                keywords: vec!["fast".into(), "sync".into(), "revalidate".into(), "poll".into(), "view".into(), "refresh".into()],
+                action: PaletteAction::FastSyncActiveView,
             },
             PaletteCommand {
                 id: "cf_purge".to_string(),
@@ -353,6 +366,35 @@ impl PaletteEngine {
                 keywords: vec!["theme".into(), "nord".into(), "arctic".into(), "blue".into(), "frost".into()],
                 action: PaletteAction::SetTheme("Nord".to_string()),
             },
+
+            // System Fast Sync & Persistence Settings
+            PaletteCommand {
+                id: "sys_fast_sync_toggle".to_string(),
+                title: "Toggle Fast Live Sync".to_string(),
+                description: "Enable or disable background periodic polling of Cloudflare changes".to_string(),
+                category: CommandCategory::System,
+                shortcut: None,
+                keywords: vec!["fast".into(), "sync".into(), "live".into(), "toggle".into(), "poll".into(), "cache".into()],
+                action: PaletteAction::ToggleFastSync,
+            },
+            PaletteCommand {
+                id: "sys_sync_interval_cycle".to_string(),
+                title: "Cycle Fast Sync Interval (5s/10s/15s/30s/60s)".to_string(),
+                description: "Change background live sync polling frequency".to_string(),
+                category: CommandCategory::System,
+                shortcut: None,
+                keywords: vec!["sync".into(), "interval".into(), "frequency".into(), "rate".into(), "period".into(), "timer".into()],
+                action: PaletteAction::CycleSyncInterval,
+            },
+            PaletteCommand {
+                id: "sys_auto_sync_tab_toggle".to_string(),
+                title: "Toggle Auto-Sync on Tab Switch".to_string(),
+                description: "Revalidate Cloudflare data automatically when switching tabs".to_string(),
+                category: CommandCategory::System,
+                shortcut: None,
+                keywords: vec!["auto".into(), "sync".into(), "tab".into(), "switch".into(), "navigation".into()],
+                action: PaletteAction::ToggleAutoSyncOnTabChange,
+            },
         ];
 
         self.register_all(defaults);
@@ -516,5 +558,18 @@ mod tests {
         assert!(dom_res.iter().any(|r| r.command.id == "domain_register"));
         assert!(dom_res.iter().any(|r| r.command.id == "domain_toggle_autorenew"));
         assert!(dom_res.iter().any(|r| r.command.id == "domain_toggle_lock"));
+    }
+
+    #[test]
+    fn test_palette_fast_sync_and_settings_commands() {
+        let mut engine = PaletteEngine::new();
+        let fast_res = engine.search("fast sync");
+        assert!(!fast_res.is_empty());
+        assert!(fast_res.iter().any(|r| r.command.id == "cf_fast_sync"));
+        assert!(fast_res.iter().any(|r| r.command.id == "sys_fast_sync_toggle"));
+
+        let interval_res = engine.search("interval");
+        assert!(!interval_res.is_empty());
+        assert!(interval_res.iter().any(|r| r.command.id == "sys_sync_interval_cycle"));
     }
 }

@@ -87,22 +87,40 @@ pub struct App {
     pub active_tail_worker: Option<String>,
     pub active_tail_id: Option<String>,
     pub oauth_cancel_tx: Option<tokio::sync::oneshot::Sender<()>>,
+    pub fast_sync_enabled: bool,
+    pub sync_interval_secs: u64,
+    pub auto_sync_on_tab_change: bool,
+    pub is_fast_syncing: bool,
+    pub last_fast_sync: std::time::Instant,
 }
 
 impl App {
     pub fn new(db: CacheDb, action_tx: UnboundedSender<Action>) -> Self {
+        let config = AuthManager::load_config();
         let mut header = Header::new();
+        header.fast_sync = config.fast_sync;
+        header.sync_interval_secs = config.sync_interval_secs;
+        if let Some(tab) = config.default_tab {
+            if tab < header.tabs.len() {
+                header.active_tab = tab;
+            }
+        }
+
+        let theme = config.theme.as_deref().map(Theme::from_name).unwrap_or_default();
+        let fast_sync_enabled = config.fast_sync;
+        let sync_interval_secs = config.sync_interval_secs;
+        let auto_sync_on_tab_change = config.auto_sync_on_tab_change;
+
         let mut cf_client = None;
 
         // Auto-load token if configured
         if let Some(token) = AuthManager::load_token() {
             let client = CloudflareClient::new(token);
-            let config = AuthManager::load_config();
-            if let Some(acc_name) = config.account_name {
+            if let Some(acc_name) = &config.account_name {
                 if acc_name == "OAuth User" {
                     header.account_name = "kidusalemayehu705@gmail.com".to_string();
                 } else {
-                    header.account_name = acc_name;
+                    header.account_name = acc_name.clone();
                 }
             }
             header.is_live = true;
@@ -113,7 +131,7 @@ impl App {
         }
 
         Self {
-            theme: Theme::default(),
+            theme,
             header,
             status_bar: StatusBar::new(),
             auth_modal: AuthModal::new(),
@@ -149,6 +167,11 @@ impl App {
             active_tail_worker: None,
             active_tail_id: None,
             oauth_cancel_tx: None,
+            fast_sync_enabled,
+            sync_interval_secs,
+            auto_sync_on_tab_change,
+            is_fast_syncing: false,
+            last_fast_sync: std::time::Instant::now(),
         }
     }
 
@@ -241,6 +264,10 @@ impl App {
                 // If not connected to live worker tail, simulate periodic log
                 if self.cf_client.is_none() {
                     self.tail_view.add_tick_log(self.tick_counter);
+                } else if self.fast_sync_enabled && !self.is_fast_syncing {
+                    if self.last_fast_sync.elapsed().as_secs() >= self.sync_interval_secs {
+                        let _ = self.action_tx.send(Action::FastSyncActiveView);
+                    }
                 }
             }
             Action::NextTab => {
@@ -251,6 +278,10 @@ impl App {
                 } else if self.header.active_tab == 6 {
                     self.domains_view.reload("");
                 }
+                if self.auto_sync_on_tab_change && self.cf_client.is_some() {
+                    let _ = self.action_tx.send(Action::FastSyncActiveView);
+                }
+                let _ = AuthManager::update_default_tab(self.header.active_tab);
                 self.status_bar.set_status(format!("Switched to {}", self.header.tabs[self.header.active_tab]));
             }
             Action::PrevTab => {
@@ -265,6 +296,10 @@ impl App {
                 } else if self.header.active_tab == 6 {
                     self.domains_view.reload("");
                 }
+                if self.auto_sync_on_tab_change && self.cf_client.is_some() {
+                    let _ = self.action_tx.send(Action::FastSyncActiveView);
+                }
+                let _ = AuthManager::update_default_tab(self.header.active_tab);
                 self.status_bar.set_status(format!("Switched to {}", self.header.tabs[self.header.active_tab]));
             }
             Action::SelectTab(idx) => {
@@ -276,6 +311,10 @@ impl App {
                     } else if self.header.active_tab == 6 {
                         self.domains_view.reload("");
                     }
+                    if self.auto_sync_on_tab_change && self.cf_client.is_some() {
+                        let _ = self.action_tx.send(Action::FastSyncActiveView);
+                    }
+                    let _ = AuthManager::update_default_tab(self.header.active_tab);
                     self.status_bar.set_status(format!("Switched to {}", self.header.tabs[idx]));
                 }
             }
@@ -322,17 +361,20 @@ impl App {
                             let proxied = rec.proxied;
                             let tx = self.action_tx.clone();
 
-                            tokio::spawn(async move {
-                                match client.toggle_dns_proxy(&zone_id, &record_id, proxied).await {
-                                    Ok(new_status) => {
-                                        let s = if new_status { "🟠 Proxied" } else { "⚪ DNS Only" };
-                                        let _ = tx.send(Action::StatusMessage(format!("Cloudflare API: Record set to {s}")));
+                            if tokio::runtime::Handle::try_current().is_ok() {
+                                tokio::spawn(async move {
+                                    match client.toggle_dns_proxy(&zone_id, &record_id, proxied).await {
+                                        Ok(new_status) => {
+                                            let s = if new_status { "🟠 Proxied" } else { "⚪ DNS Only" };
+                                            let _ = tx.send(Action::StatusMessage(format!("Cloudflare API: Record set to {s}")));
+                                            let _ = tx.send(Action::FastSyncActiveView);
+                                        }
+                                        Err(e) => {
+                                            let _ = tx.send(Action::Error(format!("Cloudflare API Error: {e}")));
+                                        }
                                     }
-                                    Err(e) => {
-                                        let _ = tx.send(Action::Error(format!("Cloudflare API Error: {e}")));
-                                    }
-                                }
-                            });
+                                });
+                            }
                         }
                     }
                 }
@@ -2220,6 +2262,18 @@ impl App {
                             PaletteAction::TriggerSync => {
                                 let _ = self.action_tx.send(Action::Refresh);
                             }
+                            PaletteAction::FastSyncActiveView => {
+                                let _ = self.action_tx.send(Action::FastSyncActiveView);
+                            }
+                            PaletteAction::ToggleFastSync => {
+                                let _ = self.action_tx.send(Action::ToggleFastSync);
+                            }
+                            PaletteAction::CycleSyncInterval => {
+                                let _ = self.action_tx.send(Action::CycleSyncInterval);
+                            }
+                            PaletteAction::ToggleAutoSyncOnTabChange => {
+                                let _ = self.action_tx.send(Action::ToggleAutoSyncOnTabChange);
+                            }
                             PaletteAction::PurgeCache => {
                                 if let Some(zone) = self.dns_view.selected_zone().cloned() {
                                     if let Some(client) = &self.cf_client {
@@ -2288,14 +2342,7 @@ impl App {
                                 let _ = self.action_tx.send(Action::ToggleHelp);
                             }
                             PaletteAction::SetTheme(theme_name) => {
-                                let preset = match theme_name.as_str() {
-                                    "Catppuccin Mocha" => ThemePreset::CatppuccinMocha,
-                                    "Tokyo Night" => ThemePreset::TokyoNight,
-                                    "Nord" => ThemePreset::Nord,
-                                    _ => ThemePreset::CloudflareDark,
-                                };
-                                self.theme = Theme::from_preset(preset);
-                                self.status_bar.set_status(format!("Applied theme: {}", preset.name()));
+                                let _ = self.action_tx.send(Action::SetTheme(theme_name));
                             }
                             PaletteAction::Quit => {
                                 let _ = self.action_tx.send(Action::Quit);
@@ -2445,9 +2492,13 @@ impl App {
                     if let Some(client) = &self.cf_client {
                         let client = client.clone();
                         let d_name = domain_name.clone();
-                        tokio::spawn(async move {
-                            let _ = client.create_zone("", &d_name, jump_start).await;
-                        });
+                        let tx = self.action_tx.clone();
+                        if tokio::runtime::Handle::try_current().is_ok() {
+                            tokio::spawn(async move {
+                                let _ = client.create_zone("", &d_name, jump_start).await;
+                                let _ = tx.send(Action::FastSyncActiveView);
+                            });
+                        }
                     }
 
                     self.domain_create_modal = None;
@@ -2473,9 +2524,13 @@ impl App {
 
                     if let Some(client) = &self.cf_client {
                         let client = client.clone();
-                        tokio::spawn(async move {
-                            let _ = client.update_registrar_domain("", &d_name, Some(new_state), None, None).await;
-                        });
+                        let tx = self.action_tx.clone();
+                        if tokio::runtime::Handle::try_current().is_ok() {
+                            tokio::spawn(async move {
+                                let _ = client.update_registrar_domain("", &d_name, Some(new_state), None, None).await;
+                                let _ = tx.send(Action::FastSyncActiveView);
+                            });
+                        }
                     }
                 }
             }
@@ -2491,9 +2546,13 @@ impl App {
 
                     if let Some(client) = &self.cf_client {
                         let client = client.clone();
-                        tokio::spawn(async move {
-                            let _ = client.update_registrar_domain("", &d_name, None, Some(new_state), None).await;
-                        });
+                        let tx = self.action_tx.clone();
+                        if tokio::runtime::Handle::try_current().is_ok() {
+                            tokio::spawn(async move {
+                                let _ = client.update_registrar_domain("", &d_name, None, Some(new_state), None).await;
+                                let _ = tx.send(Action::FastSyncActiveView);
+                            });
+                        }
                     }
                 }
             }
@@ -2509,9 +2568,13 @@ impl App {
 
                     if let Some(client) = &self.cf_client {
                         let client = client.clone();
-                        tokio::spawn(async move {
-                            let _ = client.update_registrar_domain("", &d_name, None, None, Some(new_state)).await;
-                        });
+                        let tx = self.action_tx.clone();
+                        if tokio::runtime::Handle::try_current().is_ok() {
+                            tokio::spawn(async move {
+                                let _ = client.update_registrar_domain("", &d_name, None, None, Some(new_state)).await;
+                                let _ = tx.send(Action::FastSyncActiveView);
+                            });
+                        }
                     }
                 }
             }
@@ -2526,6 +2589,103 @@ impl App {
             }
             Action::RegistrarDomainsLoaded(domains) => {
                 self.domains_view.domains = domains;
+            }
+
+            // Fast Sync & Settings Persistence Actions
+            Action::FastSyncActiveView => {
+                if !self.is_fast_syncing {
+                    if let Some(client) = &self.cf_client {
+                        self.is_fast_syncing = true;
+                        let client = client.clone();
+                        let db = self.db.clone();
+                        let tx = self.action_tx.clone();
+                        let tab = self.header.active_tab;
+                        let active_zone_id = self.dns_view.selected_zone().map(|z| z.id.clone());
+                        let config = AuthManager::load_config();
+                        let account_id = config.account_id;
+
+                        if tokio::runtime::Handle::try_current().is_ok() {
+                            tokio::spawn(async move {
+                                match CloudflareSync::fast_sync_active_tab(
+                                    &client,
+                                    &db,
+                                    tab,
+                                    active_zone_id.as_deref(),
+                                    account_id.as_deref(),
+                                )
+                                .await
+                                {
+                                    Ok(msg) => {
+                                        let _ = tx.send(Action::FastSyncCompleted { tab, message: msg });
+                                    }
+                                    Err(e) => {
+                                        let _ = tx.send(Action::FastSyncCompleted {
+                                            tab,
+                                            message: format!("Fast sync notice: {e}"),
+                                        });
+                                    }
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+            Action::FastSyncCompleted { tab, message } => {
+                self.is_fast_syncing = false;
+                self.last_fast_sync = std::time::Instant::now();
+                match tab {
+                    0 => {
+                        self.dns_view.zones = self.db.get_zones().unwrap_or_default();
+                        self.dns_view.reload_records();
+                    }
+                    1 => {
+                        self.workers_view.reload();
+                    }
+                    2 => {
+                        self.pages_view.reload();
+                    }
+                    3 => {
+                        self.storage_view.reload();
+                    }
+                    4 => {}
+                    5 => {
+                        let active_zone_id = self.dns_view.selected_zone().map(|z| z.id.clone());
+                        self.security_view.reload(active_zone_id.as_deref());
+                    }
+                    6 => {
+                        self.domains_view.reload("");
+                    }
+                    _ => {}
+                }
+                self.status_bar.set_status(message);
+            }
+            Action::ToggleFastSync => {
+                self.fast_sync_enabled = !self.fast_sync_enabled;
+                self.header.fast_sync = self.fast_sync_enabled;
+                let _ = AuthManager::update_fast_sync(self.fast_sync_enabled);
+                let state_str = if self.fast_sync_enabled { "ENABLED" } else { "DISABLED" };
+                self.status_bar.set_status(format!("Fast live sync {state_str}"));
+            }
+            Action::CycleSyncInterval => {
+                let intervals = [5, 10, 15, 30, 60];
+                let current_idx = intervals.iter().position(|&i| i == self.sync_interval_secs).unwrap_or(2);
+                let next_idx = (current_idx + 1) % intervals.len();
+                self.sync_interval_secs = intervals[next_idx];
+                self.header.sync_interval_secs = self.sync_interval_secs;
+                let _ = AuthManager::update_sync_interval(self.sync_interval_secs);
+                self.status_bar.set_status(format!("Fast sync interval set to {}s", self.sync_interval_secs));
+            }
+            Action::ToggleAutoSyncOnTabChange => {
+                self.auto_sync_on_tab_change = !self.auto_sync_on_tab_change;
+                let _ = AuthManager::update_auto_sync_on_tab_change(self.auto_sync_on_tab_change);
+                let state_str = if self.auto_sync_on_tab_change { "ENABLED" } else { "DISABLED" };
+                self.status_bar.set_status(format!("Auto-sync on tab switch {state_str}"));
+            }
+            Action::SetTheme(theme_name) => {
+                let preset = ThemePreset::from_name(&theme_name);
+                self.theme = Theme::from_preset(preset);
+                let _ = AuthManager::update_theme(preset.name());
+                self.status_bar.set_status(format!("Applied and saved theme: {}", preset.name()));
             }
 
             Action::Render => {}
@@ -2606,8 +2766,8 @@ mod tests {
     use crate::components::views::security_view::SecurityTab;
     use crate::db::{CachedSecurityEvent, CachedWafRule, Zone};
 
-    #[test]
-    fn test_app_security_view_tab_and_actions() {
+    #[tokio::test]
+    async fn test_app_security_view_tab_and_actions() {
         let db = CacheDb::open_in_memory().unwrap();
         let zone = Zone {
             id: "test-zone-sec".to_string(),
@@ -2682,8 +2842,8 @@ mod tests {
         assert!(!app.is_security_inspector_active());
     }
 
-    #[test]
-    fn test_app_command_palette_actions() {
+    #[tokio::test]
+    async fn test_app_command_palette_actions() {
         let db = CacheDb::open_in_memory().unwrap();
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
         let mut app = App::new(db, tx);
@@ -2708,8 +2868,8 @@ mod tests {
         assert!(!app.is_command_palette_active());
     }
 
-    #[test]
-    fn test_app_profile_switcher_actions() {
+    #[tokio::test]
+    async fn test_app_profile_switcher_actions() {
         let db = CacheDb::open_in_memory().unwrap();
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
         let mut app = App::new(db, tx);
@@ -2728,8 +2888,8 @@ mod tests {
         assert!(!app.is_profile_switcher_active());
     }
 
-    #[test]
-    fn test_app_auth_oauth_and_logout_actions() {
+    #[tokio::test]
+    async fn test_app_auth_oauth_and_logout_actions() {
         let db = CacheDb::open_in_memory().unwrap();
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
         let mut app = App::new(db, tx);
@@ -2799,8 +2959,8 @@ mod tests {
         assert!(!app.is_authenticated());
     }
 
-    #[test]
-    fn test_app_domain_registrar_actions() {
+    #[tokio::test]
+    async fn test_app_domain_registrar_actions() {
         let db = CacheDb::open_in_memory().unwrap();
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
         let mut app = App::new(db, tx);
@@ -2845,5 +3005,47 @@ mod tests {
         // Close modal
         app.update(Action::CloseDomainCreateModal).unwrap();
         assert!(!app.is_domain_modal_active());
+    }
+
+    #[tokio::test]
+    async fn test_app_settings_persistence_and_theme() {
+        let db = CacheDb::open_in_memory().unwrap();
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(db, tx);
+
+        // Theme switching & persistence
+        app.update(Action::SetTheme("Tokyo Night".to_string())).unwrap();
+        assert_eq!(app.theme.primary, ratatui::style::Color::Rgb(122, 162, 247));
+
+        // Fast Sync toggling
+        let initial_fast_sync = app.fast_sync_enabled;
+        app.update(Action::ToggleFastSync).unwrap();
+        assert_eq!(app.fast_sync_enabled, !initial_fast_sync);
+        assert_eq!(app.header.fast_sync, !initial_fast_sync);
+
+        // Cycle interval
+        app.update(Action::CycleSyncInterval).unwrap();
+        assert_ne!(app.sync_interval_secs, 0);
+
+        // Auto sync on tab change toggle
+        let initial_auto_sync = app.auto_sync_on_tab_change;
+        app.update(Action::ToggleAutoSyncOnTabChange).unwrap();
+        assert_eq!(app.auto_sync_on_tab_change, !initial_auto_sync);
+    }
+
+    #[tokio::test]
+    async fn test_app_fast_sync_completed() {
+        let db = CacheDb::open_in_memory().unwrap();
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(db, tx);
+
+        app.is_fast_syncing = true;
+        app.update(Action::FastSyncCompleted {
+            tab: 0,
+            message: "Fast sync: 5 zones updated".to_string(),
+        }).unwrap();
+
+        assert!(!app.is_fast_syncing);
+        assert_eq!(app.status_bar.message.as_str(), "Fast sync: 5 zones updated");
     }
 }

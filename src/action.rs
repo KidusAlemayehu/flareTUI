@@ -211,6 +211,14 @@ pub enum Action {
     DomainsViewToggleSearch,
     RegistrarDomainsLoaded(Vec<crate::db::CachedRegistrarDomain>),
 
+    // Fast Sync & Settings Persistence
+    FastSyncActiveView,
+    FastSyncCompleted { tab: usize, message: String },
+    ToggleFastSync,
+    CycleSyncInterval,
+    ToggleAutoSyncOnTabChange,
+    SetTheme(String),
+
     // Feedback
     StatusMessage(String),
     Error(String),
