@@ -35,6 +35,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and adher
 
 ---
 
+## 0.8.1 (2026-07-25)
+
+### Added
+
+- Persistent system settings & theme configuration across application restarts
+  - Automatic persistence of selected theme (`Cloudflare Dark`, `Catppuccin Mocha`, `Tokyo Night`, `Nord`) to `config.toml`
+  - Restoration of active theme preset immediately during application bootstrap
+  - Default landing tab persistence remembering the last active view across sessions
+  - Configurable fast sync settings with automatic TOML serialization: `fast_sync`, `sync_interval_secs`, and `auto_sync_on_tab_change`
+- Fast targeted view-level revalidation engine (`fast_sync_active_tab`)
+  - Sub-second targeted synchronization querying Cloudflare API v4 only for the visible active view (DNS, Workers, Pages, D1/KV, Security/WAF, or Registrar)
+  - Automatic stale-while-revalidate execution on tab navigation switches
+  - Instant live revalidation upon resource mutations (DNS records, proxy toggles, WAF rules, domain lock/renew)
+  - Non-blocking background live polling timer (configurable default 15s interval) in the main event loop
+  - Dynamic top header status badge showing live polling status (`⚡ FastSync: 15s Poll`) or offline cache mode
+- Command Palette system actions
+  - Commands to trigger instant fast sync, toggle live polling, cycle polling frequency (5s, 10s, 15s, 30s, 60s), and toggle auto-sync on tab switch
+
+---
+
 ## 0.8.0 (2026-07-23)
 
 ### Added
