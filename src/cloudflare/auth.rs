@@ -16,12 +16,24 @@ pub struct AccountProfile {
     pub default_zone_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Config {
     #[serde(default)]
     pub current_profile: Option<String>,
     #[serde(default)]
     pub profiles: Vec<AccountProfile>,
+
+    // System settings persistence
+    #[serde(default)]
+    pub theme: Option<String>,
+    #[serde(default = "default_fast_sync")]
+    pub fast_sync: bool,
+    #[serde(default = "default_sync_interval")]
+    pub sync_interval_secs: u64,
+    #[serde(default = "default_auto_sync_on_tab_change")]
+    pub auto_sync_on_tab_change: bool,
+    #[serde(default)]
+    pub default_tab: Option<usize>,
 
     // Legacy fallback fields:
     #[serde(default)]
@@ -30,6 +42,35 @@ pub struct Config {
     pub account_id: Option<String>,
     #[serde(default)]
     pub account_name: Option<String>,
+}
+
+fn default_fast_sync() -> bool {
+    true
+}
+
+fn default_sync_interval() -> u64 {
+    15
+}
+
+fn default_auto_sync_on_tab_change() -> bool {
+    true
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            current_profile: None,
+            profiles: Vec::new(),
+            theme: None,
+            fast_sync: default_fast_sync(),
+            sync_interval_secs: default_sync_interval(),
+            auto_sync_on_tab_change: default_auto_sync_on_tab_change(),
+            default_tab: None,
+            api_token: None,
+            account_id: None,
+            account_name: None,
+        }
+    }
 }
 
 impl Config {
@@ -207,6 +248,36 @@ impl AuthManager {
         std::env::remove_var("CLOUDFLARE_API_TOKEN");
         Ok(())
     }
+
+    pub fn update_theme(theme_name: &str) -> Result<()> {
+        let mut config = Self::load_config();
+        config.theme = Some(theme_name.to_string());
+        Self::save_config(&config)
+    }
+
+    pub fn update_fast_sync(enabled: bool) -> Result<()> {
+        let mut config = Self::load_config();
+        config.fast_sync = enabled;
+        Self::save_config(&config)
+    }
+
+    pub fn update_sync_interval(interval_secs: u64) -> Result<()> {
+        let mut config = Self::load_config();
+        config.sync_interval_secs = interval_secs;
+        Self::save_config(&config)
+    }
+
+    pub fn update_auto_sync_on_tab_change(enabled: bool) -> Result<()> {
+        let mut config = Self::load_config();
+        config.auto_sync_on_tab_change = enabled;
+        Self::save_config(&config)
+    }
+
+    pub fn update_default_tab(tab: usize) -> Result<()> {
+        let mut config = Self::load_config();
+        config.default_tab = Some(tab);
+        Self::save_config(&config)
+    }
 }
 
 #[cfg(test)]
@@ -227,6 +298,7 @@ mod tests {
             api_token: Some("secret_tok_123".to_string()),
             account_id: None,
             account_name: None,
+            ..Default::default()
         };
 
         assert!(config.active_token().is_some());
@@ -242,6 +314,7 @@ mod tests {
             api_token: Some("legacy_tok_123".to_string()),
             account_id: Some("acc_123".to_string()),
             account_name: Some("Legacy Account".to_string()),
+            ..Default::default()
         };
 
         let effective = config.get_effective_profiles();
@@ -276,6 +349,7 @@ mod tests {
             api_token: None,
             account_id: None,
             account_name: None,
+            ..Default::default()
         };
 
         let active = config.active_profile().expect("active profile");
@@ -329,13 +403,33 @@ mod tests {
             api_token: None,
             account_id: None,
             account_name: None,
+            ..Default::default()
         };
 
         let toml_str = toml::to_string_pretty(&config).expect("serialize config");
         assert!(toml_str.contains("current_profile = \"prod\""));
         assert!(toml_str.contains("api_token = \"secret_tok\""));
+        assert!(toml_str.contains("fast_sync = true"));
+        assert!(toml_str.contains("sync_interval_secs = 15"));
 
         let deserialized: Config = toml::from_str(&toml_str).expect("deserialize config");
         assert_eq!(deserialized, config);
+    }
+
+    #[test]
+    fn test_config_settings_persistence_defaults() {
+        let toml_str = r#"
+            theme = "Tokyo Night"
+            fast_sync = false
+            sync_interval_secs = 30
+            auto_sync_on_tab_change = false
+            default_tab = 2
+        "#;
+        let config: Config = toml::from_str(toml_str).expect("deserialize settings");
+        assert_eq!(config.theme.as_deref(), Some("Tokyo Night"));
+        assert!(!config.fast_sync);
+        assert_eq!(config.sync_interval_secs, 30);
+        assert!(!config.auto_sync_on_tab_change);
+        assert_eq!(config.default_tab, Some(2));
     }
 }

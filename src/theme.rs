@@ -27,6 +27,16 @@ impl ThemePreset {
             ThemePreset::Nord,
         ]
     }
+
+    pub fn from_name(name: &str) -> Self {
+        let normalized = name.to_lowercase().replace(['-', '_', ' '], "");
+        match normalized.as_str() {
+            "catppuccinmocha" | "catppuccin" | "mocha" => ThemePreset::CatppuccinMocha,
+            "tokyonight" | "tokyo" => ThemePreset::TokyoNight,
+            "nord" => ThemePreset::Nord,
+            _ => ThemePreset::CloudflareDark,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -124,6 +134,10 @@ impl Theme {
         }
     }
 
+    pub fn from_name(name: &str) -> Self {
+        Self::from_preset(ThemePreset::from_name(name))
+    }
+
     pub fn title(&self) -> Style {
         Style::default().fg(self.primary).add_modifier(Modifier::BOLD)
     }
@@ -169,5 +183,19 @@ mod tests {
             assert_ne!(theme.border_focus, Color::Reset);
             assert!(!preset.name().is_empty());
         }
+    }
+
+    #[test]
+    fn test_theme_from_name() {
+        assert_eq!(ThemePreset::from_name("Cloudflare Dark"), ThemePreset::CloudflareDark);
+        assert_eq!(ThemePreset::from_name("Catppuccin Mocha"), ThemePreset::CatppuccinMocha);
+        assert_eq!(ThemePreset::from_name("catppuccin"), ThemePreset::CatppuccinMocha);
+        assert_eq!(ThemePreset::from_name("Tokyo Night"), ThemePreset::TokyoNight);
+        assert_eq!(ThemePreset::from_name("tokyo_night"), ThemePreset::TokyoNight);
+        assert_eq!(ThemePreset::from_name("Nord"), ThemePreset::Nord);
+        assert_eq!(ThemePreset::from_name("unknown"), ThemePreset::CloudflareDark);
+
+        let t = Theme::from_name("tokyo-night");
+        assert_eq!(t.primary, Color::Rgb(122, 162, 247));
     }
 }
