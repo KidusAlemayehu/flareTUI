@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Clear, Paragraph},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
     Frame,
 };
 
@@ -137,15 +137,10 @@ impl DomainCreateModal {
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let popup_width = 72.min(area.width.saturating_sub(4));
-        let popup_height = 20.min(area.height.saturating_sub(2));
-
-        let popup_area = Rect {
-            x: (area.width.saturating_sub(popup_width)) / 2,
-            y: (area.height.saturating_sub(popup_height)) / 2,
-            width: popup_width,
-            height: popup_height,
-        };
+        // Responsive popup sizing: adapt dynamically based on window size
+        let popup_area = crate::components::centered_rect(area, 75, 64, 96, 75, 16, 26);
+        let popup_width = popup_area.width;
+        let popup_height = popup_area.height;
 
         f.render_widget(Clear, popup_area);
 
@@ -158,24 +153,43 @@ impl DomainCreateModal {
 
         f.render_widget(block, popup_area);
 
+        let is_compact_height = popup_height < 21;
+        let subtitle_len = if popup_height < 18 {
+            0
+        } else if is_compact_height {
+            1
+        } else {
+            2
+        };
+        let toggles_len = if is_compact_height { 5 } else { 6 };
+        let footer_len = if is_compact_height { 1 } else { 2 };
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(2), // Subtitle
-                Constraint::Length(3), // Domain Name
-                Constraint::Length(3), // Plan Selection
-                Constraint::Length(4), // Toggles (JumpStart, AutoRenew, Privacy)
-                Constraint::Length(2), // Error or status
-                Constraint::Length(2), // Keybindings Footer
+                Constraint::Length(subtitle_len), // Subtitle
+                Constraint::Length(3),            // Domain Name
+                Constraint::Length(3),            // Plan Selection
+                Constraint::Length(toggles_len),  // Toggles (JumpStart, AutoRenew, Privacy)
+                Constraint::Length(2),            // Error or status
+                Constraint::Length(footer_len),   // Keybindings Footer
             ])
             .margin(1)
             .split(popup_area);
 
-        // Subtitle
-        let subtitle = Paragraph::new(Line::from(vec![
-            Span::styled("Add a new domain to Cloudflare Edge DNS or register via Cloudflare Registrar", Style::default().fg(theme.text_dim)),
-        ]));
-        f.render_widget(subtitle, chunks[0]);
+        // Subtitle (with text wrapping and responsive phrasing)
+        if subtitle_len > 0 {
+            let subtitle_text = if popup_width >= 72 {
+                "Add an existing domain to Cloudflare Edge DNS or register via Cloudflare Registrar"
+            } else {
+                "Add domain to Cloudflare DNS or register with Registrar"
+            };
+            let subtitle = Paragraph::new(Line::from(vec![
+                Span::styled(subtitle_text, Style::default().fg(theme.text_dim)),
+            ]))
+            .wrap(Wrap { trim: true });
+            f.render_widget(subtitle, chunks[0]);
+        }
 
         // Domain Name Input
         let domain_border_style = if self.active_field == DomainModalField::DomainName {
@@ -185,10 +199,16 @@ impl DomainCreateModal {
         };
 
         let cursor_char = if self.active_field == DomainModalField::DomainName { "█" } else { "" };
+        let placeholder = if popup_width >= 70 {
+            "example.com (e.g. myapp.dev)"
+        } else {
+            "example.com"
+        };
+
         let domain_input = Paragraph::new(Line::from(vec![
             Span::styled(" Name: ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
             Span::styled(
-                if self.domain_name.is_empty() { "example.com" } else { &self.domain_name },
+                if self.domain_name.is_empty() { placeholder } else { &self.domain_name },
                 if self.domain_name.is_empty() { Style::default().fg(theme.text_dim) } else { Style::default().fg(Color::White) },
             ),
             Span::styled(cursor_char, Style::default().fg(theme.primary)),
@@ -209,10 +229,18 @@ impl DomainCreateModal {
             Style::default().fg(theme.secondary)
         };
 
+        let plan_hint = if popup_width >= 74 {
+            "  (Press Space to cycle tier: Free -> Pro -> Business)"
+        } else if popup_width >= 58 {
+            "  (Space to cycle)"
+        } else {
+            ""
+        };
+
         let plan_p = Paragraph::new(Line::from(vec![
             Span::styled(" Plan: ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
             Span::styled(format!("◀ {} ▶", self.plan_name()), Style::default().fg(theme.info).add_modifier(Modifier::BOLD)),
-            Span::styled("  (Press Space to cycle plan tier)", Style::default().fg(theme.text_dim)),
+            Span::styled(plan_hint, Style::default().fg(theme.text_dim)),
         ]))
         .block(
             Block::default()
@@ -223,10 +251,14 @@ impl DomainCreateModal {
         );
         f.render_widget(plan_p, chunks[2]);
 
-        // Toggles Box
-        let js_checkbox = if self.jump_start { "[✔] Scan Existing DNS (Jump Start)" } else { "[ ] Scan Existing DNS (Jump Start)" };
-        let ar_checkbox = if self.auto_renew { "[✔] Enable Auto-Renew" } else { "[ ] Enable Auto-Renew" };
-        let pv_checkbox = if self.privacy { "[✔] WHOIS Privacy Protection" } else { "[ ] WHOIS Privacy Protection" };
+        // Configuration Options (Stacked responsive rows for 100% readability)
+        let js_cursor = if self.active_field == DomainModalField::JumpStart { " ➔ " } else { "    " };
+        let ar_cursor = if self.active_field == DomainModalField::AutoRenew { " ➔ " } else { "    " };
+        let pv_cursor = if self.active_field == DomainModalField::Privacy { " ➔ " } else { "    " };
+
+        let js_check = if self.jump_start { "[✔] " } else { "[ ] " };
+        let ar_check = if self.auto_renew { "[✔] " } else { "[ ] " };
+        let pv_check = if self.privacy { "[✔] " } else { "[ ] " };
 
         let js_style = if self.active_field == DomainModalField::JumpStart {
             Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)
@@ -252,26 +284,66 @@ impl DomainCreateModal {
             Style::default().fg(theme.text_dim)
         };
 
-        let toggles_p = Paragraph::new(vec![
+        let (js_label, ar_label, pv_label) = if popup_width >= 74 {
+            (
+                "Jump Start  : Scan & import existing DNS records automatically",
+                "Auto-Renew  : Automatically renew domain registration annually",
+                "WHOIS Privacy: Redact registrant personal info from public WHOIS",
+            )
+        } else if popup_width >= 60 {
+            (
+                "Jump Start  : Scan & import existing DNS records",
+                "Auto-Renew  : Automatically renew domain annually",
+                "WHOIS Privacy: Redact registrant WHOIS info",
+            )
+        } else {
+            (
+                "Jump Start (Scan DNS)",
+                "Auto-Renew (Annual)",
+                "WHOIS Privacy (Redacted)",
+            )
+        };
+
+        let mut toggle_lines = vec![
             Line::from(vec![
-                Span::styled(format!("  {}    ", js_checkbox), js_style),
-                Span::styled(format!("  {}    ", ar_checkbox), ar_style),
-                Span::styled(format!("  {}", pv_checkbox), pv_style),
+                Span::styled(js_cursor, Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                Span::styled(js_check, js_style),
+                Span::styled(js_label, js_style),
             ]),
             Line::from(vec![
-                Span::styled("  Navigate with Tab/Arrows, toggle checkboxes with [Space]", Style::default().fg(theme.text_dim)),
+                Span::styled(ar_cursor, Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                Span::styled(ar_check, ar_style),
+                Span::styled(ar_label, ar_style),
             ]),
-        ])
-        .block(
-            Block::default()
-                .title(" Configuration Options ")
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(theme.secondary)),
-        );
+            Line::from(vec![
+                Span::styled(pv_cursor, Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                Span::styled(pv_check, pv_style),
+                Span::styled(pv_label, pv_style),
+            ]),
+        ];
+
+        if !is_compact_height {
+            let nav_hint = if popup_width >= 70 {
+                "    [Tab/Arrows] Navigate fields    [Space] Toggle selected checkbox"
+            } else {
+                "    [Tab] Navigate    [Space] Toggle"
+            };
+            toggle_lines.push(Line::from(vec![
+                Span::styled(nav_hint, Style::default().fg(theme.text_dim)),
+            ]));
+        }
+
+        let toggles_p = Paragraph::new(toggle_lines)
+            .block(
+                Block::default()
+                    .title(" Configuration Options ")
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(theme.secondary)),
+            );
         f.render_widget(toggles_p, chunks[3]);
 
-        // Error message or submitting status
+        // Error message or submitting status (with text wrapping)
         let status_line = if let Some(err) = &self.error_msg {
             Line::from(vec![
                 Span::styled(" Error: ", Style::default().fg(theme.error).add_modifier(Modifier::BOLD)),
@@ -283,20 +355,38 @@ impl DomainCreateModal {
             ])
         } else {
             Line::from(vec![
-                Span::styled(" [Ready] Enter domain details and press [Enter] to submit", Style::default().fg(theme.text_dim)),
+                Span::styled(
+                    if popup_width >= 70 {
+                        " [Ready] Enter domain details and press [Enter] to submit"
+                    } else {
+                        " [Ready] Press [Enter] to submit"
+                    },
+                    Style::default().fg(theme.text_dim)
+                ),
             ])
         };
-        f.render_widget(Paragraph::new(status_line), chunks[4]);
+        f.render_widget(Paragraph::new(status_line).wrap(Wrap { trim: true }), chunks[4]);
 
-        // Keybindings footer
-        let footer = Paragraph::new(Line::from(vec![
-            Span::styled("[Tab]/[↓] Next  ", Style::default().fg(theme.text_dim)),
-            Span::styled("[Shift+Tab]/[↑] Prev  ", Style::default().fg(theme.text_dim)),
-            Span::styled("[Space] Toggle/Cycle  ", Style::default().fg(theme.secondary)),
-            Span::styled("[Enter] Create & Onboard  ", Style::default().fg(theme.success).add_modifier(Modifier::BOLD)),
-            Span::styled("[Esc] Cancel", Style::default().fg(theme.text_dim)),
-        ]))
-        .alignment(Alignment::Center);
+        // Keybindings footer (responsive phrasing based on width)
+        let footer_spans = if popup_width >= 78 {
+            vec![
+                Span::styled("[Tab/↓] Next  ", Style::default().fg(theme.text_dim)),
+                Span::styled("[Shift+Tab/↑] Prev  ", Style::default().fg(theme.text_dim)),
+                Span::styled("[Space] Toggle/Cycle  ", Style::default().fg(theme.secondary)),
+                Span::styled("[Enter] Create & Onboard  ", Style::default().fg(theme.success).add_modifier(Modifier::BOLD)),
+                Span::styled("[Esc] Cancel", Style::default().fg(theme.text_dim)),
+            ]
+        } else {
+            vec![
+                Span::styled("[Tab] Next  ", Style::default().fg(theme.text_dim)),
+                Span::styled("[Space] Toggle  ", Style::default().fg(theme.secondary)),
+                Span::styled("[Enter] Onboard  ", Style::default().fg(theme.success).add_modifier(Modifier::BOLD)),
+                Span::styled("[Esc] Cancel", Style::default().fg(theme.text_dim)),
+            ]
+        };
+        let footer = Paragraph::new(Line::from(footer_spans))
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true });
         f.render_widget(footer, chunks[5]);
     }
 }
@@ -395,5 +485,23 @@ mod tests {
         let theme = Theme::default();
 
         terminal.draw(|f| modal.render(f, f.area(), &theme)).unwrap();
+    }
+
+    #[test]
+    fn test_domain_create_modal_rendering_compact_and_narrow() {
+        let mut modal = DomainCreateModal::new();
+        modal.domain_name = "subdomain.example-production.org".to_string();
+        modal.error_msg = Some("Domain validation warning: please check TLD syntax".to_string());
+        let theme = Theme::default();
+
+        // Narrow terminal (64 cols x 20 rows)
+        let backend_narrow = ratatui::backend::TestBackend::new(64, 20);
+        let mut terminal_narrow = ratatui::Terminal::new(backend_narrow).unwrap();
+        terminal_narrow.draw(|f| modal.render(f, f.area(), &theme)).unwrap();
+
+        // Compact height terminal (80 cols x 16 rows)
+        let backend_compact = ratatui::backend::TestBackend::new(80, 16);
+        let mut terminal_compact = ratatui::Terminal::new(backend_compact).unwrap();
+        terminal_compact.draw(|f| modal.render(f, f.area(), &theme)).unwrap();
     }
 }
