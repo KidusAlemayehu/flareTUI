@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Clear, Paragraph},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
     Frame,
 };
 
@@ -156,15 +156,8 @@ impl DnsModal {
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let popup_width = 72.min(area.width.saturating_sub(4));
-        let popup_height = 18.min(area.height.saturating_sub(2));
-
-        let popup_area = Rect {
-            x: (area.width.saturating_sub(popup_width)) / 2,
-            y: (area.height.saturating_sub(popup_height)) / 2,
-            width: popup_width,
-            height: popup_height,
-        };
+        let popup_area = crate::components::centered_rect(area, 72, 54, 96, 65, 14, 22);
+        let popup_width = popup_area.width;
 
         f.render_widget(Clear, popup_area);
 
@@ -204,23 +197,39 @@ impl DnsModal {
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(chunks[0]);
 
-        let type_para = Paragraph::new(Line::from(vec![
-            Span::styled("Type: [◄ ", Style::default().fg(theme.text_dim)),
-            Span::styled(&self.record_type, Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
-            Span::styled(" ►] (Space to cycle)", Style::default().fg(theme.text_dim)),
-        ]))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(theme.block_border(is_type_foc)),
-        );
+        let type_text = if type_chunks[0].width >= 34 {
+            vec![
+                Span::styled("Type: [◄ ", Style::default().fg(theme.text_dim)),
+                Span::styled(&self.record_type, Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+                Span::styled(" ►] (Space to cycle)", Style::default().fg(theme.text_dim)),
+            ]
+        } else {
+            vec![
+                Span::styled("Type: ◄ ", Style::default().fg(theme.text_dim)),
+                Span::styled(&self.record_type, Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+                Span::styled(" ►", Style::default().fg(theme.text_dim)),
+            ]
+        };
+
+        let type_para = Paragraph::new(Line::from(type_text))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(theme.block_border(is_type_foc)),
+            );
         f.render_widget(type_para, type_chunks[0]);
 
         let proxy_label = if self.proxied {
-            Span::styled("🟠 Proxied (Orange Cloud)", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
-        } else {
+            if type_chunks[1].width >= 32 {
+                Span::styled("🟠 Proxied (Orange Cloud)", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
+            } else {
+                Span::styled("🟠 Proxied", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
+            }
+        } else if type_chunks[1].width >= 32 {
             Span::styled("⚪ DNS Only (Grey Cloud)", Style::default().fg(theme.text_dim))
+        } else {
+            Span::styled("⚪ DNS Only", Style::default().fg(theme.text_dim))
         };
 
         let proxy_para = Paragraph::new(Line::from(vec![
@@ -296,12 +305,16 @@ impl DnsModal {
                 Span::styled("❌ ", Style::default().fg(theme.error)),
                 Span::styled(err, Style::default().fg(theme.error)),
             ])
-        } else {
+        } else if popup_width >= 72 {
             Line::from(vec![
                 Span::styled("[Tab] Next Field   [Enter] Save to Cloudflare   [Esc] Cancel", Style::default().fg(theme.text_dim)),
             ])
+        } else {
+            Line::from(vec![
+                Span::styled("[Tab] Next   [Enter] Save   [Esc] Cancel", Style::default().fg(theme.text_dim)),
+            ])
         };
-        let footer = Paragraph::new(footer_text);
+        let footer = Paragraph::new(footer_text).wrap(Wrap { trim: true });
         f.render_widget(footer, chunks[4]);
     }
 }
