@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Cell, Clear, Paragraph, Row, Table},
+    widgets::{Block, BorderType, Borders, Cell, Clear, Paragraph, Row, Table, Wrap},
     Frame,
 };
 
@@ -101,15 +101,7 @@ impl ProfileModal {
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let popup_width = 82.min(area.width.saturating_sub(4));
-        let popup_height = 18.min(area.height.saturating_sub(2));
-
-        let popup_area = Rect {
-            x: (area.width.saturating_sub(popup_width)) / 2,
-            y: (area.height.saturating_sub(popup_height)) / 2,
-            width: popup_width,
-            height: popup_height,
-        };
+        let popup_area = crate::components::centered_rect(area, 75, 62, 105, 68, 14, 26);
 
         f.render_widget(Clear, popup_area);
 
@@ -210,17 +202,22 @@ impl ProfileModal {
                 Block::default()
                     .borders(Borders::TOP)
                     .border_style(Style::default().fg(theme.border)),
-            );
+            )
+            .wrap(Wrap { trim: true });
 
         f.render_widget(p, area);
     }
 
     fn render_footer(&self, f: &mut Frame, area: Rect, _theme: &Theme) {
-        let p = Paragraph::new(
-            " [Enter] Switch Profile  [d] Delete  [l] Logout  [↑/↓] Navigate  [Esc/q] Close ",
-        )
-        .alignment(Alignment::Center)
-        .style(Style::default().fg(Color::DarkGray));
+        let footer_text = if area.width >= 75 {
+            " [Enter] Switch Profile  [d] Delete  [l] Logout  [↑/↓] Navigate  [Esc/q] Close "
+        } else {
+            " [Enter] Switch  [d] Delete  [l] Logout  [Esc] Close "
+        };
+        let p = Paragraph::new(footer_text)
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true })
+            .style(Style::default().fg(Color::DarkGray));
 
         f.render_widget(p, area);
     }

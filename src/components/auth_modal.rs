@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Clear, Paragraph},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
     Frame,
 };
 
@@ -92,15 +92,7 @@ impl AuthModal {
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let popup_width = 78.min(area.width.saturating_sub(4));
-        let popup_height = 19.min(area.height.saturating_sub(2));
-
-        let popup_area = Rect {
-            x: (area.width.saturating_sub(popup_width)) / 2,
-            y: (area.height.saturating_sub(popup_height)) / 2,
-            width: popup_width,
-            height: popup_height,
-        };
+        let popup_area = crate::components::centered_rect(area, 75, 60, 100, 70, 16, 26);
 
         f.render_widget(Clear, popup_area);
 
@@ -288,8 +280,9 @@ impl AuthModal {
                 ]);
                 f.render_widget(status_header, content_chunks[0]);
 
-                let display_url = if auth_url.len() > 68 {
-                    format!("{}...", &auth_url[..65])
+                let max_url_len = (content_chunks[1].width as usize).saturating_sub(12).max(20);
+                let display_url = if auth_url.len() > max_url_len {
+                    format!("{}...", &auth_url[..max_url_len.saturating_sub(3)])
                 } else {
                     auth_url.clone()
                 };
@@ -510,31 +503,55 @@ impl AuthModal {
             "None".to_string()
         };
 
-        let profile_card = Paragraph::new(vec![
-            Line::from(vec![
-                Span::styled("  Account Email : ", Style::default().fg(theme.text_dim)),
-                Span::styled(email, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
-            ]),
-            Line::from(vec![
-                Span::styled("  Profile Name  : ", Style::default().fg(theme.text_dim)),
-                Span::styled(prof_name, Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
-                Span::styled("    Account ID : ", Style::default().fg(theme.text_dim)),
-                Span::styled(account_id, Style::default().fg(theme.info)),
-            ]),
-            Line::from(vec![
-                Span::styled("  Session Status: ", Style::default().fg(theme.text_dim)),
-                Span::styled("● Active & Authenticated", Style::default().fg(theme.success)),
-                Span::styled("    Token      : ", Style::default().fg(theme.text_dim)),
-                Span::styled(masked_token, Style::default().fg(theme.text_dim)),
-            ]),
-        ])
-        .block(
-            Block::default()
-                .title(" Profile Information ")
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(theme.secondary)),
-        );
+        let profile_lines = if chunks[0].width >= 78 {
+            vec![
+                Line::from(vec![
+                    Span::styled("  Account Email : ", Style::default().fg(theme.text_dim)),
+                    Span::styled(email, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from(vec![
+                    Span::styled("  Profile Name  : ", Style::default().fg(theme.text_dim)),
+                    Span::styled(prof_name, Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                    Span::styled("    Account ID : ", Style::default().fg(theme.text_dim)),
+                    Span::styled(account_id, Style::default().fg(theme.info)),
+                ]),
+                Line::from(vec![
+                    Span::styled("  Session Status: ", Style::default().fg(theme.text_dim)),
+                    Span::styled("● Active & Authenticated", Style::default().fg(theme.success)),
+                    Span::styled("    Token      : ", Style::default().fg(theme.text_dim)),
+                    Span::styled(masked_token, Style::default().fg(theme.text_dim)),
+                ]),
+            ]
+        } else {
+            vec![
+                Line::from(vec![
+                    Span::styled("  Email : ", Style::default().fg(theme.text_dim)),
+                    Span::styled(email, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from(vec![
+                    Span::styled("  Profile: ", Style::default().fg(theme.text_dim)),
+                    Span::styled(prof_name, Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                    Span::styled("  Status: ", Style::default().fg(theme.text_dim)),
+                    Span::styled("● Active", Style::default().fg(theme.success)),
+                ]),
+                Line::from(vec![
+                    Span::styled("  Acc ID: ", Style::default().fg(theme.text_dim)),
+                    Span::styled(if account_id.len() > 18 { format!("{}...", &account_id[..15]) } else { account_id.to_string() }, Style::default().fg(theme.info)),
+                    Span::styled("  Token: ", Style::default().fg(theme.text_dim)),
+                    Span::styled(masked_token, Style::default().fg(theme.text_dim)),
+                ]),
+            ]
+        };
+
+        let profile_card = Paragraph::new(profile_lines)
+            .block(
+                Block::default()
+                    .title(" Profile Information ")
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(theme.secondary)),
+            )
+            .wrap(Wrap { trim: true });
         f.render_widget(profile_card, chunks[0]);
 
         let logout_box = Paragraph::new(vec![
