@@ -11,16 +11,7 @@ pub struct HelpModal;
 
 impl HelpModal {
     pub fn render(f: &mut Frame, area: Rect, theme: &Theme) {
-        // Center a 60x20 modal
-        let popup_width = 72.min(area.width.saturating_sub(4));
-        let popup_height = 22.min(area.height.saturating_sub(2));
-
-        let popup_area = Rect {
-            x: (area.width.saturating_sub(popup_width)) / 2,
-            y: (area.height.saturating_sub(popup_height)) / 2,
-            width: popup_width,
-            height: popup_height,
-        };
+        let popup_area = crate::components::centered_rect(area, 75, 64, 105, 85, 20, 32);
 
         // Clear beneath modal
         f.render_widget(Clear, popup_area);
