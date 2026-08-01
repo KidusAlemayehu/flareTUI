@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Cell, Clear, Paragraph, Row, Table, Tabs},
+    widgets::{Block, BorderType, Borders, Cell, Clear, Paragraph, Row, Table, Tabs, Wrap},
     Frame,
 };
 
@@ -139,15 +139,7 @@ impl CommandPaletteModal {
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let popup_width = 86.min(area.width.saturating_sub(4));
-        let popup_height = 24.min(area.height.saturating_sub(2));
-
-        let popup_area = Rect {
-            x: (area.width.saturating_sub(popup_width)) / 2,
-            y: (area.height.saturating_sub(popup_height)) / 2,
-            width: popup_width,
-            height: popup_height,
-        };
+        let popup_area = crate::components::centered_rect(area, 80, 68, 110, 80, 18, 36);
 
         f.render_widget(Clear, popup_area);
 
@@ -346,7 +338,8 @@ impl CommandPaletteModal {
                 Block::default()
                     .borders(Borders::TOP)
                     .border_style(Style::default().fg(theme.border)),
-            );
+            )
+            .wrap(Wrap { trim: true });
 
         f.render_widget(p, area);
     }
@@ -356,6 +349,7 @@ impl CommandPaletteModal {
             " [Enter] Execute  [Tab] Cycle Category  [↑/↓] Navigate  [Esc] Close ",
         )
         .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true })
         .style(Style::default().fg(Color::DarkGray));
 
         f.render_widget(p, area);
