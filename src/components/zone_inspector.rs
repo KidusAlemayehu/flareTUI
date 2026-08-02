@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Clear, Paragraph, Table, Row, Cell},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph, Table, Row, Cell, Wrap},
     Frame,
 };
 
@@ -28,15 +28,7 @@ impl ZoneInspectorModal {
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let popup_width = 76.min(area.width.saturating_sub(4));
-        let popup_height = 20.min(area.height.saturating_sub(2));
-
-        let popup_area = Rect {
-            x: (area.width.saturating_sub(popup_width)) / 2,
-            y: (area.height.saturating_sub(popup_height)) / 2,
-            width: popup_width,
-            height: popup_height,
-        };
+        let popup_area = crate::components::centered_rect(area, 78, 68, 110, 75, 18, 28);
 
         f.render_widget(Clear, popup_area);
 
@@ -134,6 +126,7 @@ impl ZoneInspectorModal {
                 Span::styled(format!("{:<14}", tls_val), Style::default().fg(Color::White)),
             ]),
         ])
+        .wrap(Wrap { trim: true })
         .block(
             Block::default()
                 .title(" Edge Settings & Security ")
@@ -177,7 +170,7 @@ impl ZoneInspectorModal {
             ]),
         ];
 
-        let actions_widget = Paragraph::new(actions_text);
+        let actions_widget = Paragraph::new(actions_text).wrap(Wrap { trim: true });
         f.render_widget(actions_widget, chunks[2]);
     }
 }
