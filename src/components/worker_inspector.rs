@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Cell, Clear, Paragraph, Row, Table},
+    widgets::{Block, BorderType, Borders, Cell, Clear, Paragraph, Row, Table, Wrap},
     Frame,
 };
 
@@ -54,15 +54,7 @@ impl WorkerInspectorModal {
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let popup_width = 86.min(area.width.saturating_sub(4));
-        let popup_height = 24.min(area.height.saturating_sub(2));
-
-        let popup_area = Rect {
-            x: (area.width.saturating_sub(popup_width)) / 2,
-            y: (area.height.saturating_sub(popup_height)) / 2,
-            width: popup_width,
-            height: popup_height,
-        };
+        let popup_area = crate::components::centered_rect(area, 85, 70, 120, 80, 18, 36);
 
         f.render_widget(Clear, popup_area);
 
@@ -217,13 +209,15 @@ impl WorkerInspectorModal {
                 })
                 .collect()
         };
-        let routes_widget = Paragraph::new(routes_text).block(
-            Block::default()
-                .title(" Active Triggers & Routes ")
-                .title_style(theme.title())
-                .borders(Borders::BOTTOM)
-                .border_style(Style::default().fg(theme.border)),
-        );
+        let routes_widget = Paragraph::new(routes_text)
+            .wrap(Wrap { trim: true })
+            .block(
+                Block::default()
+                    .title(" Active Triggers & Routes ")
+                    .title_style(theme.title())
+                    .borders(Borders::BOTTOM)
+                    .border_style(Style::default().fg(theme.border)),
+            );
         f.render_widget(routes_widget, chunks[2]);
 
         // 4. Feedback & Key Hints
@@ -246,6 +240,6 @@ impl WorkerInspectorModal {
             ])
         };
 
-        f.render_widget(Paragraph::new(feedback_line), chunks[3]);
+        f.render_widget(Paragraph::new(feedback_line).wrap(Wrap { trim: true }), chunks[3]);
     }
 }
