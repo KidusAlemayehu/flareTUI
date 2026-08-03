@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Clear, Paragraph},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
     Frame,
 };
 
@@ -33,15 +33,7 @@ impl TailLogModal {
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let popup_width = 96.min(area.width.saturating_sub(4));
-        let popup_height = 26.min(area.height.saturating_sub(2));
-
-        let popup_area = Rect {
-            x: (area.width.saturating_sub(popup_width)) / 2,
-            y: (area.height.saturating_sub(popup_height)) / 2,
-            width: popup_width,
-            height: popup_height,
-        };
+        let popup_area = crate::components::centered_rect(area, 88, 70, 130, 85, 18, 40);
 
         f.render_widget(Clear, popup_area);
 
@@ -94,11 +86,13 @@ impl TailLogModal {
             ]),
         ];
 
-        let summary_widget = Paragraph::new(summary_lines).block(
-            Block::default()
-                .borders(Borders::BOTTOM)
-                .border_style(Style::default().fg(theme.border)),
-        );
+        let summary_widget = Paragraph::new(summary_lines)
+            .wrap(Wrap { trim: true })
+            .block(
+                Block::default()
+                    .borders(Borders::BOTTOM)
+                    .border_style(Style::default().fg(theme.border)),
+            );
         f.render_widget(summary_widget, chunks[0]);
 
         // 2. Body: Raw JSON & Exceptions
@@ -138,6 +132,7 @@ impl TailLogModal {
 
         let body_widget = Paragraph::new(body_lines)
             .scroll((self.scroll_offset as u16, 0))
+            .wrap(Wrap { trim: false })
             .block(
                 Block::default()
                     .title(" Payload & Traces ")
@@ -153,6 +148,6 @@ impl TailLogModal {
             Span::styled("[Esc] or [Enter] ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
             Span::styled("Close Inspector", Style::default().fg(theme.text)),
         ]);
-        f.render_widget(Paragraph::new(hints), chunks[2]);
+        f.render_widget(Paragraph::new(hints).wrap(Wrap { trim: true }), chunks[2]);
     }
 }
