@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Clear, Paragraph, Tabs},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph, Tabs, Wrap},
     Frame,
 };
 
@@ -86,15 +86,7 @@ impl SecurityInspectorModal {
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let popup_width = 88.min(area.width.saturating_sub(4));
-        let popup_height = 26.min(area.height.saturating_sub(2));
-
-        let popup_area = Rect {
-            x: (area.width.saturating_sub(popup_width)) / 2,
-            y: (area.height.saturating_sub(popup_height)) / 2,
-            width: popup_width,
-            height: popup_height,
-        };
+        let popup_area = crate::components::centered_rect(area, 88, 72, 130, 85, 20, 42);
 
         f.render_widget(Clear, popup_area);
 
@@ -241,7 +233,7 @@ impl SecurityInspectorModal {
             ]),
         ];
 
-        let p = Paragraph::new(lines).scroll((self.scroll_offset as u16, 0));
+        let p = Paragraph::new(lines).wrap(Wrap { trim: true }).scroll((self.scroll_offset as u16, 0));
         f.render_widget(p, area);
     }
 
@@ -302,7 +294,7 @@ impl SecurityInspectorModal {
             ]
         };
 
-        let p = Paragraph::new(lines).scroll((self.scroll_offset as u16, 0));
+        let p = Paragraph::new(lines).wrap(Wrap { trim: true }).scroll((self.scroll_offset as u16, 0));
         f.render_widget(p, area);
     }
 
@@ -319,7 +311,7 @@ impl SecurityInspectorModal {
             })
             .collect();
 
-        let p = Paragraph::new(lines).scroll((self.scroll_offset as u16, 0));
+        let p = Paragraph::new(lines).wrap(Wrap { trim: true }).scroll((self.scroll_offset as u16, 0));
         f.render_widget(p, area);
     }
 
@@ -335,6 +327,7 @@ impl SecurityInspectorModal {
 
         let p = Paragraph::new(Line::from(vec![feedback_span]))
             .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true })
             .block(
                 Block::default()
                     .borders(Borders::TOP)
