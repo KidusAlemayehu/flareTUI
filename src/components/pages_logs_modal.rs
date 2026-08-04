@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Clear, Paragraph},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
     Frame,
 };
 
@@ -43,15 +43,7 @@ impl PagesLogsModal {
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let popup_width = 100.min(area.width.saturating_sub(4));
-        let popup_height = 24.min(area.height.saturating_sub(2));
-
-        let popup_area = Rect {
-            x: (area.width.saturating_sub(popup_width)) / 2,
-            y: (area.height.saturating_sub(popup_height)) / 2,
-            width: popup_width,
-            height: popup_height,
-        };
+        let popup_area = crate::components::centered_rect(area, 88, 70, 130, 85, 18, 40);
 
         f.render_widget(Clear, popup_area);
 
@@ -131,7 +123,7 @@ impl PagesLogsModal {
                 })
                 .collect();
 
-            let log_widget = Paragraph::new(log_lines);
+            let log_widget = Paragraph::new(log_lines).wrap(Wrap { trim: false });
             f.render_widget(log_widget, chunks[0]);
         }
 
@@ -143,7 +135,7 @@ impl PagesLogsModal {
             Span::styled(" [Esc] ", Style::default().fg(theme.secondary)),
             Span::styled("Close Logs", Style::default().fg(theme.text_dim)),
         ]);
-        let footer = Paragraph::new(footer_text);
+        let footer = Paragraph::new(footer_text).wrap(Wrap { trim: true });
         f.render_widget(footer, chunks[1]);
     }
 }

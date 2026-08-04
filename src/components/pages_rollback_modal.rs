@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Clear, Paragraph},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
     Frame,
 };
 
@@ -34,15 +34,7 @@ impl ConfirmRollbackModal {
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let popup_width = 72.min(area.width.saturating_sub(4));
-        let popup_height = 14.min(area.height.saturating_sub(2));
-
-        let popup_area = Rect {
-            x: (area.width.saturating_sub(popup_width)) / 2,
-            y: (area.height.saturating_sub(popup_height)) / 2,
-            width: popup_width,
-            height: popup_height,
-        };
+        let popup_area = crate::components::centered_rect(area, 68, 52, 92, 50, 12, 18);
 
         f.render_widget(Clear, popup_area);
 
@@ -73,7 +65,8 @@ impl ConfirmRollbackModal {
                     Style::default().fg(Color::White),
                 ),
             ]),
-        ]);
+        ])
+        .wrap(Wrap { trim: true });
         f.render_widget(warning, chunks[0]);
 
         let details = Paragraph::new(vec![
@@ -90,6 +83,7 @@ impl ConfirmRollbackModal {
                 Span::styled(&self.commit_message, Style::default().fg(Color::White)),
             ]),
         ])
+        .wrap(Wrap { trim: true })
         .block(
             Block::default()
                 .borders(Borders::ALL)
@@ -104,7 +98,8 @@ impl ConfirmRollbackModal {
             Span::styled(" to Confirm Rollback   ", Style::default().fg(theme.text_dim)),
             Span::styled("[n / Esc]", Style::default().fg(theme.secondary)),
             Span::styled(" Cancel", Style::default().fg(theme.text_dim)),
-        ]));
+        ]))
+        .wrap(Wrap { trim: true });
         f.render_widget(prompt, chunks[2]);
     }
 }

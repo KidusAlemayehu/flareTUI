@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Cell, Clear, Paragraph, Row, Table},
+    widgets::{Block, BorderType, Borders, Cell, Clear, Paragraph, Row, Table, Wrap},
     Frame,
 };
 
@@ -45,15 +45,7 @@ impl PagesDeploymentsModal {
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let popup_width = 96.min(area.width.saturating_sub(4));
-        let popup_height = 24.min(area.height.saturating_sub(2));
-
-        let popup_area = Rect {
-            x: (area.width.saturating_sub(popup_width)) / 2,
-            y: (area.height.saturating_sub(popup_height)) / 2,
-            width: popup_width,
-            height: popup_height,
-        };
+        let popup_area = crate::components::centered_rect(area, 85, 70, 125, 80, 18, 36);
 
         f.render_widget(Clear, popup_area);
 
@@ -222,21 +214,25 @@ impl PagesDeploymentsModal {
                 ]),
             ];
 
-            let detail_widget = Paragraph::new(detail_lines).block(
-                Block::default()
-                    .title(" Selected Deployment Details ")
-                    .title_style(theme.title())
-                    .borders(Borders::BOTTOM)
-                    .border_style(Style::default().fg(theme.border)),
-            );
+            let detail_widget = Paragraph::new(detail_lines)
+                .wrap(Wrap { trim: true })
+                .block(
+                    Block::default()
+                        .title(" Selected Deployment Details ")
+                        .title_style(theme.title())
+                        .borders(Borders::BOTTOM)
+                        .border_style(Style::default().fg(theme.border)),
+                );
             f.render_widget(detail_widget, chunks[1]);
         } else {
-            let empty_widget = Paragraph::new("Select a deployment to view commit and URL details").block(
-                Block::default()
-                    .title(" Selected Deployment Details ")
-                    .borders(Borders::BOTTOM)
-                    .border_style(Style::default().fg(theme.border)),
-            );
+            let empty_widget = Paragraph::new("Select a deployment to view commit and URL details")
+                .wrap(Wrap { trim: true })
+                .block(
+                    Block::default()
+                        .title(" Selected Deployment Details ")
+                        .borders(Borders::BOTTOM)
+                        .border_style(Style::default().fg(theme.border)),
+                );
             f.render_widget(empty_widget, chunks[1]);
         }
 
@@ -263,7 +259,7 @@ impl PagesDeploymentsModal {
             ])
         };
 
-        let footer = Paragraph::new(feedback_line);
+        let footer = Paragraph::new(feedback_line).wrap(Wrap { trim: true });
         f.render_widget(footer, chunks[2]);
     }
 }
