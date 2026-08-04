@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Cell, Clear, Paragraph, Row, Table},
+    widgets::{Block, BorderType, Borders, Cell, Clear, Paragraph, Row, Table, Wrap},
     Frame,
 };
 
@@ -204,15 +204,7 @@ impl KvModal {
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let popup_width = 105.min(area.width.saturating_sub(2));
-        let popup_height = 30.min(area.height.saturating_sub(2));
-
-        let popup_area = Rect {
-            x: (area.width.saturating_sub(popup_width)) / 2,
-            y: (area.height.saturating_sub(popup_height)) / 2,
-            width: popup_width,
-            height: popup_height,
-        };
+        let popup_area = crate::components::centered_rect(area, 90, 74, 140, 86, 20, 46);
 
         f.render_widget(Clear, popup_area);
 
@@ -459,7 +451,9 @@ impl KvModal {
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(theme.border));
 
-        let para = Paragraph::new(Line::from(spans)).block(block);
+        let para = Paragraph::new(Line::from(spans))
+            .wrap(Wrap { trim: true })
+            .block(block);
         f.render_widget(para, area);
     }
 }
