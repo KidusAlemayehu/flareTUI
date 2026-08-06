@@ -35,6 +35,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and adher
 
 ---
 
+## 0.8.3 (2026-08-06)
+
+### Added
+
+- Centralized responsive popup calculation (`centered_rect`) in `src/components/mod.rs` with automated coverage across standard (80x24), widescreen/4K (160x50, 240x80), and compact/tmux split (60x18, 35x14) viewports.
+
+### Changed
+
+- Migrated all 16 modals and inspector dialogs across flareTUI from rigid, magic-number ceilings to dynamically scaled viewports:
+  - D1 SQL Console (`D1ConsoleModal`): expanded to 92% width / 88% height (up to 145x48) for wide SQL results grids and schema exploration
+  - Workers KV Browser (`KvModal`): scaled to 90% width / 86% height (up to 140x46) with responsive split between keys and value viewer
+  - Security Event Inspector (`SecurityInspectorModal`): scaled to 88% width / 85% height (up to 130x42) with multi-tab wrapping
+  - Live Tail Log Inspector (`TailLogModal`): scaled to 88% width / 85% height (up to 130x40) with wrapped payload details and traces
+  - Worker Script Inspector (`WorkerInspectorModal`): scaled to 85% width / 80% height (up to 120x36)
+  - Pages Deployments Drawer (`PagesDeploymentsModal`): scaled to 85% width / 80% height (up to 125x36)
+  - Pages Build Logs Viewer (`PagesLogsModal`): scaled to 88% width / 85% height (up to 130x40)
+  - Pages Rollback Confirmation (`ConfirmRollbackModal`): scaled to 68% width / 50% height with text-wrapped commit notices
+  - Command Palette (`CommandPaletteModal`): scaled to 80% width / 80% height (up to 110x36)
+  - Keyboard Shortcuts Overlay (`HelpModal`): scaled to 75% width / 85% height (up to 105x32), displaying all 25 shortcuts without truncation
+  - Zone Inspector (`ZoneInspectorModal`): scaled to 78% width / 75% height (up to 110x28) with wrapped actions and SSL cards
+  - Domain Creation & Registration (`DomainCreateModal`), DNS Modal (`DnsModal`), Auth Modal (`AuthModal`), Confirm Modal (`ConfirmDeleteModal`), and Profile Modal (`ProfileModal`)
+- Added text wrapping (`Wrap { trim: true }`) across all modal footers, action prompts, and operational metadata.
+
+---
+
+## 0.8.2 (2026-07-30)
+
+### Fixed
+
+- Modal dialog responsiveness and text rendering across variable terminal dimensions
+  - Domain Registration & Zone Onboarding modal (`DomainCreateModal`):
+    - Refactored configuration options (Jump Start DNS scan, Auto-Renew, WHOIS Privacy) from an overflowing 92-column single-line layout into stacked, dedicated rows with active field cursor indicators (`➔`) and full descriptions
+    - Dynamic responsive width scaling (68 to 86 columns) and height constraints preventing overflow on compact displays
+    - Responsive subtitle, input placeholders, plan tier hints, and keybindings footer
+    - Added word-wrapping (`Wrap { trim: true }`) for validation errors, status banners, and multi-line descriptions
+  - DNS Record creation and editing modal (`DnsModal`):
+    - Responsive two-column row adapting Type and Proxy status indicators dynamically on narrow viewports
+    - Added text wrapping for validation errors and footer instructions
+  - Confirmation and delete modal (`ConfirmDeleteModal`):
+    - Added text wrapping for long target FQDNs, CNAMEs, and IPv6 record destinations
+  - Authentication and account profile modal (`AuthModal`):
+    - Responsive URL truncation for OAuth callback links based on modal container width
+    - Responsive column stacking for Account ID and token credentials in authenticated profile view
+  - Command palette & log inspector modals:
+    - Added text wrapping to command description pane and worker log traces preventing horizontal clipping
+
+---
+
 ## 0.8.1 (2026-07-25)
 
 ### Added
