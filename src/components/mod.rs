@@ -79,4 +79,26 @@ mod tests {
         assert_eq!(popup.width, 58);
         assert_eq!(popup.height, 16);
     }
+
+    #[test]
+    fn test_centered_rect_ultrawide_window() {
+        let area = Rect::new(0, 0, 240, 80);
+        let popup = centered_rect(area, 92, 76, 145, 88, 20, 48);
+        assert_eq!(popup.width, 145);
+        assert_eq!(popup.height, 48);
+        assert_eq!(popup.x, (240 - 145) / 2);
+        assert_eq!(popup.y, (80 - 48) / 2);
+    }
+
+    #[test]
+    fn test_centered_rect_compact_pane_bounds() {
+        let area = Rect::new(0, 0, 35, 14);
+        let popup = centered_rect(area, 80, 60, 100, 80, 18, 30);
+        assert!(popup.width <= area.width);
+        assert!(popup.height <= area.height);
+        assert_eq!(popup.width, 33);
+        assert_eq!(popup.height, 12);
+        assert_eq!(popup.x, 1);
+        assert_eq!(popup.y, 1);
+    }
 }
