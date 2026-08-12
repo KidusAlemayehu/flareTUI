@@ -10,3 +10,4 @@ cache.db-journal
 token.txt
 *token*
 *.txt
+.VSCodeCounter/

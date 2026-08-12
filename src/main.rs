@@ -1,3 +1,12 @@
+//! flareTUI: Production-grade Terminal User Interface for Cloudflare.
+//!
+//! This module serves as the binary entry point. It orchestrates:
+//! - Terminal initialization and raw mode lifecycle management.
+//! - Panic hook registration to guarantee terminal screen restoration.
+//! - Offline-first SQLite local cache initialization.
+//! - Asynchronous event loops driven by Tokio MPSC channels and Crossterm inputs.
+//! - Centralized state dispatching and prioritized modal event handling.
+
 pub mod action;
 pub mod app;
 pub mod cloudflare;
@@ -20,6 +29,11 @@ use crate::db::CacheDb;
 use crate::event::{Event, EventHandler};
 use crate::tui::{install_panic_hook, Tui};
 
+/// Resolves the filesystem path for the persistent SQLite cache database.
+///
+/// Follows the XDG Base Directory specification on Linux (`~/.cache/flaretui/cache.db`)
+/// and standard user cache directories on macOS and Windows. If directory
+/// resolution fails, defaults to a local file in the working directory.
 fn get_cache_db_path() -> PathBuf {
     if let Some(proj_dirs) = ProjectDirs::from("com", "flare", "flareTUI") {
         let cache_dir = proj_dirs.cache_dir();
@@ -32,26 +46,30 @@ fn get_cache_db_path() -> PathBuf {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // 1. Initialize diagnostic reporting and terminal panic restoration hooks.
     color_eyre::install()?;
     install_panic_hook();
 
-    // 1. Initialize Local SQLite Cache
+    // 2. Initialize the local SQLite cache database.
+    // Falls back to an in-memory database if filesystem permissions or disk I/O fail.
     let db_path = get_cache_db_path();
     let db = CacheDb::open_or_create(&db_path).unwrap_or_else(|_| {
         CacheDb::open_in_memory().expect("Failed to initialize in-memory SQLite cache")
     });
 
-    // 2. Action channel for background tasks (sync, auth validation, log streams)
+    // 3. Allocate an unbounded MPSC action channel for asynchronous background tasks
+    // (e.g., Cloudflare API synchronization, OAuth callbacks, WebSocket log streams).
     let (action_tx, mut action_rx) = mpsc::unbounded_channel();
 
-    // 3. Initialize TUI Terminal & Event Stream
+    // 4. Initialize the alternate screen terminal interface in raw mode.
     let mut tui = Tui::new()?;
     tui.enter()?;
 
-    let mut event_handler = EventHandler::new(200); // 200ms tick for responsive UI & logs
+    // 5. Start the event ingestion loop with a 200ms periodic tick for UI responsiveness.
+    let mut event_handler = EventHandler::new(200);
     let mut app = App::new(db, action_tx.clone());
 
-    // 4. Main Application Loop
+    // 6. Central execution loop: render frames, poll events, and dispatch actions.
     loop {
         tui.terminal.draw(|f| app.render(f))?;
 
@@ -65,6 +83,7 @@ async fn main() -> Result<()> {
                         app.update(Action::Render)?;
                     }
                     Event::Key(key) => {
+                        // Query active modal hierarchy to route keyboard events to the focused layer.
                         let search_active = app.is_search_active();
                         let auth_active = app.is_auth_active();
                         let inspector_active = app.is_inspector_active();
@@ -84,6 +103,7 @@ async fn main() -> Result<()> {
                         let active_tab = app.header.active_tab;
                         let is_zone_pane_focused = app.is_zone_pane_focused();
                         let is_storage_kv_focused = app.is_storage_kv_focused();
+
                         if let Some(action) = EventHandler::map_key_to_action(
                             key,
                             search_active,
@@ -112,6 +132,7 @@ async fn main() -> Result<()> {
                 }
             }
             Some(action) = action_rx.recv() => {
+                // Process background actions emitted by network tasks or WebSocket streams.
                 app.update(action)?;
             }
         }
@@ -121,8 +142,8 @@ async fn main() -> Result<()> {
         }
     }
 
-    // 5. Graceful Cleanup
+    // 7. Restore the terminal cursor, leave the alternate screen, and perform clean exit.
     tui.exit()?;
-    println!("Exited flareTUI cleanly. See you at the edge!");
+    println!("Exited flareTUI cleanly.");
     Ok(())
 }
