@@ -35,6 +35,7 @@
 
 ## Features
 
+- **Cloudflare Registrar & Domain Portfolio**: Inspect registered domain portfolios, WHOIS contact records, real-time DNSSEC validation status, single-stroke registrar transfer lock toggling (`t`), auto-renewal switches (`a`), and interactive domain registration modal (`n`).
 - **Offline-First & Instant Startup**: Boots in milliseconds using an embedded SQLite cache (`~/.cache/flaretui/cache.db`). Browse zones, DNS records, scripts, and bindings even when offline.
 - **Interactive DNS & Zone Management**: Instant orange/grey cloud proxy toggling (`p`), inline record creation/editing with safety checks, and single-click BIND zone export (`x`).
 - **Workers Inspector & Realtime Live Tail**: Inspect script metadata, route patterns, and active bindings (D1, KV, R2, Queues). Stream live Worker execution logs over WebSockets with exception decoding, regex filtering (`/`), and auto-follow mode (`f`).
@@ -49,7 +50,7 @@
 - **Universal Command Palette (`Ctrl+P`)**: Blazing-fast fuzzy search powered by `nucleo-matcher` with real-time character highlighting, category filters (`Tab`/`Shift+Tab`), and single-keystroke action dispatch across views, API sync, cache purges, and tool modals.
 - **Multi-Account Profile Switcher (`Ctrl+U`)**: Seamless hot-swapping between multiple Cloudflare accounts and API profiles at runtime without restarting flareTUI.
 - **Defensive Safety Safeguards**: Irreversible modifications (deleting records, purging edge cache, rolling back builds) are guarded by interactive confirmation dialogs.
-- **Ergonomic Vim Keybindings**: Single-stroke navigation (`j`/`k`, numeric view switching `1`-`6`, `Tab`/`s` pane toggle, and `/` search).
+- **Ergonomic Vim Keybindings**: Single-stroke navigation (`j`/`k`, numeric view switching `1`-`7`, `Tab`/`s` pane toggle, and `/` search).
 
 ---
 
@@ -165,7 +166,7 @@ account_name = "Staging Environment"
 | :--- | :--- |
 | `Ctrl+P` | Open **Universal Command Palette** with fuzzy search and actions |
 | `Ctrl+U` | Open **Multi-Account Profile Switcher** |
-| `1` .. `6` | Switch active tab (`1: Zones & DNS`, `2: Workers`, `3: Pages`, `4: D1 & KV`, `5: Live Tail`, `6: Security & WAF`) |
+| `1` .. `7` | Switch active tab (`1: Zones & DNS`, `2: Workers`, `3: Pages`, `4: D1 & KV`, `5: Live Tail`, `6: Security & WAF`, `7: Domains & Registrar`) |
 | `j` / `k` or `↓` / `↑` | Move row selection down / up |
 | `Tab` / `Shift+Tab` | Cycle focus between panes |
 | `r` | Hard refresh live data from Cloudflare API |
@@ -229,6 +230,18 @@ account_name = "Staging Environment"
 | `c` | In Event Inspector: copy client IP address to clipboard buffer |
 | `r` | In Event Inspector: copy Cloudflare Ray ID to clipboard buffer |
 | `Esc` / `q` | Close Security Event Inspector modal |
+
+### Domains & Registrar View (`Tab 7`)
+| Keybinding | Action |
+| :--- | :--- |
+| `j` / `k` or `↓` / `↑` | Navigate registered domains list |
+| `Enter` / `i` | Open **Domain Inspector** (WHOIS contacts, DNSSEC, registration status) |
+| `t` | Toggle **Registrar Transfer Lock** with Cloudflare API confirmation |
+| `a` | Toggle **Auto-Renew** status |
+| `n` | Open **Domain Registration Modal** to register or onboard new domains |
+| `r` | Refresh domains list from Cloudflare Registrar API |
+| `/` | Search / filter domains by name or status |
+| `Esc` / `q` | Close open inspector or registration modal |
 
 ### Universal Command Palette (`Ctrl+P`)
 | Keybinding | Action |
