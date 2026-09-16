@@ -403,4 +403,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and adher
 ### Changed
 
 - Purged mock seed data in favor of live sync - ([fc63ed8](https://github.com/KidusAlemayehu/flareTUI/commit/fc63ed8))
-  - Replaced hardcoded dummy data with clean empty states prompting user to sync via `r`
+  - Replaced hardcoded dummy data with clean empty states prompting user to sync via `r`## [0.8.4] - 2026-09-16
+
+### Documentation
+- Published comprehensive documentation suite under `docs/` ready for static site generator subdomain deployment.
+- Revamped `README.md` with responsive terminal preview, 7-tab layout, and complete keyboard shortcuts reference.
+- Added comprehensive guides for Cloudflare Registrar, D1 SQL Console, WAF ruleset controls, and WebSocket live tail log filtering.
+- Fully documented `src/main.rs` event loop, lifecycle management, and panic recovery hooks with zero informal language.
+
+### Maintenance
+- Added `.VSCodeCounter/` to `.gitignore`.
+- Version bump to `v0.8.4`.
+
+---
+
+
