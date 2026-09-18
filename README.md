@@ -19,7 +19,7 @@
 
 <br />
 
-[Features](#features) • [Installation](#installation) • [Authentication](#authentication--token-permissions) • [Keybindings](#keyboard-cheatsheet) • [Architecture](#architecture) • [Roadmap](#roadmap)
+[Features](#features) • [Installation](#installation) • [Authentication](#authentication--token-permissions) • [Keybindings](#keyboard-navigation) • [Architecture](#architecture) • [Roadmap](#roadmap)
 
 </div>
 
@@ -151,100 +151,25 @@ account_name = "Staging Environment"
 
 ---
 
-## Keyboard Cheatsheet
+## Keyboard Navigation
 
-### Global Navigation
-| Keybinding | Action |
+flareTUI is designed for efficient, mouse-free terminal workflows. Press **`?`** at any time to open the context-aware shortcuts modal for your active view.
+
+| Shortcut | Action |
 | :--- | :--- |
-| `Ctrl+P` | Open **Universal Command Palette** with fuzzy search and actions |
+| `Ctrl+P` | Open **Universal Command Palette** (fuzzy search all actions & tools) |
 | `Ctrl+U` | Open **Multi-Account Profile Switcher** |
-| `1` .. `7` | Switch active tab (`1: Zones & DNS`, `2: Workers`, `3: Pages`, `4: D1 & KV`, `5: Live Tail`, `6: Security & WAF`, `7: Domains & Registrar`) |
-| `j` / `k` or `↓` / `↑` | Move row selection down / up |
-| `Tab` / `Shift+Tab` | Cycle focus between panes |
-| `r` | Hard refresh live data from Cloudflare API |
-| `?` | Toggle keybinding and shortcut help modal |
-| `Ctrl+A` | Open API token authentication modal |
-| `Esc` / `q` | Close open modal or quit application |
+| `Ctrl+L` | Log out active profile session |
+| `Ctrl+A` | Open **Authentication Modal** |
+| `1` .. `7` | Direct tab navigation (`Zones`, `Workers`, `Pages`, `Storage`, `Tail`, `Security`, `Domains`) |
+| `Tab` / `s` | Cycle focus between panes |
+| `j` / `k` or `↓` / `↑` | Navigate table rows and list items |
+| `r` | Invalidate cache and fetch live state from Cloudflare edge |
+| `?` | Toggle in-app interactive keybinding help modal |
+| `Esc` / `q` | Close active modal dialog or exit flareTUI |
 
-### Zones & DNS View (`Tab 1`)
-| Keybinding | Action |
-| :--- | :--- |
-| `s` | Switch focus between **Zones List** (left) and **DNS Records** (right) |
-| `p` | Toggle Proxy status between `[o] Proxied` and `[ ] DNS Only` |
-| `n` | Create new DNS record (`A`, `AAAA`, `CNAME`, `TXT`, `MX`, etc.) |
-| `e` | Edit selected DNS record target, TTL, or proxy status |
-| `d` | Delete selected record with safety confirmation guard |
-| `i` | Open **Zone Inspector** (SSL mode, Dev mode, Security level, Purge edge cache) |
-| `x` | Export active zone DNS records to standard RFC BIND format (`.zone`) |
-| `/` | Open live search filter bar |
-
-### Workers & Live Tail View (`Tab 2` & `Tab 5`)
-| Keybinding | Action |
-| :--- | :--- |
-| `i` | Open **Worker Inspector** (detailed route patterns, D1/KV/R2 bindings, compatibility flags) |
-| `l` | Attach **Real-time Live Tail Stream** to selected Worker |
-| `f` | Toggle **Follow Mode** (auto-scroll to newest incoming logs) |
-| `c` | Clear in-memory log buffer |
-| `Space` | Pause / resume log stream ingestion |
-| `Enter` | Open full JSON log inspector modal for selected log entry |
-| `/` | In-memory log filtering by HTTP method, status code, URL, or error trace |
-
-### Pages Projects View (`Tab 3`)
-| Keybinding | Action |
-| :--- | :--- |
-| `d` | Open project **Deployments Modal** |
-| `l` | Inspect deployment **Build Logs** |
-| `b` | Trigger instant **Deployment Rollback** with safety confirmation |
-
-### Storage & Databases View (`Tab 4`)
-| Keybinding | Action |
-| :--- | :--- |
-| `s` | Switch focus between **D1 Databases** (top) and **Workers KV Namespaces** (bottom) |
-| `Enter` / `i` | Open **D1 SQL Console** (on D1 table) or **Workers KV Inspector** (on KV table) |
-| `Tab` | In D1 Console: cycle focus between **Schema Sidebar**, **SQL Editor**, and **Results Grid** |
-| `Ctrl+Enter` / `Enter` | In D1 Console: execute SQL query against Cloudflare D1 edge replica |
-| `1` .. `4` | In D1 Console: quick-apply query template (`Scan`, `Count`, `table_info`, `sqlite_schema`) |
-| `↑` / `↓` / `PgUp` / `PgDn` | In D1 Console: navigate query history (editor) or scroll records & tables (results grid/sidebar) |
-| `←` / `→` / `Home` / `End` | In D1 Console: horizontal column scrolling, jump to start/end of result rows or editor line |
-| `j` / `k` / `h` / `l` / `g` / `G` | In D1 Console: vim-style cursor motions in Results Grid and Schema Sidebar |
-| `/` | In KV Inspector: open real-time key/prefix search filter bar |
-| `Enter` / `Space` | In KV Inspector: load and inspect key value with formatted JSON syntax viewer |
-
-### Security & WAF View (`Tab 6`)
-| Keybinding | Action |
-| :--- | :--- |
-| `t` | Cycle sub-tabs between **Events**, **WAF Rules**, and **Analytics & Threats** |
-| `f` | Cycle action filter (`ALL` ➔ `BLOCK` ➔ `MANAGED_CHALLENGE` ➔ `CHALLENGE` ➔ `JS_CHALLENGE` ➔ `RATE_LIMIT` ➔ `LOG`) |
-| `Enter` / `i` | Open **Security Event Inspector** for selected event |
-| `/` | Open real-time event search filter |
-| `j` / `k` or `↓` / `↑` | Navigate security events and WAF rules list |
-| `Tab` / `Shift+Tab` | In Event Inspector: cycle tabs (**Event Details**, **WAF Rule Expression**, **Raw JSON**) |
-| `c` | In Event Inspector: copy client IP address to clipboard buffer |
-| `r` | In Event Inspector: copy Cloudflare Ray ID to clipboard buffer |
-| `Esc` / `q` | Close Security Event Inspector modal |
-
-### Domains & Registrar View (`Tab 7`)
-| Keybinding | Action |
-| :--- | :--- |
-| `j` / `k` or `↓` / `↑` | Navigate registered domains list |
-| `Enter` / `i` | Open **Domain Inspector** (WHOIS contacts, DNSSEC, registration status) |
-| `t` | Toggle **Registrar Transfer Lock** with Cloudflare API confirmation |
-| `a` | Toggle **Auto-Renew** status |
-| `n` | Open **Domain Registration Modal** to register or onboard new domains |
-| `r` | Refresh domains list from Cloudflare Registrar API |
-| `/` | Search / filter domains by name or status |
-| `Esc` / `q` | Close open inspector or registration modal |
-
-### Universal Command Palette (`Ctrl+P`)
-| Keybinding | Action |
-| :--- | :--- |
-| `Any character` | Real-time fuzzy query with character match highlighting |
-| `Tab` / `Shift+Tab` | Cycle category filter (`All`, `Navigation`, `Cloudflare`, `Security`, `Storage`, `Workers`, `Profiles`, `System`) |
-| `Enter` | Execute selected command action |
-| `↑` / `↓` | Move command selection up / down |
-| `Home` / `End` | Jump to top / bottom of filtered command results |
-| `Ctrl+U` | Clear current search query |
-| `Esc` | Close Command Palette modal |
+> [!TIP]
+> For the complete per-view shortcut reference (including D1 SQL presets, WAF rule reordering, and WebSocket log filters), consult the comprehensive [Keybindings Reference Guide](docs/keybindings.md).
 
 ---
 
