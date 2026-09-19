@@ -26,7 +26,11 @@ impl ConfirmDeleteModal {
 
         let block = Block::default()
             .title(" ⚠️ Delete DNS Record Confirmation ")
-            .title_style(Style::default().fg(theme.error).add_modifier(Modifier::BOLD))
+            .title_style(
+                Style::default()
+                    .fg(theme.error)
+                    .add_modifier(Modifier::BOLD),
+            )
             .borders(Borders::ALL)
             .border_type(BorderType::Thick)
             .border_style(Style::default().fg(theme.error));
@@ -43,23 +47,38 @@ impl ConfirmDeleteModal {
             .margin(1)
             .split(popup_area);
 
-        let warning = Paragraph::new(vec![
-            Line::from(vec![
-                Span::styled("Warning: ", Style::default().fg(theme.error).add_modifier(Modifier::BOLD)),
-                Span::styled("This will immediately delete the record from Cloudflare edge.", Style::default().fg(Color::White)),
-            ]),
-        ])
+        let warning = Paragraph::new(vec![Line::from(vec![
+            Span::styled(
+                "Warning: ",
+                Style::default()
+                    .fg(theme.error)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "This will immediately delete the record from Cloudflare edge.",
+                Style::default().fg(Color::White),
+            ),
+        ])])
         .wrap(Wrap { trim: true });
         f.render_widget(warning, chunks[0]);
 
-        let record_details = Paragraph::new(vec![
-            Line::from(vec![
-                Span::styled("Target: ", Style::default().fg(theme.text_dim)),
-                Span::styled(format!("{:<5} ", self.record.record_type), Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
-                Span::styled(format!("{} ", self.record.name), Style::default().fg(Color::White)),
-                Span::styled(format!("➔ {}", self.record.content), Style::default().fg(theme.info)),
-            ]),
-        ])
+        let record_details = Paragraph::new(vec![Line::from(vec![
+            Span::styled("Target: ", Style::default().fg(theme.text_dim)),
+            Span::styled(
+                format!("{:<5} ", self.record.record_type),
+                Style::default()
+                    .fg(theme.secondary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!("{} ", self.record.name),
+                Style::default().fg(Color::White),
+            ),
+            Span::styled(
+                format!("➔ {}", self.record.content),
+                Style::default().fg(theme.info),
+            ),
+        ])])
         .block(
             Block::default()
                 .borders(Borders::ALL)
@@ -74,9 +93,10 @@ impl ConfirmDeleteModal {
         } else {
             "[y] Confirm Delete   [n/Esc] Cancel"
         };
-        let prompt = Paragraph::new(Line::from(vec![
-            Span::styled(prompt_text, Style::default().fg(theme.text_dim)),
-        ]))
+        let prompt = Paragraph::new(Line::from(vec![Span::styled(
+            prompt_text,
+            Style::default().fg(theme.text_dim),
+        )]))
         .wrap(Wrap { trim: true });
         f.render_widget(prompt, chunks[2]);
     }

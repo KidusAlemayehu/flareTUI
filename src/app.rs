@@ -18,16 +18,22 @@ use crate::cloudflare::{
     tail::TailStream,
 };
 use crate::components::{
-    auth_modal::{AuthMode, AuthModal, OAuthStatus},
+    auth_modal::{AuthModal, AuthMode, OAuthStatus},
+    command_palette_modal::CommandPaletteModal,
     confirm_modal::ConfirmDeleteModal,
+    d1_console_modal::D1ConsoleModal,
     dns_modal::DnsModal,
     domain_create_modal::DomainCreateModal,
     header::Header,
     help::HelpModal,
+    kv_modal::KvModal,
     pages_deployments::PagesDeploymentsModal,
     pages_logs_modal::PagesLogsModal,
     pages_rollback_modal::ConfirmRollbackModal,
+    profile_modal::ProfileModal,
+    security_inspector::SecurityInspectorModal,
     status_bar::StatusBar,
+    tail_log_modal::TailLogModal,
     views::{
         dns_view::{DnsFocus, DnsView},
         domains_view::DomainsView,
@@ -38,13 +44,7 @@ use crate::components::{
         workers_view::WorkersView,
     },
     worker_inspector::WorkerInspectorModal,
-    tail_log_modal::TailLogModal,
     zone_inspector::ZoneInspectorModal,
-    d1_console_modal::D1ConsoleModal,
-    kv_modal::KvModal,
-    security_inspector::SecurityInspectorModal,
-    command_palette_modal::CommandPaletteModal,
-    profile_modal::ProfileModal,
 };
 use crate::db::{CacheDb, DnsRecord};
 use crate::palette::{PaletteAction, PaletteEngine};
@@ -106,7 +106,11 @@ impl App {
             }
         }
 
-        let theme = config.theme.as_deref().map(Theme::from_name).unwrap_or_default();
+        let theme = config
+            .theme
+            .as_deref()
+            .map(Theme::from_name)
+            .unwrap_or_default();
         let fast_sync_enabled = config.fast_sync;
         let sync_interval_secs = config.sync_interval_secs;
         let auto_sync_on_tab_change = config.auto_sync_on_tab_change;
@@ -264,10 +268,11 @@ impl App {
                 // If not connected to live worker tail, simulate periodic log
                 if self.cf_client.is_none() {
                     self.tail_view.add_tick_log(self.tick_counter);
-                } else if self.fast_sync_enabled && !self.is_fast_syncing {
-                    if self.last_fast_sync.elapsed().as_secs() >= self.sync_interval_secs {
-                        let _ = self.action_tx.send(Action::FastSyncActiveView);
-                    }
+                } else if self.fast_sync_enabled
+                    && !self.is_fast_syncing
+                    && self.last_fast_sync.elapsed().as_secs() >= self.sync_interval_secs
+                {
+                    let _ = self.action_tx.send(Action::FastSyncActiveView);
                 }
             }
             Action::NextTab => {
@@ -282,7 +287,10 @@ impl App {
                     let _ = self.action_tx.send(Action::FastSyncActiveView);
                 }
                 let _ = AuthManager::update_default_tab(self.header.active_tab);
-                self.status_bar.set_status(format!("Switched to {}", self.header.tabs[self.header.active_tab]));
+                self.status_bar.set_status(format!(
+                    "Switched to {}",
+                    self.header.tabs[self.header.active_tab]
+                ));
             }
             Action::PrevTab => {
                 if self.header.active_tab == 0 {
@@ -300,7 +308,10 @@ impl App {
                     let _ = self.action_tx.send(Action::FastSyncActiveView);
                 }
                 let _ = AuthManager::update_default_tab(self.header.active_tab);
-                self.status_bar.set_status(format!("Switched to {}", self.header.tabs[self.header.active_tab]));
+                self.status_bar.set_status(format!(
+                    "Switched to {}",
+                    self.header.tabs[self.header.active_tab]
+                ));
             }
             Action::SelectTab(idx) => {
                 if idx < self.header.tabs.len() {
@@ -315,7 +326,8 @@ impl App {
                         let _ = self.action_tx.send(Action::FastSyncActiveView);
                     }
                     let _ = AuthManager::update_default_tab(self.header.active_tab);
-                    self.status_bar.set_status(format!("Switched to {}", self.header.tabs[idx]));
+                    self.status_bar
+                        .set_status(format!("Switched to {}", self.header.tabs[idx]));
                 }
             }
             Action::NavUp => match self.header.active_tab {
@@ -363,14 +375,25 @@ impl App {
 
                             if tokio::runtime::Handle::try_current().is_ok() {
                                 tokio::spawn(async move {
-                                    match client.toggle_dns_proxy(&zone_id, &record_id, proxied).await {
+                                    match client
+                                        .toggle_dns_proxy(&zone_id, &record_id, proxied)
+                                        .await
+                                    {
                                         Ok(new_status) => {
-                                            let s = if new_status { "🟠 Proxied" } else { "⚪ DNS Only" };
-                                            let _ = tx.send(Action::StatusMessage(format!("Cloudflare API: Record set to {s}")));
+                                            let s = if new_status {
+                                                "🟠 Proxied"
+                                            } else {
+                                                "⚪ DNS Only"
+                                            };
+                                            let _ = tx.send(Action::StatusMessage(format!(
+                                                "Cloudflare API: Record set to {s}"
+                                            )));
                                             let _ = tx.send(Action::FastSyncActiveView);
                                         }
                                         Err(e) => {
-                                            let _ = tx.send(Action::Error(format!("Cloudflare API Error: {e}")));
+                                            let _ = tx.send(Action::Error(format!(
+                                                "Cloudflare API Error: {e}"
+                                            )));
                                         }
                                     }
                                 });
@@ -381,7 +404,8 @@ impl App {
             }
             Action::Refresh => {
                 if let Some(client) = &self.cf_client {
-                    self.status_bar.set_status("🔄 Syncing live data from Cloudflare v4...");
+                    self.status_bar
+                        .set_status("🔄 Syncing live data from Cloudflare v4...");
                     let client = client.clone();
                     let db = self.db.clone();
                     let tx = self.action_tx.clone();
@@ -396,7 +420,10 @@ impl App {
                         match CloudflareSync::sync_all(&client, &db).await {
                             Ok(rep) => {
                                 let msg = if let Some(w) = &rep.warning {
-                                    format!("Synced {} zones, {} records. ⚠️ {}", rep.zones_count, rep.records_count, w)
+                                    format!(
+                                        "Synced {} zones, {} records. ⚠️ {}",
+                                        rep.zones_count, rep.records_count, w
+                                    )
                                 } else {
                                     let mut details = vec![
                                         format!("{} zones", rep.zones_count),
@@ -411,7 +438,10 @@ impl App {
                                         details.push(format!("{} KV namespaces", rep.kv_count));
                                     }
                                     if rep.security_events_count > 0 {
-                                        details.push(format!("{} security events", rep.security_events_count));
+                                        details.push(format!(
+                                            "{} security events",
+                                            rep.security_events_count
+                                        ));
                                     }
                                     if rep.waf_rules_count > 0 {
                                         details.push(format!("{} WAF rules", rep.waf_rules_count));
@@ -433,7 +463,8 @@ impl App {
                     let active_zone_id = self.dns_view.selected_zone().map(|z| z.id.clone());
                     self.security_view.reload(active_zone_id.as_deref());
                     self.domains_view.reload("");
-                    self.status_bar.set_status("Cache data reloaded from SQLite");
+                    self.status_bar
+                        .set_status("Cache data reloaded from SQLite");
                 }
             }
             Action::ToggleHelp => {
@@ -467,7 +498,10 @@ impl App {
                 }
                 self.active_tail_worker = None;
                 self.active_tail_id = None;
-                self.status_bar.set_status("Logged out successfully. In offline cached mode (press 'a' to log in).".to_string());
+                self.status_bar.set_status(
+                    "Logged out successfully. In offline cached mode (press 'a' to log in)."
+                        .to_string(),
+                );
             }
             Action::ToggleAuth => {
                 self.show_auth_modal = !self.show_auth_modal;
@@ -515,12 +549,10 @@ impl App {
                         }
                         _ => {}
                     }
+                } else if c == '1' && self.auth_modal.input_token.is_empty() {
+                    self.auth_modal.switch_mode(AuthMode::OAuth);
                 } else {
-                    if c == '1' && self.auth_modal.input_token.is_empty() {
-                        self.auth_modal.switch_mode(AuthMode::OAuth);
-                    } else {
-                        self.auth_modal.handle_char(c);
-                    }
+                    self.auth_modal.handle_char(c);
                 }
             }
             Action::AuthInputBackspace => {
@@ -569,9 +601,14 @@ impl App {
 
                         let opened = open_browser(&auth_url);
                         if opened {
-                            self.status_bar.set_status("Launched browser for OAuth login. Waiting for authorization...".to_string());
+                            self.status_bar.set_status(
+                                "Launched browser for OAuth login. Waiting for authorization..."
+                                    .to_string(),
+                            );
                         } else {
-                            self.status_bar.set_status(format!("Listening on port {port}. Open authorization URL to log in."));
+                            self.status_bar.set_status(format!(
+                                "Listening on port {port}. Open authorization URL to log in."
+                            ));
                         }
 
                         let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel::<()>();
@@ -615,9 +652,14 @@ impl App {
                     let _ = cancel.send(());
                 }
                 self.auth_modal.oauth_status = OAuthStatus::Idle;
-                self.status_bar.set_status("OAuth login cancelled.".to_string());
+                self.status_bar
+                    .set_status("OAuth login cancelled.".to_string());
             }
-            Action::OAuthSuccess { token, account_name, account_id } => {
+            Action::OAuthSuccess {
+                token,
+                account_name,
+                account_id,
+            } => {
                 self.oauth_cancel_tx = None;
                 let client = CloudflareClient::new(token.clone());
                 self.cf_client = Some(client.clone());
@@ -633,7 +675,9 @@ impl App {
                 self.show_auth_modal = false;
                 self.auth_modal.clear();
                 self.auth_modal.oauth_status = OAuthStatus::Idle;
-                self.status_bar.set_status("Authenticated via Browser OAuth! Syncing Cloudflare data...".to_string());
+                self.status_bar.set_status(
+                    "Authenticated via Browser OAuth! Syncing Cloudflare data...".to_string(),
+                );
 
                 if tokio::runtime::Handle::try_current().is_ok() {
                     let tx = self.action_tx.clone();
@@ -698,7 +742,11 @@ impl App {
                             let accounts = client.get_accounts().await.unwrap_or_default();
                             let account_name = accounts.first().map(|a| a.name.clone());
                             let account_id = accounts.first().map(|a| a.id.clone());
-                            let _ = AuthManager::save_token(&token, account_id.clone(), account_name.clone());
+                            let _ = AuthManager::save_token(
+                                &token,
+                                account_id.clone(),
+                                account_name.clone(),
+                            );
 
                             let _ = tx.send(Action::StatusMessage(format!(
                                 "Authenticated as: {}",
@@ -725,7 +773,9 @@ impl App {
                             }
 
                             // Automatically attach live tail stream to primary worker
-                            if let Some(worker) = db.get_workers().ok().and_then(|w| w.first().cloned()) {
+                            if let Some(worker) =
+                                db.get_workers().ok().and_then(|w| w.first().cloned())
+                            {
                                 let _ = tx.send(Action::AttachWorkerTail(worker.name));
                             }
                         }
@@ -745,7 +795,8 @@ impl App {
                 );
             }
             Action::SyncStarted => {
-                self.status_bar.set_status("🔄 Syncing live data from Cloudflare v4...");
+                self.status_bar
+                    .set_status("🔄 Syncing live data from Cloudflare v4...");
             }
             Action::SyncCompleted(msg) => {
                 self.show_auth_modal = false;
@@ -791,7 +842,8 @@ impl App {
                     if let Some(w) = self.workers_view.selected_worker() {
                         worker_name = w.name.clone();
                     } else {
-                        self.status_bar.set_status("No worker selected to attach Live Tail");
+                        self.status_bar
+                            .set_status("No worker selected to attach Live Tail");
                         return Ok(());
                     }
                 }
@@ -817,27 +869,34 @@ impl App {
                             }
                         };
                         if !account_id.is_empty() {
-                            let _ = client.delete_worker_tail(&account_id, &old_worker, &tail_id).await;
+                            let _ = client
+                                .delete_worker_tail(&account_id, &old_worker, &tail_id)
+                                .await;
                         }
                     });
                 }
 
                 self.tail_view.target_worker = worker_name.clone();
                 self.header.active_tab = 4;
-                self.status_bar.set_status(format!("Connecting Live Tail to {}...", worker_name));
+                self.status_bar
+                    .set_status(format!("Connecting Live Tail to {}...", worker_name));
 
-                self.tail_view.logs.push(crate::components::views::tail_view::LogEntry {
-                    timestamp: crate::cloudflare::tail::chrono_or_simple_time(),
-                    method: "ATTACH".to_string(),
-                    url: format!("/{}", worker_name),
-                    status: 101,
-                    duration_ms: 0,
-                    message: format!("Initiating live WebSocket tail session for '{worker_name}'..."),
-                    raw_json: None,
-                    exceptions: Vec::new(),
-                    log_level: Some("info".to_string()),
-                    outcome: "connecting".to_string(),
-                });
+                self.tail_view
+                    .logs
+                    .push(crate::components::views::tail_view::LogEntry {
+                        timestamp: crate::cloudflare::tail::chrono_or_simple_time(),
+                        method: "ATTACH".to_string(),
+                        url: format!("/{}", worker_name),
+                        status: 101,
+                        duration_ms: 0,
+                        message: format!(
+                            "Initiating live WebSocket tail session for '{worker_name}'..."
+                        ),
+                        raw_json: None,
+                        exceptions: Vec::new(),
+                        log_level: Some("info".to_string()),
+                        outcome: "connecting".to_string(),
+                    });
 
                 if let Some(client) = &self.cf_client {
                     let client = client.clone();
@@ -864,21 +923,29 @@ impl App {
                                         worker: w_name.clone(),
                                         tail_id: tail_res.id.clone(),
                                     });
-                                    let (tail_tx, mut tail_rx) = tokio::sync::mpsc::unbounded_channel();
+                                    let (tail_tx, mut tail_rx) =
+                                        tokio::sync::mpsc::unbounded_channel();
                                     let action_tx = tx.clone();
                                     tokio::spawn(async move {
                                         while let Some(log) = tail_rx.recv().await {
                                             let _ = action_tx.send(Action::TailLog(log));
                                         }
                                     });
-                                    if let Err(e) = TailStream::start(tail_res.url, tail_tx, cancel_rx).await {
-                                        let _ = tx.send(Action::Error(format!("Tail stream error: {e}")));
+                                    if let Err(e) =
+                                        TailStream::start(tail_res.url, tail_tx, cancel_rx).await
+                                    {
+                                        let _ = tx
+                                            .send(Action::Error(format!("Tail stream error: {e}")));
                                     } else {
-                                        let _ = tx.send(Action::StatusMessage(format!("Connected to live tail for {w_name}!")));
+                                        let _ = tx.send(Action::StatusMessage(format!(
+                                            "Connected to live tail for {w_name}!"
+                                        )));
                                     }
                                 }
                                 Err(e) => {
-                                    let _ = tx.send(Action::Error(format!("Failed to create tail session: {e}")));
+                                    let _ = tx.send(Action::Error(format!(
+                                        "Failed to create tail session: {e}"
+                                    )));
                                 }
                             }
                         }
@@ -888,7 +955,8 @@ impl App {
             Action::TailSessionStarted { worker, tail_id } => {
                 self.active_tail_worker = Some(worker.clone());
                 self.active_tail_id = Some(tail_id);
-                self.status_bar.set_status(format!("● Live Tail streaming for {worker}"));
+                self.status_bar
+                    .set_status(format!("● Live Tail streaming for {worker}"));
             }
             Action::StopWorkerTail => {
                 if let Some(cancel) = self.active_tail_cancel.take() {
@@ -910,7 +978,9 @@ impl App {
                             }
                         };
                         if !account_id.is_empty() {
-                            let _ = client.delete_worker_tail(&account_id, &worker, &tail_id).await;
+                            let _ = client
+                                .delete_worker_tail(&account_id, &worker, &tail_id)
+                                .await;
                         }
                     });
                 }
@@ -918,8 +988,13 @@ impl App {
             }
             Action::ToggleTailPause => {
                 self.tail_view.toggle_pause();
-                let state = if self.tail_view.is_paused { "PAUSED" } else { "RESUMED" };
-                self.status_bar.set_status(format!("Live tail stream {state}"));
+                let state = if self.tail_view.is_paused {
+                    "PAUSED"
+                } else {
+                    "RESUMED"
+                };
+                self.status_bar
+                    .set_status(format!("Live tail stream {state}"));
             }
             Action::ClearTailLogs => {
                 self.tail_view.clear();
@@ -927,8 +1002,13 @@ impl App {
             }
             Action::ToggleTailFollow => {
                 self.tail_view.toggle_follow();
-                let mode = if self.tail_view.follow_mode { "FOLLOW (auto-scroll enabled)" } else { "MANUAL (scroll history)" };
-                self.status_bar.set_status(format!("Live tail mode: {mode}"));
+                let mode = if self.tail_view.follow_mode {
+                    "FOLLOW (auto-scroll enabled)"
+                } else {
+                    "MANUAL (scroll history)"
+                };
+                self.status_bar
+                    .set_status(format!("Live tail mode: {mode}"));
             }
             Action::TailNavUp => {
                 self.tail_view.nav_up();
@@ -984,51 +1064,69 @@ impl App {
                                 let account_id = match config.account_id {
                                     Some(id) => id,
                                     None => {
-                                        let accounts = client.get_accounts().await.unwrap_or_default();
+                                        let accounts =
+                                            client.get_accounts().await.unwrap_or_default();
                                         accounts.first().map(|a| a.id.clone()).unwrap_or_default()
                                     }
                                 };
 
                                 if !account_id.is_empty() {
-                                    let bindings_res = client.get_worker_bindings(&account_id, &script_name).await.unwrap_or_default();
-                                    let routes_res = client.get_worker_routes(&account_id, &script_name).await.unwrap_or_default();
-                                    let workers_list = client.get_workers(&account_id).await.unwrap_or_default();
-                                    let worker_meta = workers_list.into_iter().find(|item| item.id == script_name);
-
-                                    let (flags, usage_model, handlers) = if let Some(meta) = worker_meta {
-                                        (
-                                            meta.compatibility_flags.unwrap_or_default(),
-                                            meta.usage_model.unwrap_or_else(|| "standard".to_string()),
-                                            meta.handlers.unwrap_or_else(|| vec!["fetch".to_string()]),
-                                        )
-                                    } else {
-                                        (vec!["nodejs_compat".to_string()], "standard".to_string(), vec!["fetch".to_string()])
-                                    };
-
-                                    let cached_bindings: Vec<crate::db::CachedWorkerBinding> = bindings_res
+                                    let bindings_res = client
+                                        .get_worker_bindings(&account_id, &script_name)
+                                        .await
+                                        .unwrap_or_default();
+                                    let routes_res = client
+                                        .get_worker_routes(&account_id, &script_name)
+                                        .await
+                                        .unwrap_or_default();
+                                    let workers_list =
+                                        client.get_workers(&account_id).await.unwrap_or_default();
+                                    let worker_meta = workers_list
                                         .into_iter()
-                                        .map(|b| {
-                                            let details = if let Some(db_id) = b.database_id {
-                                                format!("D1 DB ({db_id})")
-                                            } else if let Some(ns_id) = b.namespace_id {
-                                                format!("KV Namespace ({ns_id})")
-                                            } else if let Some(bucket) = b.bucket_name {
-                                                format!("R2 Bucket ({bucket})")
-                                            } else if let Some(q) = b.queue_name {
-                                                format!("Queue ({q})")
-                                            } else if let Some(t) = b.text {
-                                                format!("Text: {t}")
-                                            } else {
-                                                "Configured".to_string()
-                                            };
-                                            crate::db::CachedWorkerBinding {
-                                                script_name: script_name.clone(),
-                                                name: b.name,
-                                                binding_type: b.binding_type,
-                                                details,
-                                            }
-                                        })
-                                        .collect();
+                                        .find(|item| item.id == script_name);
+
+                                    let (flags, usage_model, handlers) =
+                                        if let Some(meta) = worker_meta {
+                                            (
+                                                meta.compatibility_flags.unwrap_or_default(),
+                                                meta.usage_model
+                                                    .unwrap_or_else(|| "standard".to_string()),
+                                                meta.handlers
+                                                    .unwrap_or_else(|| vec!["fetch".to_string()]),
+                                            )
+                                        } else {
+                                            (
+                                                vec!["nodejs_compat".to_string()],
+                                                "standard".to_string(),
+                                                vec!["fetch".to_string()],
+                                            )
+                                        };
+
+                                    let cached_bindings: Vec<crate::db::CachedWorkerBinding> =
+                                        bindings_res
+                                            .into_iter()
+                                            .map(|b| {
+                                                let details = if let Some(db_id) = b.database_id {
+                                                    format!("D1 DB ({db_id})")
+                                                } else if let Some(ns_id) = b.namespace_id {
+                                                    format!("KV Namespace ({ns_id})")
+                                                } else if let Some(bucket) = b.bucket_name {
+                                                    format!("R2 Bucket ({bucket})")
+                                                } else if let Some(q) = b.queue_name {
+                                                    format!("Queue ({q})")
+                                                } else if let Some(t) = b.text {
+                                                    format!("Text: {t}")
+                                                } else {
+                                                    "Configured".to_string()
+                                                };
+                                                crate::db::CachedWorkerBinding {
+                                                    script_name: script_name.clone(),
+                                                    name: b.name,
+                                                    binding_type: b.binding_type,
+                                                    details,
+                                                }
+                                            })
+                                            .collect();
 
                                     let _ = tx.send(Action::WorkerDetailsLoaded {
                                         flags,
@@ -1066,14 +1164,17 @@ impl App {
                 bindings,
             } => {
                 if let Some(inspector) = &mut self.worker_inspector {
-                    let _ = self.db.replace_worker_bindings(&inspector.worker_name, &bindings);
+                    let _ = self
+                        .db
+                        .replace_worker_bindings(&inspector.worker_name, &bindings);
                     inspector.compatibility_flags = flags;
                     inspector.usage_model = usage_model;
                     inspector.handlers = handlers;
                     inspector.routes = routes;
                     inspector.bindings = bindings;
                     inspector.is_loading = false;
-                    inspector.action_feedback = Some("Live metadata & bindings loaded from Cloudflare".to_string());
+                    inspector.action_feedback =
+                        Some("Live metadata & bindings loaded from Cloudflare".to_string());
                 }
             }
 
@@ -1092,25 +1193,37 @@ impl App {
                             if let Ok(accounts) = client.get_accounts().await {
                                 if let Some(acc) = accounts.first() {
                                     let schema_query = "SELECT name, type, sql FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name;";
-                                    if let Ok(results) = client.execute_d1_query(&acc.id, &db_id, schema_query).await {
+                                    if let Ok(results) =
+                                        client.execute_d1_query(&acc.id, &db_id, schema_query).await
+                                    {
                                         if let Some(first_res) = results.into_iter().next() {
                                             if let Some(rows) = &first_res.results {
                                                 let mut fetched_tables = Vec::new();
                                                 for r in rows {
                                                     if let serde_json::Value::Object(map) = r {
-                                                        if let Some(serde_json::Value::String(name)) = map.get("name") {
-                                                            let sql = map.get("sql").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                                            fetched_tables.push(crate::db::CachedD1Table {
-                                                                database_id: db_id.clone(),
-                                                                table_name: name.clone(),
-                                                                schema_sql: sql,
-                                                                row_count: 0,
-                                                            });
+                                                        if let Some(serde_json::Value::String(
+                                                            name,
+                                                        )) = map.get("name")
+                                                        {
+                                                            let sql = map
+                                                                .get("sql")
+                                                                .and_then(|v| v.as_str())
+                                                                .unwrap_or("")
+                                                                .to_string();
+                                                            fetched_tables.push(
+                                                                crate::db::CachedD1Table {
+                                                                    database_id: db_id.clone(),
+                                                                    table_name: name.clone(),
+                                                                    schema_sql: sql,
+                                                                    row_count: 0,
+                                                                },
+                                                            );
                                                         }
                                                     }
                                                 }
                                                 if !fetched_tables.is_empty() {
-                                                    let _ = cache_db.replace_d1_tables(&db_id, &fetched_tables);
+                                                    let _ = cache_db
+                                                        .replace_d1_tables(&db_id, &fetched_tables);
                                                 }
                                             }
                                         }
@@ -1122,7 +1235,8 @@ impl App {
 
                     self.d1_console_modal = Some(console);
                 } else {
-                    self.status_bar.set_status("No D1 database selected to open console");
+                    self.status_bar
+                        .set_status("No D1 database selected to open console");
                 }
             }
             Action::CloseD1Console => {
@@ -1215,20 +1329,30 @@ impl App {
                             match client.get_accounts().await {
                                 Ok(accounts) => {
                                     if let Some(acc) = accounts.first() {
-                                        match client.execute_d1_query(&acc.id, &db_id, &query_str).await {
+                                        match client
+                                            .execute_d1_query(&acc.id, &db_id, &query_str)
+                                            .await
+                                        {
                                             Ok(results) => {
-                                                if let Some(first_res) = results.into_iter().next() {
-                                                    let _ = tx.send(Action::D1QueryResultLoaded(first_res));
+                                                if let Some(first_res) = results.into_iter().next()
+                                                {
+                                                    let _ = tx.send(Action::D1QueryResultLoaded(
+                                                        first_res,
+                                                    ));
                                                 } else {
                                                     let _ = tx.send(Action::D1QueryResultLoaded(crate::cloudflare::client::D1QueryResult::default()));
                                                 }
                                             }
                                             Err(e) => {
-                                                let _ = tx.send(Action::D1QueryExecutionFailed(e.to_string()));
+                                                let _ = tx.send(Action::D1QueryExecutionFailed(
+                                                    e.to_string(),
+                                                ));
                                             }
                                         }
                                     } else {
-                                        let _ = tx.send(Action::D1QueryExecutionFailed("No account associated with token".to_string()));
+                                        let _ = tx.send(Action::D1QueryExecutionFailed(
+                                            "No account associated with token".to_string(),
+                                        ));
                                     }
                                 }
                                 Err(e) => {
@@ -1239,14 +1363,12 @@ impl App {
                     } else {
                         // Offline simulation mode
                         let sim_result = crate::cloudflare::client::D1QueryResult {
-                            results: Some(vec![
-                                serde_json::json!({
-                                    "status": "offline_mode",
-                                    "database": m.database_name.clone(),
-                                    "query_executed": query,
-                                    "note": "Connect Cloudflare API token with 'a' for live edge query execution"
-                                }),
-                            ]),
+                            results: Some(vec![serde_json::json!({
+                                "status": "offline_mode",
+                                "database": m.database_name.clone(),
+                                "query_executed": query,
+                                "note": "Connect Cloudflare API token with 'a' for live edge query execution"
+                            })]),
                             success: Some(true),
                             meta: Some(crate::cloudflare::client::D1QueryMeta {
                                 duration: Some(0.35),
@@ -1287,10 +1409,14 @@ impl App {
                                 if let Some(acc) = accounts.first() {
                                     match client.get_kv_keys(&acc.id, &ns_id, None, None).await {
                                         Ok(keys) => {
-                                            let _ = tx.send(Action::KvModalValueLoaded(format!("__KEYS_LOADED__:{}", serde_json::to_string(&keys).unwrap_or_default())));
+                                            let _ = tx.send(Action::KvModalValueLoaded(format!(
+                                                "__KEYS_LOADED__:{}",
+                                                serde_json::to_string(&keys).unwrap_or_default()
+                                            )));
                                         }
                                         Err(e) => {
-                                            let _ = tx.send(Action::KvModalValueFailed(e.to_string()));
+                                            let _ =
+                                                tx.send(Action::KvModalValueFailed(e.to_string()));
                                         }
                                     }
                                 }
@@ -1321,7 +1447,8 @@ impl App {
 
                     self.kv_modal = Some(modal);
                 } else {
-                    self.status_bar.set_status("No KV namespace selected to inspect");
+                    self.status_bar
+                        .set_status("No KV namespace selected to inspect");
                 }
             }
             Action::CloseKvModal => {
@@ -1372,12 +1499,15 @@ impl App {
                             tokio::spawn(async move {
                                 if let Ok(accounts) = client.get_accounts().await {
                                     if let Some(acc) = accounts.first() {
-                                        match client.get_kv_value(&acc.id, &ns_id, &key_name).await {
+                                        match client.get_kv_value(&acc.id, &ns_id, &key_name).await
+                                        {
                                             Ok(val) => {
                                                 let _ = tx.send(Action::KvModalValueLoaded(val));
                                             }
                                             Err(e) => {
-                                                let _ = tx.send(Action::KvModalValueFailed(e.to_string()));
+                                                let _ = tx.send(Action::KvModalValueFailed(
+                                                    e.to_string(),
+                                                ));
                                             }
                                         }
                                     }
@@ -1398,7 +1528,8 @@ impl App {
                                     "version": "1.0.4"
                                 }
                             });
-                            let formatted = serde_json::to_string_pretty(&sample_json).unwrap_or_default();
+                            let formatted =
+                                serde_json::to_string_pretty(&sample_json).unwrap_or_default();
                             m.set_value(formatted);
                         }
                     }
@@ -1407,7 +1538,10 @@ impl App {
             Action::KvModalValueLoaded(val) => {
                 if let Some(m) = &mut self.kv_modal {
                     if let Some(stripped) = val.strip_prefix("__KEYS_LOADED__:") {
-                        if let Ok(keys) = serde_json::from_str::<Vec<crate::cloudflare::client::KvKeyResult>>(stripped) {
+                        if let Ok(keys) = serde_json::from_str::<
+                            Vec<crate::cloudflare::client::KvKeyResult>,
+                        >(stripped)
+                        {
                             m.set_keys(keys);
                             m.is_loading = false;
                         }
@@ -1497,7 +1631,9 @@ impl App {
                                         let _ = tx.send(Action::ZoneSettingsLoaded(settings));
                                     }
                                     Err(e) => {
-                                        let _ = tx.send(Action::Error(format!("Zone settings error: {e}")));
+                                        let _ = tx.send(Action::Error(format!(
+                                            "Zone settings error: {e}"
+                                        )));
                                     }
                                 }
                             });
@@ -1513,12 +1649,18 @@ impl App {
                 if let Some(inspector) = &mut self.zone_inspector {
                     inspector.settings = settings;
                     inspector.is_loading = false;
-                    inspector.action_feedback = Some("Live settings loaded from Cloudflare".to_string());
+                    inspector.action_feedback =
+                        Some("Live settings loaded from Cloudflare".to_string());
                 }
             }
             Action::CycleZoneSsl => {
                 if let Some(inspector) = &mut self.zone_inspector {
-                    let cur = inspector.settings.ssl.as_ref().map(|s| s.value.as_str()).unwrap_or("flexible");
+                    let cur = inspector
+                        .settings
+                        .ssl
+                        .as_ref()
+                        .map(|s| s.value.as_str())
+                        .unwrap_or("flexible");
                     let next_mode = match cur {
                         "off" => "flexible",
                         "flexible" => "full",
@@ -1526,8 +1668,11 @@ impl App {
                         "strict" => "off",
                         _ => "flexible",
                     };
-                    inspector.settings.ssl = Some(SettingValue { value: next_mode.to_string() });
-                    inspector.action_feedback = Some(format!("SSL mode updated to {}", next_mode.to_uppercase()));
+                    inspector.settings.ssl = Some(SettingValue {
+                        value: next_mode.to_string(),
+                    });
+                    inspector.action_feedback =
+                        Some(format!("SSL mode updated to {}", next_mode.to_uppercase()));
                     if let Some(client) = &self.cf_client {
                         let client = client.clone();
                         let zone_id = inspector.zone.id.clone();
@@ -1536,10 +1681,14 @@ impl App {
                         tokio::spawn(async move {
                             match client.set_zone_ssl(&zone_id, &mode).await {
                                 Ok(_) => {
-                                    let _ = tx.send(Action::StatusMessage(format!("SSL mode set to {}", mode.to_uppercase())));
+                                    let _ = tx.send(Action::StatusMessage(format!(
+                                        "SSL mode set to {}",
+                                        mode.to_uppercase()
+                                    )));
                                 }
                                 Err(e) => {
-                                    let _ = tx.send(Action::Error(format!("Cloudflare API error: {e}")));
+                                    let _ = tx
+                                        .send(Action::Error(format!("Cloudflare API error: {e}")));
                                 }
                             }
                         });
@@ -1548,11 +1697,19 @@ impl App {
             }
             Action::ToggleZoneDevMode => {
                 if let Some(inspector) = &mut self.zone_inspector {
-                    let cur = inspector.settings.development_mode.as_ref().map(|s| s.value.as_str()).unwrap_or("off");
+                    let cur = inspector
+                        .settings
+                        .development_mode
+                        .as_ref()
+                        .map(|s| s.value.as_str())
+                        .unwrap_or("off");
                     let enabled = cur != "on";
                     let next_str = if enabled { "on" } else { "off" };
-                    inspector.settings.development_mode = Some(SettingValue { value: next_str.to_string() });
-                    inspector.action_feedback = Some(format!("Dev mode toggled {}", next_str.to_uppercase()));
+                    inspector.settings.development_mode = Some(SettingValue {
+                        value: next_str.to_string(),
+                    });
+                    inspector.action_feedback =
+                        Some(format!("Dev mode toggled {}", next_str.to_uppercase()));
                     if let Some(client) = &self.cf_client {
                         let client = client.clone();
                         let zone_id = inspector.zone.id.clone();
@@ -1560,10 +1717,14 @@ impl App {
                         tokio::spawn(async move {
                             match client.set_zone_dev_mode(&zone_id, enabled).await {
                                 Ok(_) => {
-                                    let _ = tx.send(Action::StatusMessage(format!("Dev Mode set to {}", next_str.to_uppercase())));
+                                    let _ = tx.send(Action::StatusMessage(format!(
+                                        "Dev Mode set to {}",
+                                        next_str.to_uppercase()
+                                    )));
                                 }
                                 Err(e) => {
-                                    let _ = tx.send(Action::Error(format!("Cloudflare API error: {e}")));
+                                    let _ = tx
+                                        .send(Action::Error(format!("Cloudflare API error: {e}")));
                                 }
                             }
                         });
@@ -1572,10 +1733,25 @@ impl App {
             }
             Action::ToggleZoneUnderAttack => {
                 if let Some(inspector) = &mut self.zone_inspector {
-                    let cur = inspector.settings.security_level.as_ref().map(|s| s.value.as_str()).unwrap_or("medium");
-                    let next_level = if cur == "under_attack" { "medium" } else { "under_attack" };
-                    inspector.settings.security_level = Some(SettingValue { value: next_level.to_string() });
-                    let label = if next_level == "under_attack" { "UNDER ATTACK MODE ACTIVATED" } else { "Security Level: MEDIUM" };
+                    let cur = inspector
+                        .settings
+                        .security_level
+                        .as_ref()
+                        .map(|s| s.value.as_str())
+                        .unwrap_or("medium");
+                    let next_level = if cur == "under_attack" {
+                        "medium"
+                    } else {
+                        "under_attack"
+                    };
+                    inspector.settings.security_level = Some(SettingValue {
+                        value: next_level.to_string(),
+                    });
+                    let label = if next_level == "under_attack" {
+                        "UNDER ATTACK MODE ACTIVATED"
+                    } else {
+                        "Security Level: MEDIUM"
+                    };
                     inspector.action_feedback = Some(label.to_string());
                     if let Some(client) = &self.cf_client {
                         let client = client.clone();
@@ -1584,10 +1760,14 @@ impl App {
                         tokio::spawn(async move {
                             match client.set_zone_security_level(&zone_id, next_level).await {
                                 Ok(_) => {
-                                    let _ = tx.send(Action::StatusMessage(format!("Security level set to {}", next_level.to_uppercase())));
+                                    let _ = tx.send(Action::StatusMessage(format!(
+                                        "Security level set to {}",
+                                        next_level.to_uppercase()
+                                    )));
                                 }
                                 Err(e) => {
-                                    let _ = tx.send(Action::Error(format!("Cloudflare API error: {e}")));
+                                    let _ = tx
+                                        .send(Action::Error(format!("Cloudflare API error: {e}")));
                                 }
                             }
                         });
@@ -1604,15 +1784,19 @@ impl App {
                         tokio::spawn(async move {
                             match client.purge_zone_cache(&zone_id).await {
                                 Ok(_) => {
-                                    let _ = tx.send(Action::StatusMessage("Cloudflare edge cache purged!".to_string()));
+                                    let _ = tx.send(Action::StatusMessage(
+                                        "Cloudflare edge cache purged!".to_string(),
+                                    ));
                                 }
                                 Err(e) => {
-                                    let _ = tx.send(Action::Error(format!("Purge cache error: {e}")));
+                                    let _ =
+                                        tx.send(Action::Error(format!("Purge cache error: {e}")));
                                 }
                             }
                         });
                     } else {
-                        inspector.action_feedback = Some("Purge simulated (no active Cloudflare token)".to_string());
+                        inspector.action_feedback =
+                            Some("Purge simulated (no active Cloudflare token)".to_string());
                     }
                 }
             }
@@ -1634,7 +1818,7 @@ impl App {
                             rec.record_type.clone(),
                             rec.name.clone(),
                             rec.content.clone(),
-                            rec.ttl as u32,
+                            rec.ttl,
                             rec.proxied,
                         ));
                     }
@@ -1692,11 +1876,16 @@ impl App {
                         tokio::spawn(async move {
                             if is_edit {
                                 if let Some(rec_id) = record_id {
-                                    match client.update_dns_record(&zone_id, &rec_id, &new_record).await {
+                                    match client
+                                        .update_dns_record(&zone_id, &rec_id, &new_record)
+                                        .await
+                                    {
                                         Ok(res) => {
                                             let local_rec = DnsRecord {
                                                 id: res.id,
-                                                zone_id: res.zone_id.unwrap_or_else(|| zone_id.clone()),
+                                                zone_id: res
+                                                    .zone_id
+                                                    .unwrap_or_else(|| zone_id.clone()),
                                                 record_type: res.record_type,
                                                 name: res.name.clone(),
                                                 content: res.content,
@@ -1704,12 +1893,19 @@ impl App {
                                                 ttl: res.ttl,
                                             };
                                             let _ = db.upsert_dns_record(&local_rec);
-                                            let _ = tx.send(Action::StatusMessage(format!("Updated DNS record {}", res.name)));
+                                            let _ = tx.send(Action::StatusMessage(format!(
+                                                "Updated DNS record {}",
+                                                res.name
+                                            )));
                                             let _ = tx.send(Action::CloseDnsModal);
-                                            let _ = tx.send(Action::SyncCompleted("Record updated".to_string()));
+                                            let _ = tx.send(Action::SyncCompleted(
+                                                "Record updated".to_string(),
+                                            ));
                                         }
                                         Err(e) => {
-                                            let _ = tx.send(Action::Error(format!("Cloudflare API error: {e}")));
+                                            let _ = tx.send(Action::Error(format!(
+                                                "Cloudflare API error: {e}"
+                                            )));
                                         }
                                     }
                                 }
@@ -1726,12 +1922,19 @@ impl App {
                                             ttl: res.ttl,
                                         };
                                         let _ = db.upsert_dns_record(&local_rec);
-                                        let _ = tx.send(Action::StatusMessage(format!("Created DNS record {}", res.name)));
+                                        let _ = tx.send(Action::StatusMessage(format!(
+                                            "Created DNS record {}",
+                                            res.name
+                                        )));
                                         let _ = tx.send(Action::CloseDnsModal);
-                                        let _ = tx.send(Action::SyncCompleted("Record created".to_string()));
+                                        let _ = tx.send(Action::SyncCompleted(
+                                            "Record created".to_string(),
+                                        ));
                                     }
                                     Err(e) => {
-                                        let _ = tx.send(Action::Error(format!("Cloudflare API error: {e}")));
+                                        let _ = tx.send(Action::Error(format!(
+                                            "Cloudflare API error: {e}"
+                                        )));
                                     }
                                 }
                             }
@@ -1758,7 +1961,8 @@ impl App {
                         let _ = self.db.upsert_dns_record(&local_rec);
                         self.dns_modal = None;
                         self.dns_view.reload_records();
-                        self.status_bar.set_status(format!("Saved DNS record {}", local_rec.name));
+                        self.status_bar
+                            .set_status(format!("Saved DNS record {}", local_rec.name));
                     }
                 }
             }
@@ -1779,7 +1983,8 @@ impl App {
                     let rec = modal.record;
                     let _ = self.db.delete_dns_record(&rec.id);
                     self.dns_view.reload_records();
-                    self.status_bar.set_status(format!("Deleted DNS record {}", rec.name));
+                    self.status_bar
+                        .set_status(format!("Deleted DNS record {}", rec.name));
 
                     if let Some(client) = &self.cf_client {
                         let client = client.clone();
@@ -1791,10 +1996,14 @@ impl App {
                         tokio::spawn(async move {
                             match client.delete_dns_record(&zone_id, &rec_id).await {
                                 Ok(_) => {
-                                    let _ = tx.send(Action::StatusMessage(format!("Deleted record {name} on Cloudflare edge")));
+                                    let _ = tx.send(Action::StatusMessage(format!(
+                                        "Deleted record {name} on Cloudflare edge"
+                                    )));
                                 }
                                 Err(e) => {
-                                    let _ = tx.send(Action::Error(format!("Cloudflare delete failed: {e}")));
+                                    let _ = tx.send(Action::Error(format!(
+                                        "Cloudflare delete failed: {e}"
+                                    )));
                                 }
                             }
                         });
@@ -1848,18 +2057,24 @@ impl App {
                                 let account_id = match config.account_id {
                                     Some(id) => id,
                                     None => {
-                                        let accounts = client.get_accounts().await.unwrap_or_default();
+                                        let accounts =
+                                            client.get_accounts().await.unwrap_or_default();
                                         accounts.first().map(|a| a.id.clone()).unwrap_or_default()
                                     }
                                 };
 
                                 if !account_id.is_empty() {
-                                    match client.get_pages_deployments(&account_id, &proj_name).await {
+                                    match client
+                                        .get_pages_deployments(&account_id, &proj_name)
+                                        .await
+                                    {
                                         Ok(deps) => {
                                             let _ = tx.send(Action::PagesDeploymentsLoaded(deps));
                                         }
                                         Err(e) => {
-                                            let _ = tx.send(Action::Error(format!("Failed to load deployments: {e}")));
+                                            let _ = tx.send(Action::Error(format!(
+                                                "Failed to load deployments: {e}"
+                                            )));
                                         }
                                     }
                                 }
@@ -1905,7 +2120,10 @@ impl App {
                             crate::db::CachedDeployment {
                                 id: d.id.clone(),
                                 project_name: modal.project_name.clone(),
-                                environment: d.environment.clone().unwrap_or_else(|| "preview".to_string()),
+                                environment: d
+                                    .environment
+                                    .clone()
+                                    .unwrap_or_else(|| "preview".to_string()),
                                 url: d.url.clone().unwrap_or_default(),
                                 branch,
                                 commit_hash,
@@ -1915,11 +2133,14 @@ impl App {
                             }
                         })
                         .collect();
-                    let _ = self.db.replace_pages_deployments(&modal.project_name, &cached_records);
+                    let _ = self
+                        .db
+                        .replace_pages_deployments(&modal.project_name, &cached_records);
 
                     modal.deployments = deps;
                     modal.is_loading = false;
-                    modal.action_feedback = Some("Live deployments synced from Cloudflare".to_string());
+                    modal.action_feedback =
+                        Some("Live deployments synced from Cloudflare".to_string());
                 }
             }
             Action::PagesDeploymentsNavUp => {
@@ -1975,7 +2196,8 @@ impl App {
                     let short_id = modal.short_id.clone();
 
                     if let Some(client) = &self.cf_client {
-                        self.status_bar.set_status(format!("Rolling back {} to {}...", proj_name, short_id));
+                        self.status_bar
+                            .set_status(format!("Rolling back {} to {}...", proj_name, short_id));
                         let client = client.clone();
                         let config = AuthManager::load_config();
                         let tx = self.action_tx.clone();
@@ -1990,7 +2212,10 @@ impl App {
                             };
 
                             if !account_id.is_empty() {
-                                match client.rollback_pages_deployment(&account_id, &proj_name, &dep_id).await {
+                                match client
+                                    .rollback_pages_deployment(&account_id, &proj_name, &dep_id)
+                                    .await
+                                {
                                     Ok(_) => {
                                         let _ = tx.send(Action::StatusMessage(format!(
                                             "🚀 Promoted build {} to LIVE production for {}!",
@@ -1999,13 +2224,15 @@ impl App {
                                         let _ = tx.send(Action::OpenPagesDeployments);
                                     }
                                     Err(e) => {
-                                        let _ = tx.send(Action::Error(format!("Rollback error: {e}")));
+                                        let _ =
+                                            tx.send(Action::Error(format!("Rollback error: {e}")));
                                     }
                                 }
                             }
                         });
                     } else {
-                        self.status_bar.set_status(format!("Rollback simulated (no live API connection)"));
+                        self.status_bar
+                            .set_status("Rollback simulated (no live API connection)".to_string());
                     }
                 }
             }
@@ -2019,7 +2246,11 @@ impl App {
                                 sel.id.clone()
                             }
                         });
-                        let mut log_modal = PagesLogsModal::new(dep_modal.project_name.clone(), sel.id.clone(), short_id);
+                        let mut log_modal = PagesLogsModal::new(
+                            dep_modal.project_name.clone(),
+                            sel.id.clone(),
+                            short_id,
+                        );
 
                         if let Some(client) = &self.cf_client {
                             let client = client.clone();
@@ -2032,18 +2263,23 @@ impl App {
                                 let account_id = match config.account_id {
                                     Some(id) => id,
                                     None => {
-                                        let accounts = client.get_accounts().await.unwrap_or_default();
+                                        let accounts =
+                                            client.get_accounts().await.unwrap_or_default();
                                         accounts.first().map(|a| a.id.clone()).unwrap_or_default()
                                     }
                                 };
 
                                 if !account_id.is_empty() {
-                                    match client.get_pages_build_logs(&account_id, &proj_name, &dep_id).await {
+                                    match client
+                                        .get_pages_build_logs(&account_id, &proj_name, &dep_id)
+                                        .await
+                                    {
                                         Ok(logs) => {
                                             let _ = tx.send(Action::PagesLogsLoaded(logs));
                                         }
                                         Err(e) => {
-                                            let _ = tx.send(Action::Error(format!("Logs error: {e}")));
+                                            let _ =
+                                                tx.send(Action::Error(format!("Logs error: {e}")));
                                         }
                                     }
                                 }
@@ -2082,7 +2318,8 @@ impl App {
                     if let Some(zone) = self.dns_view.selected_zone() {
                         match ZoneExporter::export_bind_zone(&zone.name, &self.dns_view.records) {
                             Ok(path) => {
-                                self.status_bar.set_status(format!("Exported BIND zone: {}", path.display()));
+                                self.status_bar
+                                    .set_status(format!("Exported BIND zone: {}", path.display()));
                             }
                             Err(e) => {
                                 self.status_bar.set_error(format!("Export error: {e}"));
@@ -2104,7 +2341,8 @@ impl App {
                                 .find(|r| r.id == event.rule_id)
                                 .cloned()
                         };
-                        self.security_inspector = Some(SecurityInspectorModal::new(event, matched_rule));
+                        self.security_inspector =
+                            Some(SecurityInspectorModal::new(event, matched_rule));
                     }
                 }
             }
@@ -2171,29 +2409,49 @@ impl App {
                 }
             }
             Action::SecurityViewToggleWafRule => {
-                if self.header.active_tab == 5 && self.security_view.active_tab == crate::components::views::security_view::SecurityTab::WafRules {
-                    if let Some((rule_id, paused)) = self.security_view.toggle_selected_rule_pause() {
+                if self.header.active_tab == 5
+                    && self.security_view.active_tab
+                        == crate::components::views::security_view::SecurityTab::WafRules
+                {
+                    if let Some((rule_id, paused)) = self.security_view.toggle_selected_rule_pause()
+                    {
                         let status_str = if paused { "Paused" } else { "Activated" };
-                        self.status_bar.set_status(format!("WAF Rule {rule_id}: {status_str}"));
-                        if let (Some(client), Some(zone_id)) = (&self.cf_client, &self.security_view.current_zone_id) {
+                        self.status_bar
+                            .set_status(format!("WAF Rule {rule_id}: {status_str}"));
+                        if let (Some(client), Some(zone_id)) =
+                            (&self.cf_client, &self.security_view.current_zone_id)
+                        {
                             let client = client.clone();
                             let zone_id = zone_id.clone();
                             tokio::spawn(async move {
-                                let _ = client.update_waf_rule_state(&zone_id, &rule_id, Some(paused), None).await;
+                                let _ = client
+                                    .update_waf_rule_state(&zone_id, &rule_id, Some(paused), None)
+                                    .await;
                             });
                         }
                     }
                 }
             }
             Action::SecurityViewShiftWafPriority(delta) => {
-                if self.header.active_tab == 5 && self.security_view.active_tab == crate::components::views::security_view::SecurityTab::WafRules {
-                    if let Some((rule_id, new_prio)) = self.security_view.shift_selected_rule_priority(delta) {
-                        self.status_bar.set_status(format!("WAF Rule {rule_id}: Priority updated to {new_prio}"));
-                        if let (Some(client), Some(zone_id)) = (&self.cf_client, &self.security_view.current_zone_id) {
+                if self.header.active_tab == 5
+                    && self.security_view.active_tab
+                        == crate::components::views::security_view::SecurityTab::WafRules
+                {
+                    if let Some((rule_id, new_prio)) =
+                        self.security_view.shift_selected_rule_priority(delta)
+                    {
+                        self.status_bar.set_status(format!(
+                            "WAF Rule {rule_id}: Priority updated to {new_prio}"
+                        ));
+                        if let (Some(client), Some(zone_id)) =
+                            (&self.cf_client, &self.security_view.current_zone_id)
+                        {
                             let client = client.clone();
                             let zone_id = zone_id.clone();
                             tokio::spawn(async move {
-                                let _ = client.update_waf_rule_state(&zone_id, &rule_id, None, Some(new_prio)).await;
+                                let _ = client
+                                    .update_waf_rule_state(&zone_id, &rule_id, None, Some(new_prio))
+                                    .await;
                             });
                         }
                     }
@@ -2284,18 +2542,27 @@ impl App {
                                         tokio::spawn(async move {
                                             match client.purge_zone_cache(&zone_id).await {
                                                 Ok(_) => {
-                                                    let _ = tx.send(Action::StatusMessage(format!("Purged edge cache for {zone_name}!")));
+                                                    let _ =
+                                                        tx.send(Action::StatusMessage(format!(
+                                                            "Purged edge cache for {zone_name}!"
+                                                        )));
                                                 }
                                                 Err(e) => {
-                                                    let _ = tx.send(Action::Error(format!("Purge cache error: {e}")));
+                                                    let _ = tx.send(Action::Error(format!(
+                                                        "Purge cache error: {e}"
+                                                    )));
                                                 }
                                             }
                                         });
                                     } else {
-                                        self.status_bar.set_status("Purge simulated (no active Cloudflare token)".to_string());
+                                        self.status_bar.set_status(
+                                            "Purge simulated (no active Cloudflare token)"
+                                                .to_string(),
+                                        );
                                     }
                                 } else {
-                                    self.status_bar.set_error("No zone selected to purge cache".to_string());
+                                    self.status_bar
+                                        .set_error("No zone selected to purge cache".to_string());
                                 }
                             }
                             PaletteAction::OpenD1Console => {
@@ -2348,7 +2615,8 @@ impl App {
                                 let _ = self.action_tx.send(Action::Quit);
                             }
                             PaletteAction::Custom(msg) => {
-                                self.status_bar.set_status(format!("Command executed: {msg}"));
+                                self.status_bar
+                                    .set_status(format!("Command executed: {msg}"));
                             }
                         }
                     }
@@ -2397,15 +2665,17 @@ impl App {
                     let config = AuthManager::load_config();
                     self.header.account_name = config.account_name.unwrap_or_else(|| name.clone());
                     self.header.is_live = true;
-                    self.status_bar
-                        .set_status(format!("Active profile switched to '{name}'. Refreshing..."));
+                    self.status_bar.set_status(format!(
+                        "Active profile switched to '{name}'. Refreshing..."
+                    ));
                     let _ = self.action_tx.send(Action::Refresh);
                 } else {
                     self.header.account_name = name.clone();
                     self.header.is_live = false;
                     self.cf_client = None;
-                    self.status_bar
-                        .set_status(format!("Active profile switched to '{name}' (no API token)"));
+                    self.status_bar.set_status(format!(
+                        "Active profile switched to '{name}' (no API token)"
+                    ));
                     let _ = self.action_tx.send(Action::Refresh);
                 }
             }
@@ -2504,30 +2774,44 @@ impl App {
                     self.domain_create_modal = None;
                     self.domains_view.reload("");
                     self.dns_view.zones = self.db.get_zones().unwrap_or_default();
-                    self.status_bar
-                        .set_status(format!("Domain '{domain_name}' successfully onboarded to Cloudflare"));
+                    self.status_bar.set_status(format!(
+                        "Domain '{domain_name}' successfully onboarded to Cloudflare"
+                    ));
                 }
             }
             Action::DomainCreated(name) => {
                 self.domains_view.reload("");
-                self.status_bar.set_status(format!("Domain '{name}' created"));
+                self.status_bar
+                    .set_status(format!("Domain '{name}' created"));
             }
             Action::ToggleDomainAutoRenew => {
                 if let Some(domain) = self.domains_view.selected_domain() {
                     let d_name = domain.name.clone();
                     let new_state = !domain.auto_renew;
-                    let _ = self.db.update_registrar_domain_auto_renew(&d_name, new_state);
+                    let _ = self
+                        .db
+                        .update_registrar_domain_auto_renew(&d_name, new_state);
                     self.domains_view.reload("");
                     let state_str = if new_state { "enabled" } else { "disabled" };
-                    self.domains_view.set_feedback(format!("Auto-renew {state_str} for {d_name}"));
-                    self.status_bar.set_status(format!("Auto-renew {state_str} for {d_name}"));
+                    self.domains_view
+                        .set_feedback(format!("Auto-renew {state_str} for {d_name}"));
+                    self.status_bar
+                        .set_status(format!("Auto-renew {state_str} for {d_name}"));
 
                     if let Some(client) = &self.cf_client {
                         let client = client.clone();
                         let tx = self.action_tx.clone();
                         if tokio::runtime::Handle::try_current().is_ok() {
                             tokio::spawn(async move {
-                                let _ = client.update_registrar_domain("", &d_name, Some(new_state), None, None).await;
+                                let _ = client
+                                    .update_registrar_domain(
+                                        "",
+                                        &d_name,
+                                        Some(new_state),
+                                        None,
+                                        None,
+                                    )
+                                    .await;
                                 let _ = tx.send(Action::FastSyncActiveView);
                             });
                         }
@@ -2541,15 +2825,25 @@ impl App {
                     let _ = self.db.update_registrar_domain_locked(&d_name, new_state);
                     self.domains_view.reload("");
                     let state_str = if new_state { "locked" } else { "unlocked" };
-                    self.domains_view.set_feedback(format!("Transfer lock {state_str} for {d_name}"));
-                    self.status_bar.set_status(format!("Transfer lock {state_str} for {d_name}"));
+                    self.domains_view
+                        .set_feedback(format!("Transfer lock {state_str} for {d_name}"));
+                    self.status_bar
+                        .set_status(format!("Transfer lock {state_str} for {d_name}"));
 
                     if let Some(client) = &self.cf_client {
                         let client = client.clone();
                         let tx = self.action_tx.clone();
                         if tokio::runtime::Handle::try_current().is_ok() {
                             tokio::spawn(async move {
-                                let _ = client.update_registrar_domain("", &d_name, None, Some(new_state), None).await;
+                                let _ = client
+                                    .update_registrar_domain(
+                                        "",
+                                        &d_name,
+                                        None,
+                                        Some(new_state),
+                                        None,
+                                    )
+                                    .await;
                                 let _ = tx.send(Action::FastSyncActiveView);
                             });
                         }
@@ -2563,15 +2857,25 @@ impl App {
                     let _ = self.db.update_registrar_domain_privacy(&d_name, new_state);
                     self.domains_view.reload("");
                     let state_str = if new_state { "enabled" } else { "disabled" };
-                    self.domains_view.set_feedback(format!("WHOIS privacy {state_str} for {d_name}"));
-                    self.status_bar.set_status(format!("WHOIS privacy {state_str} for {d_name}"));
+                    self.domains_view
+                        .set_feedback(format!("WHOIS privacy {state_str} for {d_name}"));
+                    self.status_bar
+                        .set_status(format!("WHOIS privacy {state_str} for {d_name}"));
 
                     if let Some(client) = &self.cf_client {
                         let client = client.clone();
                         let tx = self.action_tx.clone();
                         if tokio::runtime::Handle::try_current().is_ok() {
                             tokio::spawn(async move {
-                                let _ = client.update_registrar_domain("", &d_name, None, None, Some(new_state)).await;
+                                let _ = client
+                                    .update_registrar_domain(
+                                        "",
+                                        &d_name,
+                                        None,
+                                        None,
+                                        Some(new_state),
+                                    )
+                                    .await;
                                 let _ = tx.send(Action::FastSyncActiveView);
                             });
                         }
@@ -2616,7 +2920,8 @@ impl App {
                                 .await
                                 {
                                     Ok(msg) => {
-                                        let _ = tx.send(Action::FastSyncCompleted { tab, message: msg });
+                                        let _ = tx
+                                            .send(Action::FastSyncCompleted { tab, message: msg });
                                     }
                                     Err(e) => {
                                         let _ = tx.send(Action::FastSyncCompleted {
@@ -2663,29 +2968,46 @@ impl App {
                 self.fast_sync_enabled = !self.fast_sync_enabled;
                 self.header.fast_sync = self.fast_sync_enabled;
                 let _ = AuthManager::update_fast_sync(self.fast_sync_enabled);
-                let state_str = if self.fast_sync_enabled { "ENABLED" } else { "DISABLED" };
-                self.status_bar.set_status(format!("Fast live sync {state_str}"));
+                let state_str = if self.fast_sync_enabled {
+                    "ENABLED"
+                } else {
+                    "DISABLED"
+                };
+                self.status_bar
+                    .set_status(format!("Fast live sync {state_str}"));
             }
             Action::CycleSyncInterval => {
                 let intervals = [5, 10, 15, 30, 60];
-                let current_idx = intervals.iter().position(|&i| i == self.sync_interval_secs).unwrap_or(2);
+                let current_idx = intervals
+                    .iter()
+                    .position(|&i| i == self.sync_interval_secs)
+                    .unwrap_or(2);
                 let next_idx = (current_idx + 1) % intervals.len();
                 self.sync_interval_secs = intervals[next_idx];
                 self.header.sync_interval_secs = self.sync_interval_secs;
                 let _ = AuthManager::update_sync_interval(self.sync_interval_secs);
-                self.status_bar.set_status(format!("Fast sync interval set to {}s", self.sync_interval_secs));
+                self.status_bar.set_status(format!(
+                    "Fast sync interval set to {}s",
+                    self.sync_interval_secs
+                ));
             }
             Action::ToggleAutoSyncOnTabChange => {
                 self.auto_sync_on_tab_change = !self.auto_sync_on_tab_change;
                 let _ = AuthManager::update_auto_sync_on_tab_change(self.auto_sync_on_tab_change);
-                let state_str = if self.auto_sync_on_tab_change { "ENABLED" } else { "DISABLED" };
-                self.status_bar.set_status(format!("Auto-sync on tab switch {state_str}"));
+                let state_str = if self.auto_sync_on_tab_change {
+                    "ENABLED"
+                } else {
+                    "DISABLED"
+                };
+                self.status_bar
+                    .set_status(format!("Auto-sync on tab switch {state_str}"));
             }
             Action::SetTheme(theme_name) => {
                 let preset = ThemePreset::from_name(&theme_name);
                 self.theme = Theme::from_preset(preset);
                 let _ = AuthManager::update_theme(preset.name());
-                self.status_bar.set_status(format!("Applied and saved theme: {}", preset.name()));
+                self.status_bar
+                    .set_status(format!("Applied and saved theme: {}", preset.name()));
             }
 
             Action::Render => {}
@@ -2721,7 +3043,8 @@ impl App {
         }
 
         // 3. Render Status Bar
-        self.status_bar.render(f, chunks[2], &self.theme, self.header.active_tab);
+        self.status_bar
+            .render(f, chunks[2], &self.theme, self.header.active_tab);
 
         // 4. Modal Overlays
         if self.show_help {
@@ -2795,7 +3118,8 @@ mod tests {
             http_path: "/api/login".to_string(),
             user_agent: "curl/7.88.1".to_string(),
         };
-        db.replace_security_events("test-zone-sec", &[event]).unwrap();
+        db.replace_security_events("test-zone-sec", &[event])
+            .unwrap();
 
         let rule = CachedWafRule {
             id: "rule-100".to_string(),
@@ -2920,7 +3244,8 @@ mod tests {
             token: "cfut_test_oauth_success".to_string(),
             account_name: Some("Test OAuth Account".to_string()),
             account_id: Some("acc_test_123".to_string()),
-        }).unwrap();
+        })
+        .unwrap();
 
         assert!(app.cf_client.is_some());
         assert!(app.header.is_live);
@@ -2932,7 +3257,8 @@ mod tests {
             token: "cfut_test_oauth_fallback".to_string(),
             account_name: Some("OAuth User".to_string()),
             account_id: Some("acc_test_fallback".to_string()),
-        }).unwrap();
+        })
+        .unwrap();
         assert_eq!(app.header.account_name, "kidusalemayehu705@gmail.com");
 
         // Logout
@@ -2946,7 +3272,8 @@ mod tests {
             token: "cfut_test_auth_profile".to_string(),
             account_name: Some("kidusalemayehu705@gmail.com".to_string()),
             account_id: Some("acc_profile_test".to_string()),
-        }).unwrap();
+        })
+        .unwrap();
         assert!(app.is_authenticated());
 
         app.update(Action::ToggleAuth).unwrap();
@@ -3014,7 +3341,8 @@ mod tests {
         let mut app = App::new(db, tx);
 
         // Theme switching & persistence
-        app.update(Action::SetTheme("Tokyo Night".to_string())).unwrap();
+        app.update(Action::SetTheme("Tokyo Night".to_string()))
+            .unwrap();
         assert_eq!(app.theme.primary, ratatui::style::Color::Rgb(122, 162, 247));
 
         // Fast Sync toggling
@@ -3043,9 +3371,13 @@ mod tests {
         app.update(Action::FastSyncCompleted {
             tab: 0,
             message: "Fast sync: 5 zones updated".to_string(),
-        }).unwrap();
+        })
+        .unwrap();
 
         assert!(!app.is_fast_syncing);
-        assert_eq!(app.status_bar.message.as_str(), "Fast sync: 5 zones updated");
+        assert_eq!(
+            app.status_bar.message.as_str(),
+            "Fast sync: 5 zones updated"
+        );
     }
 }

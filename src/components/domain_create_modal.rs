@@ -28,6 +28,12 @@ pub struct DomainCreateModal {
     pub is_submitting: bool,
 }
 
+impl Default for DomainCreateModal {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DomainCreateModal {
     pub fn new() -> Self {
         Self {
@@ -125,12 +131,21 @@ impl DomainCreateModal {
             return Err("Domain name cannot be empty".to_string());
         }
         if !name.contains('.') {
-            return Err("Domain must include a valid top-level domain (e.g., example.com)".to_string());
+            return Err(
+                "Domain must include a valid top-level domain (e.g., example.com)".to_string(),
+            );
         }
-        if name.starts_with('.') || name.ends_with('.') || name.starts_with('-') || name.ends_with('-') {
+        if name.starts_with('.')
+            || name.ends_with('.')
+            || name.starts_with('-')
+            || name.ends_with('-')
+        {
             return Err("Domain cannot start or end with a dot or hyphen".to_string());
         }
-        if name.chars().any(|c| !c.is_alphanumeric() && c != '.' && c != '-') {
+        if name
+            .chars()
+            .any(|c| !c.is_alphanumeric() && c != '.' && c != '-')
+        {
             return Err("Domain contains invalid characters".to_string());
         }
         Ok(())
@@ -184,21 +199,28 @@ impl DomainCreateModal {
             } else {
                 "Add domain to Cloudflare DNS or register with Registrar"
             };
-            let subtitle = Paragraph::new(Line::from(vec![
-                Span::styled(subtitle_text, Style::default().fg(theme.text_dim)),
-            ]))
+            let subtitle = Paragraph::new(Line::from(vec![Span::styled(
+                subtitle_text,
+                Style::default().fg(theme.text_dim),
+            )]))
             .wrap(Wrap { trim: true });
             f.render_widget(subtitle, chunks[0]);
         }
 
         // Domain Name Input
         let domain_border_style = if self.active_field == DomainModalField::DomainName {
-            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(theme.primary)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(theme.secondary)
         };
 
-        let cursor_char = if self.active_field == DomainModalField::DomainName { "█" } else { "" };
+        let cursor_char = if self.active_field == DomainModalField::DomainName {
+            "█"
+        } else {
+            ""
+        };
         let placeholder = if popup_width >= 70 {
             "example.com (e.g. myapp.dev)"
         } else {
@@ -206,10 +228,23 @@ impl DomainCreateModal {
         };
 
         let domain_input = Paragraph::new(Line::from(vec![
-            Span::styled(" Name: ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
             Span::styled(
-                if self.domain_name.is_empty() { placeholder } else { &self.domain_name },
-                if self.domain_name.is_empty() { Style::default().fg(theme.text_dim) } else { Style::default().fg(Color::White) },
+                " Name: ",
+                Style::default()
+                    .fg(theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                if self.domain_name.is_empty() {
+                    placeholder
+                } else {
+                    &self.domain_name
+                },
+                if self.domain_name.is_empty() {
+                    Style::default().fg(theme.text_dim)
+                } else {
+                    Style::default().fg(Color::White)
+                },
             ),
             Span::styled(cursor_char, Style::default().fg(theme.primary)),
         ]))
@@ -224,7 +259,9 @@ impl DomainCreateModal {
 
         // Plan Selection
         let plan_border_style = if self.active_field == DomainModalField::Plan {
-            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(theme.primary)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(theme.secondary)
         };
@@ -238,8 +275,16 @@ impl DomainCreateModal {
         };
 
         let plan_p = Paragraph::new(Line::from(vec![
-            Span::styled(" Plan: ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
-            Span::styled(format!("◀ {} ▶", self.plan_name()), Style::default().fg(theme.info).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                " Plan: ",
+                Style::default()
+                    .fg(theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!("◀ {} ▶", self.plan_name()),
+                Style::default().fg(theme.info).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(plan_hint, Style::default().fg(theme.text_dim)),
         ]))
         .block(
@@ -252,16 +297,30 @@ impl DomainCreateModal {
         f.render_widget(plan_p, chunks[2]);
 
         // Configuration Options (Stacked responsive rows for 100% readability)
-        let js_cursor = if self.active_field == DomainModalField::JumpStart { " ➔ " } else { "    " };
-        let ar_cursor = if self.active_field == DomainModalField::AutoRenew { " ➔ " } else { "    " };
-        let pv_cursor = if self.active_field == DomainModalField::Privacy { " ➔ " } else { "    " };
+        let js_cursor = if self.active_field == DomainModalField::JumpStart {
+            " ➔ "
+        } else {
+            "    "
+        };
+        let ar_cursor = if self.active_field == DomainModalField::AutoRenew {
+            " ➔ "
+        } else {
+            "    "
+        };
+        let pv_cursor = if self.active_field == DomainModalField::Privacy {
+            " ➔ "
+        } else {
+            "    "
+        };
 
         let js_check = if self.jump_start { "[✔] " } else { "[ ] " };
         let ar_check = if self.auto_renew { "[✔] " } else { "[ ] " };
         let pv_check = if self.privacy { "[✔] " } else { "[ ] " };
 
         let js_style = if self.active_field == DomainModalField::JumpStart {
-            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(theme.primary)
+                .add_modifier(Modifier::BOLD)
         } else if self.jump_start {
             Style::default().fg(theme.success)
         } else {
@@ -269,7 +328,9 @@ impl DomainCreateModal {
         };
 
         let ar_style = if self.active_field == DomainModalField::AutoRenew {
-            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(theme.primary)
+                .add_modifier(Modifier::BOLD)
         } else if self.auto_renew {
             Style::default().fg(theme.success)
         } else {
@@ -277,7 +338,9 @@ impl DomainCreateModal {
         };
 
         let pv_style = if self.active_field == DomainModalField::Privacy {
-            Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(theme.primary)
+                .add_modifier(Modifier::BOLD)
         } else if self.privacy {
             Style::default().fg(theme.success)
         } else {
@@ -306,17 +369,32 @@ impl DomainCreateModal {
 
         let mut toggle_lines = vec![
             Line::from(vec![
-                Span::styled(js_cursor, Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    js_cursor,
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(js_check, js_style),
                 Span::styled(js_label, js_style),
             ]),
             Line::from(vec![
-                Span::styled(ar_cursor, Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    ar_cursor,
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(ar_check, ar_style),
                 Span::styled(ar_label, ar_style),
             ]),
             Line::from(vec![
-                Span::styled(pv_cursor, Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    pv_cursor,
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(pv_check, pv_style),
                 Span::styled(pv_label, pv_style),
             ]),
@@ -328,59 +406,81 @@ impl DomainCreateModal {
             } else {
                 "    [Tab] Navigate    [Space] Toggle"
             };
-            toggle_lines.push(Line::from(vec![
-                Span::styled(nav_hint, Style::default().fg(theme.text_dim)),
-            ]));
+            toggle_lines.push(Line::from(vec![Span::styled(
+                nav_hint,
+                Style::default().fg(theme.text_dim),
+            )]));
         }
 
-        let toggles_p = Paragraph::new(toggle_lines)
-            .block(
-                Block::default()
-                    .title(" Configuration Options ")
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(theme.secondary)),
-            );
+        let toggles_p = Paragraph::new(toggle_lines).block(
+            Block::default()
+                .title(" Configuration Options ")
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(theme.secondary)),
+        );
         f.render_widget(toggles_p, chunks[3]);
 
         // Error message or submitting status (with text wrapping)
         let status_line = if let Some(err) = &self.error_msg {
             Line::from(vec![
-                Span::styled(" Error: ", Style::default().fg(theme.error).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    " Error: ",
+                    Style::default()
+                        .fg(theme.error)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(err, Style::default().fg(theme.error)),
             ])
         } else if self.is_submitting {
-            Line::from(vec![
-                Span::styled(" Onboarding domain to Cloudflare Edge API v4...", Style::default().fg(theme.warning).add_modifier(Modifier::BOLD)),
-            ])
+            Line::from(vec![Span::styled(
+                " Onboarding domain to Cloudflare Edge API v4...",
+                Style::default()
+                    .fg(theme.warning)
+                    .add_modifier(Modifier::BOLD),
+            )])
         } else {
-            Line::from(vec![
-                Span::styled(
-                    if popup_width >= 70 {
-                        " [Ready] Enter domain details and press [Enter] to submit"
-                    } else {
-                        " [Ready] Press [Enter] to submit"
-                    },
-                    Style::default().fg(theme.text_dim)
-                ),
-            ])
+            Line::from(vec![Span::styled(
+                if popup_width >= 70 {
+                    " [Ready] Enter domain details and press [Enter] to submit"
+                } else {
+                    " [Ready] Press [Enter] to submit"
+                },
+                Style::default().fg(theme.text_dim),
+            )])
         };
-        f.render_widget(Paragraph::new(status_line).wrap(Wrap { trim: true }), chunks[4]);
+        f.render_widget(
+            Paragraph::new(status_line).wrap(Wrap { trim: true }),
+            chunks[4],
+        );
 
         // Keybindings footer (responsive phrasing based on width)
         let footer_spans = if popup_width >= 78 {
             vec![
                 Span::styled("[Tab/↓] Next  ", Style::default().fg(theme.text_dim)),
                 Span::styled("[Shift+Tab/↑] Prev  ", Style::default().fg(theme.text_dim)),
-                Span::styled("[Space] Toggle/Cycle  ", Style::default().fg(theme.secondary)),
-                Span::styled("[Enter] Create & Onboard  ", Style::default().fg(theme.success).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "[Space] Toggle/Cycle  ",
+                    Style::default().fg(theme.secondary),
+                ),
+                Span::styled(
+                    "[Enter] Create & Onboard  ",
+                    Style::default()
+                        .fg(theme.success)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("[Esc] Cancel", Style::default().fg(theme.text_dim)),
             ]
         } else {
             vec![
                 Span::styled("[Tab] Next  ", Style::default().fg(theme.text_dim)),
                 Span::styled("[Space] Toggle  ", Style::default().fg(theme.secondary)),
-                Span::styled("[Enter] Onboard  ", Style::default().fg(theme.success).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "[Enter] Onboard  ",
+                    Style::default()
+                        .fg(theme.success)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("[Esc] Cancel", Style::default().fg(theme.text_dim)),
             ]
         };
@@ -484,7 +584,9 @@ mod tests {
         let mut terminal = ratatui::Terminal::new(backend).unwrap();
         let theme = Theme::default();
 
-        terminal.draw(|f| modal.render(f, f.area(), &theme)).unwrap();
+        terminal
+            .draw(|f| modal.render(f, f.area(), &theme))
+            .unwrap();
     }
 
     #[test]
@@ -497,11 +599,15 @@ mod tests {
         // Narrow terminal (64 cols x 20 rows)
         let backend_narrow = ratatui::backend::TestBackend::new(64, 20);
         let mut terminal_narrow = ratatui::Terminal::new(backend_narrow).unwrap();
-        terminal_narrow.draw(|f| modal.render(f, f.area(), &theme)).unwrap();
+        terminal_narrow
+            .draw(|f| modal.render(f, f.area(), &theme))
+            .unwrap();
 
         // Compact height terminal (80 cols x 16 rows)
         let backend_compact = ratatui::backend::TestBackend::new(80, 16);
         let mut terminal_compact = ratatui::Terminal::new(backend_compact).unwrap();
-        terminal_compact.draw(|f| modal.render(f, f.area(), &theme)).unwrap();
+        terminal_compact
+            .draw(|f| modal.render(f, f.area(), &theme))
+            .unwrap();
     }
 }

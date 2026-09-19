@@ -1,6 +1,6 @@
+use crate::db::{CachedSecurityEvent, CachedWafRule};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::db::{CachedSecurityEvent, CachedWafRule};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ThreatLevel {
@@ -145,7 +145,7 @@ impl SecurityAnalyticsEngine {
         let rate_score = ((rate_limited_count as f64 / total) * 15.0).min(15.0);
 
         // Exploit pattern bonus: up to 15 pts
-        let exploit_score = ((exploit_pattern_count as f64 * 3.0)).min(15.0);
+        let exploit_score = (exploit_pattern_count as f64 * 3.0).min(15.0);
 
         let final_score = (volume_score + block_score + rate_score + exploit_score).round() as u8;
         let score = final_score.clamp(0, 100);
@@ -160,7 +160,10 @@ impl SecurityAnalyticsEngine {
         (score, level)
     }
 
-    pub fn analyze(events: &[CachedSecurityEvent], rules: &[CachedWafRule]) -> SecurityAnalyticsReport {
+    pub fn analyze(
+        events: &[CachedSecurityEvent],
+        rules: &[CachedWafRule],
+    ) -> SecurityAnalyticsReport {
         let (threat_score, threat_level) = Self::calculate_threat_score(events);
         let total_events = events.len();
 
@@ -192,15 +195,21 @@ impl SecurityAnalyticsEngine {
                 rate_limited += 1;
             }
 
-            let c_entry = country_counts.entry(ev.client_country.clone()).or_insert((0, 0));
+            let c_entry = country_counts
+                .entry(ev.client_country.clone())
+                .or_insert((0, 0));
             c_entry.0 += 1;
             if is_block {
                 c_entry.1 += 1;
             }
 
-            *asn_counts.entry((ev.client_asn, ev.client_as_org.clone())).or_insert(0) += 1;
+            *asn_counts
+                .entry((ev.client_asn, ev.client_as_org.clone()))
+                .or_insert(0) += 1;
 
-            let p_entry = path_counts.entry(ev.http_path.clone()).or_insert((0, HashMap::new()));
+            let p_entry = path_counts
+                .entry(ev.http_path.clone())
+                .or_insert((0, HashMap::new()));
             p_entry.0 += 1;
             *p_entry.1.entry(ev.action.clone()).or_insert(0) += 1;
 
@@ -384,7 +393,7 @@ impl SecurityAnalyticsEngine {
         let buckets: Vec<TimeSeriesBucket> = if raw_buckets.len() <= 16 {
             raw_buckets
         } else {
-            let chunk_size = (raw_buckets.len() + 15) / 16;
+            let chunk_size = raw_buckets.len().div_ceil(16);
             raw_buckets
                 .chunks(chunk_size)
                 .map(|chunk| {
@@ -518,7 +527,13 @@ impl SecurityAnalyticsEngine {
                         let org_match = e.client_as_org.to_lowercase().contains(&q_lower);
                         let ray_match = e.ray_id.to_lowercase().contains(&q_lower);
 
-                        if !ip_match && !country_match && !path_match && !rule_match && !org_match && !ray_match {
+                        if !ip_match
+                            && !country_match
+                            && !path_match
+                            && !rule_match
+                            && !org_match
+                            && !ray_match
+                        {
                             return false;
                         }
                     }
@@ -655,7 +670,11 @@ mod tests {
         assert_eq!(report.top_paths[0].count, 2);
 
         // Rule hits
-        let sqli_hit = report.rule_hits.iter().find(|r| r.rule_id == "rule-sqli").expect("rule found");
+        let sqli_hit = report
+            .rule_hits
+            .iter()
+            .find(|r| r.rule_id == "rule-sqli")
+            .expect("rule found");
         assert_eq!(sqli_hit.hits, 1);
     }
 
@@ -668,7 +687,8 @@ mod tests {
         assert_eq!(blocked.len(), 2);
 
         // Filter by search query (IP)
-        let filtered_ip = SecurityAnalyticsEngine::filter_events(&events, None, Some("198.51.100.42"));
+        let filtered_ip =
+            SecurityAnalyticsEngine::filter_events(&events, None, Some("198.51.100.42"));
         assert_eq!(filtered_ip.len(), 1);
         assert_eq!(filtered_ip[0].ray_id, "8472a1bf001");
 
@@ -677,7 +697,11 @@ mod tests {
         assert_eq!(filtered_path.len(), 2);
 
         // Combined filter
-        let combined = SecurityAnalyticsEngine::filter_events(&events, Some("managed_challenge"), Some("/products"));
+        let combined = SecurityAnalyticsEngine::filter_events(
+            &events,
+            Some("managed_challenge"),
+            Some("/products"),
+        );
         assert_eq!(combined.len(), 1);
         assert_eq!(combined[0].ray_id, "8472a1bf002");
     }
@@ -714,7 +738,8 @@ mod tests {
             });
         }
 
-        let (timeline, sparkline) = SecurityAnalyticsEngine::generate_timeline_and_sparklines(&events);
+        let (timeline, sparkline) =
+            SecurityAnalyticsEngine::generate_timeline_and_sparklines(&events);
         assert!(!timeline.is_empty());
         assert!(!sparkline.total_sparkline.is_empty());
         assert!(!sparkline.blocked_sparkline.is_empty());

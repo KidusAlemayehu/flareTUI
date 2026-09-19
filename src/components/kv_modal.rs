@@ -168,21 +168,19 @@ impl KvModal {
                                 Style::default().fg(theme.success),
                             ),
                         ])
-                    } else if line.trim().starts_with('{') || line.trim().starts_with('}') || line.trim().starts_with('[') || line.trim().starts_with(']') {
+                    } else if line.trim().starts_with('{')
+                        || line.trim().starts_with('}')
+                        || line.trim().starts_with('[')
+                        || line.trim().starts_with(']')
+                    {
                         Line::from(vec![
                             Span::styled(line_num, Style::default().fg(Color::DarkGray)),
-                            Span::styled(
-                                line.to_string(),
-                                Style::default().fg(theme.secondary),
-                            ),
+                            Span::styled(line.to_string(), Style::default().fg(theme.secondary)),
                         ])
                     } else {
                         Line::from(vec![
                             Span::styled(line_num, Style::default().fg(Color::DarkGray)),
-                            Span::styled(
-                                line.to_string(),
-                                Style::default().fg(theme.text),
-                            ),
+                            Span::styled(line.to_string(), Style::default().fg(theme.text)),
                         ])
                     };
                     lines.push(line_style);
@@ -196,7 +194,10 @@ impl KvModal {
             .enumerate()
             .map(|(idx, line)| {
                 Line::from(vec![
-                    Span::styled(format!("{:3} │ ", idx + 1), Style::default().fg(Color::DarkGray)),
+                    Span::styled(
+                        format!("{:3} │ ", idx + 1),
+                        Style::default().fg(Color::DarkGray),
+                    ),
                     Span::styled(line.to_string(), Style::default().fg(theme.text)),
                 ])
             })
@@ -301,8 +302,7 @@ impl KvModal {
                 "  No keys match filter"
             };
             key_rows.push(
-                Row::new(vec![Cell::from(empty_msg)])
-                    .style(Style::default().fg(theme.text_dim)),
+                Row::new(vec![Cell::from(empty_msg)]).style(Style::default().fg(theme.text_dim)),
             );
         } else {
             for (idx, key) in self.filtered_keys.iter().enumerate() {
@@ -328,11 +328,7 @@ impl KvModal {
             }
         }
 
-        let keys_title = format!(
-            " Keys ({}/{}) ",
-            self.filtered_keys.len(),
-            self.keys.len()
-        );
+        let keys_title = format!(" Keys ({}/{}) ", self.filtered_keys.len(), self.keys.len());
 
         let keys_block = Block::default()
             .title(keys_title)
@@ -424,13 +420,19 @@ impl KvModal {
         if self.is_loading {
             spans.push(Span::styled(
                 " [ ⚡ LOADING ] ",
-                Style::default().bg(theme.warning).fg(Color::Black).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .bg(theme.warning)
+                    .fg(Color::Black)
+                    .add_modifier(Modifier::BOLD),
             ));
             spans.push(Span::raw(" Reading key from Cloudflare KV..."));
         } else if let Some(val) = &self.current_value {
             spans.push(Span::styled(
                 " [ ✔ LOADED ] ",
-                Style::default().bg(theme.success).fg(Color::Black).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .bg(theme.success)
+                    .fg(Color::Black)
+                    .add_modifier(Modifier::BOLD),
             ));
             spans.push(Span::raw(format!(" Value size: {} bytes", val.len())));
         } else {

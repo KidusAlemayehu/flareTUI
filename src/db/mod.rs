@@ -1,10 +1,10 @@
 pub mod schema;
 
-use std::path::Path;
-use std::sync::{Arc, Mutex};
 use color_eyre::Result;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
+use std::path::Path;
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Zone {
@@ -188,16 +188,26 @@ impl CacheDb {
         let conn = self.conn.lock().unwrap();
         conn.execute("DELETE FROM dns_records WHERE zone_id IN ('z1', 'z2', 'z3') OR id IN ('d1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8')", [])?;
         conn.execute("DELETE FROM zones WHERE id IN ('z1', 'z2', 'z3')", [])?;
-        conn.execute("DELETE FROM workers WHERE id IN ('w1', 'w2', 'w3', 'w4')", [])?;
+        conn.execute(
+            "DELETE FROM workers WHERE id IN ('w1', 'w2', 'w3', 'w4')",
+            [],
+        )?;
         conn.execute("DELETE FROM pages WHERE id IN ('p1', 'p2', 'p3')", [])?;
-        conn.execute("DELETE FROM security_events WHERE zone_id IN ('z1', 'z2', 'z3')", [])?;
-        conn.execute("DELETE FROM waf_rules WHERE zone_id IN ('z1', 'z2', 'z3')", [])?;
+        conn.execute(
+            "DELETE FROM security_events WHERE zone_id IN ('z1', 'z2', 'z3')",
+            [],
+        )?;
+        conn.execute(
+            "DELETE FROM waf_rules WHERE zone_id IN ('z1', 'z2', 'z3')",
+            [],
+        )?;
         Ok(())
     }
 
     pub fn get_zones(&self) -> Result<Vec<Zone>> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT id, name, status, plan, created_on FROM zones ORDER BY name ASC")?;
+        let mut stmt =
+            conn.prepare("SELECT id, name, status, plan, created_on FROM zones ORDER BY name ASC")?;
         let zones = stmt
             .query_map([], |row| {
                 Ok(Zone {
@@ -335,13 +345,24 @@ impl CacheDb {
     pub fn replace_zone_dns_records(&self, zone_id: &str, records: &[DnsRecord]) -> Result<()> {
         let mut conn = self.conn.lock().unwrap();
         let tx = conn.transaction()?;
-        tx.execute("DELETE FROM dns_records WHERE zone_id = ?", params![zone_id])?;
+        tx.execute(
+            "DELETE FROM dns_records WHERE zone_id = ?",
+            params![zone_id],
+        )?;
         for r in records {
             let proxied_int = if r.proxied { 1 } else { 0 };
             tx.execute(
                 "INSERT INTO dns_records (id, zone_id, record_type, name, content, proxied, ttl)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                params![r.id, r.zone_id, r.record_type, r.name, r.content, proxied_int, r.ttl],
+                params![
+                    r.id,
+                    r.zone_id,
+                    r.record_type,
+                    r.name,
+                    r.content,
+                    proxied_int,
+                    r.ttl
+                ],
             )?;
         }
         tx.commit()?;
@@ -418,10 +439,17 @@ impl CacheDb {
         Ok(deps)
     }
 
-    pub fn replace_pages_deployments(&self, project_name: &str, deployments: &[CachedDeployment]) -> Result<()> {
+    pub fn replace_pages_deployments(
+        &self,
+        project_name: &str,
+        deployments: &[CachedDeployment],
+    ) -> Result<()> {
         let mut conn = self.conn.lock().unwrap();
         let tx = conn.transaction()?;
-        tx.execute("DELETE FROM pages_deployments WHERE project_name = ?", params![project_name])?;
+        tx.execute(
+            "DELETE FROM pages_deployments WHERE project_name = ?",
+            params![project_name],
+        )?;
         for d in deployments {
             tx.execute(
                 "INSERT INTO pages_deployments (id, project_name, environment, url, branch, commit_hash, commit_message, status, created_on)
@@ -461,10 +489,17 @@ impl CacheDb {
         Ok(bindings)
     }
 
-    pub fn replace_worker_bindings(&self, script_name: &str, bindings: &[CachedWorkerBinding]) -> Result<()> {
+    pub fn replace_worker_bindings(
+        &self,
+        script_name: &str,
+        bindings: &[CachedWorkerBinding],
+    ) -> Result<()> {
         let mut conn = self.conn.lock().unwrap();
         let tx = conn.transaction()?;
-        tx.execute("DELETE FROM worker_bindings WHERE script_name = ?", params![script_name])?;
+        tx.execute(
+            "DELETE FROM worker_bindings WHERE script_name = ?",
+            params![script_name],
+        )?;
         for b in bindings {
             tx.execute(
                 "INSERT INTO worker_bindings (script_name, name, binding_type, details)
@@ -565,12 +600,20 @@ impl CacheDb {
     pub fn replace_d1_tables(&self, database_id: &str, tables: &[CachedD1Table]) -> Result<()> {
         let mut conn = self.conn.lock().unwrap();
         let tx = conn.transaction()?;
-        tx.execute("DELETE FROM d1_tables_cache WHERE database_id = ?", params![database_id])?;
+        tx.execute(
+            "DELETE FROM d1_tables_cache WHERE database_id = ?",
+            params![database_id],
+        )?;
         for t in tables {
             tx.execute(
                 "INSERT INTO d1_tables_cache (database_id, table_name, schema_sql, row_count)
                  VALUES (?1, ?2, ?3, ?4)",
-                params![t.database_id, t.table_name, t.schema_sql, t.row_count as i64],
+                params![
+                    t.database_id,
+                    t.table_name,
+                    t.schema_sql,
+                    t.row_count as i64
+                ],
             )?;
         }
         tx.commit()?;
@@ -625,10 +668,17 @@ impl CacheDb {
         Ok(())
     }
 
-    pub fn replace_security_events(&self, zone_id: &str, events: &[CachedSecurityEvent]) -> Result<()> {
+    pub fn replace_security_events(
+        &self,
+        zone_id: &str,
+        events: &[CachedSecurityEvent],
+    ) -> Result<()> {
         let mut conn = self.conn.lock().unwrap();
         let tx = conn.transaction()?;
-        tx.execute("DELETE FROM security_events WHERE zone_id = ?1", params![zone_id])?;
+        tx.execute(
+            "DELETE FROM security_events WHERE zone_id = ?1",
+            params![zone_id],
+        )?;
         for ev in events {
             tx.execute(
                 "INSERT INTO security_events (
@@ -766,7 +816,10 @@ impl CacheDb {
     pub fn replace_r2_buckets(&self, account_id: &str, buckets: &[CachedR2Bucket]) -> Result<()> {
         let mut conn = self.conn.lock().unwrap();
         let tx = conn.transaction()?;
-        tx.execute("DELETE FROM r2_buckets WHERE account_id = ?1", params![account_id])?;
+        tx.execute(
+            "DELETE FROM r2_buckets WHERE account_id = ?1",
+            params![account_id],
+        )?;
         for b in buckets {
             tx.execute(
                 "INSERT INTO r2_buckets (name, account_id, creation_date, location)
@@ -820,7 +873,10 @@ impl CacheDb {
     pub fn replace_r2_objects(&self, bucket_name: &str, objects: &[CachedR2Object]) -> Result<()> {
         let mut conn = self.conn.lock().unwrap();
         let tx = conn.transaction()?;
-        tx.execute("DELETE FROM r2_objects WHERE bucket_name = ?1", params![bucket_name])?;
+        tx.execute(
+            "DELETE FROM r2_objects WHERE bucket_name = ?1",
+            params![bucket_name],
+        )?;
         for obj in objects {
             tx.execute(
                 "INSERT INTO r2_objects (bucket_name, key, size, etag, uploaded, storage_class)
@@ -863,7 +919,11 @@ impl CacheDb {
         Ok(rows)
     }
 
-    pub fn get_r2_objects_by_prefix(&self, bucket_name: &str, prefix: &str) -> Result<Vec<CachedR2Object>> {
+    pub fn get_r2_objects_by_prefix(
+        &self,
+        bucket_name: &str,
+        prefix: &str,
+    ) -> Result<Vec<CachedR2Object>> {
         let conn = self.conn.lock().unwrap();
         let pattern = format!("{}%", prefix);
         let mut stmt = conn.prepare(
@@ -888,13 +948,20 @@ impl CacheDb {
         Ok(rows)
     }
 
-    pub fn replace_registrar_domains(&self, account_id: &str, domains: &[CachedRegistrarDomain]) -> Result<()> {
+    pub fn replace_registrar_domains(
+        &self,
+        account_id: &str,
+        domains: &[CachedRegistrarDomain],
+    ) -> Result<()> {
         let mut conn = self.conn.lock().unwrap();
         let tx = conn.transaction()?;
         if account_id.is_empty() {
             tx.execute("DELETE FROM registrar_domains", [])?;
         } else {
-            tx.execute("DELETE FROM registrar_domains WHERE account_id = ?1", params![account_id])?;
+            tx.execute(
+                "DELETE FROM registrar_domains WHERE account_id = ?1",
+                params![account_id],
+            )?;
         }
         for d in domains {
             let ns_json = serde_json::to_string(&d.name_servers).unwrap_or_default();
@@ -958,15 +1025,21 @@ impl CacheDb {
         };
 
         let rows = if account_id.is_empty() {
-            stmt.query_map([], map_row)?.collect::<std::result::Result<Vec<_>, _>>()?
+            stmt.query_map([], map_row)?
+                .collect::<std::result::Result<Vec<_>, _>>()?
         } else {
-            stmt.query_map(params![account_id], map_row)?.collect::<std::result::Result<Vec<_>, _>>()?
+            stmt.query_map(params![account_id], map_row)?
+                .collect::<std::result::Result<Vec<_>, _>>()?
         };
 
         Ok(rows)
     }
 
-    pub fn update_registrar_domain_auto_renew(&self, domain_name: &str, auto_renew: bool) -> Result<()> {
+    pub fn update_registrar_domain_auto_renew(
+        &self,
+        domain_name: &str,
+        auto_renew: bool,
+    ) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "UPDATE registrar_domains SET auto_renew = ?1 WHERE name = ?2",
@@ -1039,7 +1112,8 @@ mod tests {
             },
         ];
 
-        db.replace_worker_bindings(script, &bindings).expect("save bindings");
+        db.replace_worker_bindings(script, &bindings)
+            .expect("save bindings");
         let retrieved = db.get_worker_bindings(script).expect("get bindings");
         assert_eq!(retrieved.len(), 2);
         assert_eq!(retrieved[0].name, "DB");
@@ -1088,7 +1162,8 @@ mod tests {
                 row_count: 580,
             },
         ];
-        db.replace_d1_tables("d1-uuid-1", &tables).expect("replace tables");
+        db.replace_d1_tables("d1-uuid-1", &tables)
+            .expect("replace tables");
         let loaded_tables = db.get_d1_tables("d1-uuid-1").expect("get tables");
         assert_eq!(loaded_tables.len(), 2);
         assert_eq!(loaded_tables[0].table_name, "tokens");
@@ -1111,7 +1186,8 @@ mod tests {
             },
         ];
 
-        db.replace_kv_namespaces(&namespaces).expect("replace kv namespaces");
+        db.replace_kv_namespaces(&namespaces)
+            .expect("replace kv namespaces");
         let loaded = db.get_kv_namespaces().expect("get kv namespaces");
         assert_eq!(loaded.len(), 2);
         assert_eq!(loaded[0].title, "CACHE_KV");
@@ -1168,8 +1244,11 @@ mod tests {
             },
         ];
 
-        db.replace_security_events(zone_id, &events).expect("replace security events");
-        let retrieved = db.get_security_events(zone_id).expect("get security events");
+        db.replace_security_events(zone_id, &events)
+            .expect("replace security events");
+        let retrieved = db
+            .get_security_events(zone_id)
+            .expect("get security events");
         assert_eq!(retrieved.len(), 2);
         // Ordered by timestamp DESC
         assert_eq!(retrieved[0].ray_id, "8472a1bf002");
@@ -1214,7 +1293,8 @@ mod tests {
             },
         ];
 
-        db.replace_waf_rules(zone_id, &rules).expect("replace waf rules");
+        db.replace_waf_rules(zone_id, &rules)
+            .expect("replace waf rules");
         let retrieved = db.get_waf_rules(zone_id).expect("get waf rules");
         assert_eq!(retrieved.len(), 2);
         // Ordered by priority ASC
@@ -1244,7 +1324,8 @@ mod tests {
             },
         ];
 
-        db.replace_r2_buckets(account_id, &buckets).expect("replace r2 buckets");
+        db.replace_r2_buckets(account_id, &buckets)
+            .expect("replace r2 buckets");
         let retrieved_buckets = db.get_r2_buckets(account_id).expect("get r2 buckets");
         assert_eq!(retrieved_buckets.len(), 2);
         assert_eq!(retrieved_buckets[0].name, "backup-assets");
@@ -1277,12 +1358,15 @@ mod tests {
             },
         ];
 
-        db.replace_r2_objects("public-cdn", &objects).expect("replace r2 objects");
+        db.replace_r2_objects("public-cdn", &objects)
+            .expect("replace r2 objects");
         let all_objects = db.get_r2_objects("public-cdn").expect("get r2 objects");
         assert_eq!(all_objects.len(), 3);
         assert_eq!(all_objects[0].key, "index.html");
 
-        let static_objects = db.get_r2_objects_by_prefix("public-cdn", "static/").expect("get prefix");
+        let static_objects = db
+            .get_r2_objects_by_prefix("public-cdn", "static/")
+            .expect("get prefix");
         assert_eq!(static_objects.len(), 2);
         assert_eq!(static_objects[0].key, "static/css/style.css");
         assert_eq!(static_objects[1].key, "static/images/logo.svg");
@@ -1304,7 +1388,10 @@ mod tests {
                 created_at: "2024-08-15T12:00:00Z".to_string(),
                 locked: true,
                 privacy: true,
-                name_servers: vec!["eva.ns.cloudflare.com".to_string(), "kurt.ns.cloudflare.com".to_string()],
+                name_servers: vec![
+                    "eva.ns.cloudflare.com".to_string(),
+                    "kurt.ns.cloudflare.com".to_string(),
+                ],
             },
             CachedRegistrarDomain {
                 id: "reg-2".to_string(),
@@ -1316,27 +1403,36 @@ mod tests {
                 created_at: "2025-01-20T09:30:00Z".to_string(),
                 locked: false,
                 privacy: true,
-                name_servers: vec!["olga.ns.cloudflare.com".to_string(), "skip.ns.cloudflare.com".to_string()],
+                name_servers: vec![
+                    "olga.ns.cloudflare.com".to_string(),
+                    "skip.ns.cloudflare.com".to_string(),
+                ],
             },
         ];
 
-        db.replace_registrar_domains(account_id, &domains).expect("replace registrar domains");
-        let retrieved = db.get_registrar_domains(account_id).expect("get registrar domains");
+        db.replace_registrar_domains(account_id, &domains)
+            .expect("replace registrar domains");
+        let retrieved = db
+            .get_registrar_domains(account_id)
+            .expect("get registrar domains");
         assert_eq!(retrieved.len(), 2);
         assert_eq!(retrieved[0].name, "daedalus-dev.com");
         assert!(retrieved[0].auto_renew);
         assert!(retrieved[0].locked);
 
         // Test updates
-        db.update_registrar_domain_auto_renew("daedalus-dev.com", false).expect("update auto renew");
-        db.update_registrar_domain_locked("daedalus-dev.com", false).expect("update locked");
-        db.update_registrar_domain_privacy("daedalus-dev.com", false).expect("update privacy");
+        db.update_registrar_domain_auto_renew("daedalus-dev.com", false)
+            .expect("update auto renew");
+        db.update_registrar_domain_locked("daedalus-dev.com", false)
+            .expect("update locked");
+        db.update_registrar_domain_privacy("daedalus-dev.com", false)
+            .expect("update privacy");
 
-        let updated = db.get_registrar_domains(account_id).expect("get updated domains");
+        let updated = db
+            .get_registrar_domains(account_id)
+            .expect("get updated domains");
         assert!(!updated[0].auto_renew);
         assert!(!updated[0].locked);
         assert!(!updated[0].privacy);
     }
 }
-
-

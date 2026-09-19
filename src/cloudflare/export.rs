@@ -1,7 +1,7 @@
-use std::fs;
-use std::path::PathBuf;
 use color_eyre::Result;
 use directories::ProjectDirs;
+use std::fs;
+use std::path::PathBuf;
 
 use crate::db::DnsRecord;
 
@@ -10,7 +10,7 @@ pub struct ZoneExporter;
 impl ZoneExporter {
     pub fn export_bind_zone(domain: &str, records: &[DnsRecord]) -> Result<PathBuf> {
         let mut content = String::new();
-        content.push_str(&format!("; BIND Zone File exported by flareTUI\n"));
+        content.push_str("; BIND Zone File exported by flareTUI\n");
         content.push_str(&format!("; Zone: {domain}\n"));
         content.push_str(&format!("$ORIGIN {domain}.\n"));
         content.push_str("$TTL 300\n\n");
@@ -20,7 +20,11 @@ impl ZoneExporter {
                 "@"
             } else if r.name.ends_with(domain) {
                 let trimmed = r.name.trim_end_matches(domain).trim_end_matches('.');
-                if trimmed.is_empty() { "@" } else { trimmed }
+                if trimmed.is_empty() {
+                    "@"
+                } else {
+                    trimmed
+                }
             } else {
                 r.name.as_str()
             };

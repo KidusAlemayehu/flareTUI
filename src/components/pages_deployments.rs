@@ -72,7 +72,8 @@ impl PagesDeploymentsModal {
         let rows: Vec<Row> = if self.deployments.is_empty() {
             if self.is_loading {
                 vec![Row::new(vec![
-                    Cell::from("  ⏳ Loading deployments from Cloudflare...").style(Style::default().fg(theme.warning)),
+                    Cell::from("  ⏳ Loading deployments from Cloudflare...")
+                        .style(Style::default().fg(theme.warning)),
                     Cell::from(""),
                     Cell::from(""),
                     Cell::from(""),
@@ -80,7 +81,8 @@ impl PagesDeploymentsModal {
                 ])]
             } else {
                 vec![Row::new(vec![
-                    Cell::from("  No deployments recorded for this Pages project").style(Style::default().fg(theme.text_dim)),
+                    Cell::from("  No deployments recorded for this Pages project")
+                        .style(Style::default().fg(theme.text_dim)),
                     Cell::from(""),
                     Cell::from(""),
                     Cell::from(""),
@@ -97,7 +99,11 @@ impl PagesDeploymentsModal {
 
                     let env_str = d.environment.as_deref().unwrap_or("preview");
                     let env_cell = if env_str.eq_ignore_ascii_case("production") {
-                        Cell::from("[PROD]").style(Style::default().fg(theme.success).add_modifier(Modifier::BOLD))
+                        Cell::from("[PROD]").style(
+                            Style::default()
+                                .fg(theme.success)
+                                .add_modifier(Modifier::BOLD),
+                        )
                     } else {
                         Cell::from("[PREV]").style(Style::default().fg(theme.info))
                     };
@@ -117,9 +123,24 @@ impl PagesDeploymentsModal {
                         .unwrap_or("active");
 
                     let (status_icon, status_style) = match status_str.to_lowercase().as_str() {
-                        "success" => ("● Success", Style::default().fg(theme.success).add_modifier(Modifier::BOLD)),
-                        "failure" | "failed" => ("✖ Failed", Style::default().fg(theme.error).add_modifier(Modifier::BOLD)),
-                        "building" | "active" => ("▲ Building", Style::default().fg(theme.warning).add_modifier(Modifier::BOLD)),
+                        "success" => (
+                            "● Success",
+                            Style::default()
+                                .fg(theme.success)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        "failure" | "failed" => (
+                            "✖ Failed",
+                            Style::default()
+                                .fg(theme.error)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        "building" | "active" => (
+                            "▲ Building",
+                            Style::default()
+                                .fg(theme.warning)
+                                .add_modifier(Modifier::BOLD),
+                        ),
                         _ => ("⚪ Idle", Style::default().fg(theme.text_dim)),
                     };
 
@@ -152,7 +173,11 @@ impl PagesDeploymentsModal {
                     };
 
                     Row::new(vec![
-                        Cell::from(format!("{prefix}{short_id}")).style(Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+                        Cell::from(format!("{prefix}{short_id}")).style(
+                            Style::default()
+                                .fg(theme.secondary)
+                                .add_modifier(Modifier::BOLD),
+                        ),
                         env_cell,
                         Cell::from(status_icon).style(status_style),
                         Cell::from(branch).style(Style::default().fg(Color::White)),
@@ -176,9 +201,16 @@ impl PagesDeploymentsModal {
             ],
         )
         .header(
-            Row::new(vec!["Deploy ID", "Env", "Status", "Branch", "Commit / Trigger", "Deployed At"])
-                .style(theme.header_style())
-                .bottom_margin(1),
+            Row::new(vec![
+                "Deploy ID",
+                "Env",
+                "Status",
+                "Branch",
+                "Commit / Trigger",
+                "Deployed At",
+            ])
+            .style(theme.header_style())
+            .bottom_margin(1),
         )
         .block(
             Block::default()
@@ -199,7 +231,12 @@ impl PagesDeploymentsModal {
 
             let detail_lines = vec![
                 Line::from(vec![
-                    Span::styled("🔗 URL: ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        "🔗 URL: ",
+                        Style::default()
+                            .fg(theme.primary)
+                            .add_modifier(Modifier::BOLD),
+                    ),
                     Span::styled(full_url, Style::default().fg(theme.info)),
                     Span::raw("    "),
                     Span::styled("Commit: ", Style::default().fg(theme.text_dim)),
@@ -210,7 +247,10 @@ impl PagesDeploymentsModal {
                     Span::styled(&sel.id, Style::default().fg(theme.secondary)),
                     Span::raw("    "),
                     Span::styled("Modified: ", Style::default().fg(theme.text_dim)),
-                    Span::styled(sel.modified_on.as_deref().unwrap_or("Never"), Style::default().fg(theme.text_dim)),
+                    Span::styled(
+                        sel.modified_on.as_deref().unwrap_or("Never"),
+                        Style::default().fg(theme.text_dim),
+                    ),
                 ]),
             ];
 
@@ -240,17 +280,36 @@ impl PagesDeploymentsModal {
         let feedback_line = if let Some(fb) = &self.action_feedback {
             Line::from(vec![
                 Span::styled("● ", Style::default().fg(theme.success)),
-                Span::styled(fb, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    fb,
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ),
             ])
         } else if self.is_loading {
-            Line::from(vec![
-                Span::styled("⏳ Communicating with Cloudflare Pages API...", Style::default().fg(theme.warning)),
-            ])
+            Line::from(vec![Span::styled(
+                "⏳ Communicating with Cloudflare Pages API...",
+                Style::default().fg(theme.warning),
+            )])
         } else {
             Line::from(vec![
-                Span::styled(" [r] ", Style::default().fg(theme.warning).add_modifier(Modifier::BOLD)),
-                Span::styled("Rollback Production to this Build   ", Style::default().fg(Color::White)),
-                Span::styled(" [l] ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    " [r] ",
+                    Style::default()
+                        .fg(theme.warning)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    "Rollback Production to this Build   ",
+                    Style::default().fg(Color::White),
+                ),
+                Span::styled(
+                    " [l] ",
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("View Build Logs   ", Style::default().fg(Color::White)),
                 Span::styled(" [j/k] ", Style::default().fg(theme.secondary)),
                 Span::styled("Select   ", Style::default().fg(theme.text_dim)),

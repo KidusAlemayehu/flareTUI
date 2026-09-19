@@ -27,12 +27,21 @@ pub struct ProfileModal {
     pub status_msg: Option<String>,
 }
 
+impl Default for ProfileModal {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProfileModal {
     pub fn new() -> Self {
         let config = AuthManager::load_config();
         let profiles = config.get_effective_profiles();
         let current_name = config.current_profile.as_deref().unwrap_or("default");
-        let selected_idx = profiles.iter().position(|p| p.name == current_name).unwrap_or(0);
+        let selected_idx = profiles
+            .iter()
+            .position(|p| p.name == current_name)
+            .unwrap_or(0);
 
         Self {
             config,
@@ -108,7 +117,9 @@ impl ProfileModal {
         let active_name = self.config.current_profile.as_deref().unwrap_or("default");
 
         let block = Block::default()
-            .title(format!(" Account Profile Switcher (Active: {active_name}) "))
+            .title(format!(
+                " Account Profile Switcher (Active: {active_name}) "
+            ))
             .title_style(theme.title())
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
@@ -142,8 +153,12 @@ impl ProfileModal {
             let is_active = p.name == active_name;
 
             let status_cell = if is_active {
-                Cell::from(" ACTIVE ")
-                    .style(Style::default().fg(Color::Black).bg(theme.success).add_modifier(Modifier::BOLD))
+                Cell::from(" ACTIVE ").style(
+                    Style::default()
+                        .fg(Color::Black)
+                        .bg(theme.success)
+                        .add_modifier(Modifier::BOLD),
+                )
             } else {
                 Cell::from("-").style(Style::default().fg(Color::DarkGray))
             };
@@ -163,7 +178,8 @@ impl ProfileModal {
             };
 
             Row::new(vec![
-                Cell::from(p.name.clone()).style(Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+                Cell::from(p.name.clone())
+                    .style(Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
                 status_cell,
                 Cell::from(account_disp),
                 Cell::from(mask_token(&p.api_token)).style(Style::default().fg(theme.secondary)),
@@ -187,14 +203,24 @@ impl ProfileModal {
 
     fn render_status_pane(&self, f: &mut Frame, area: Rect, theme: &Theme) {
         let status_span = if let Some(msg) = &self.status_msg {
-            Span::styled(format!(" {msg} "), Style::default().fg(Color::White).bg(theme.primary))
+            Span::styled(
+                format!(" {msg} "),
+                Style::default().fg(Color::White).bg(theme.primary),
+            )
         } else if let Some(p) = self.selected_profile() {
             Span::styled(
-                format!("Selected: {} | Default Zone: {}", p.name, p.default_zone_id.as_deref().unwrap_or("All")),
+                format!(
+                    "Selected: {} | Default Zone: {}",
+                    p.name,
+                    p.default_zone_id.as_deref().unwrap_or("All")
+                ),
                 Style::default().fg(Color::DarkGray),
             )
         } else {
-            Span::styled("No profiles configured.", Style::default().fg(Color::DarkGray))
+            Span::styled(
+                "No profiles configured.",
+                Style::default().fg(Color::DarkGray),
+            )
         };
 
         let p = Paragraph::new(Line::from(vec![status_span]))

@@ -78,6 +78,12 @@ pub struct PaletteEngine {
     commands: Vec<PaletteCommand>,
 }
 
+impl Default for PaletteEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PaletteEngine {
     pub fn new() -> Self {
         let mut engine = Self {
@@ -115,7 +121,14 @@ impl PaletteEngine {
                 description: "Manage DNS zone records, proxy status, and TTLs".to_string(),
                 category: CommandCategory::Navigation,
                 shortcut: Some("1".to_string()),
-                keywords: vec!["dns".into(), "zone".into(), "cname".into(), "a".into(), "mx".into(), "proxied".into()],
+                keywords: vec![
+                    "dns".into(),
+                    "zone".into(),
+                    "cname".into(),
+                    "a".into(),
+                    "mx".into(),
+                    "proxied".into(),
+                ],
                 action: PaletteAction::SwitchView(0),
             },
             PaletteCommand {
@@ -124,7 +137,12 @@ impl PaletteEngine {
                 description: "View and inspect serverless Cloudflare Workers".to_string(),
                 category: CommandCategory::Navigation,
                 shortcut: Some("2".to_string()),
-                keywords: vec!["workers".into(), "serverless".into(), "scripts".into(), "routes".into()],
+                keywords: vec![
+                    "workers".into(),
+                    "serverless".into(),
+                    "scripts".into(),
+                    "routes".into(),
+                ],
                 action: PaletteAction::SwitchView(1),
             },
             PaletteCommand {
@@ -133,7 +151,12 @@ impl PaletteEngine {
                 description: "Inspect Cloudflare Pages deployments and build logs".to_string(),
                 category: CommandCategory::Navigation,
                 shortcut: Some("3".to_string()),
-                keywords: vec!["pages".into(), "deployments".into(), "builds".into(), "jamstack".into()],
+                keywords: vec![
+                    "pages".into(),
+                    "deployments".into(),
+                    "builds".into(),
+                    "jamstack".into(),
+                ],
                 action: PaletteAction::SwitchView(2),
             },
             PaletteCommand {
@@ -142,7 +165,13 @@ impl PaletteEngine {
                 description: "Explore D1 SQL databases and Workers KV namespaces".to_string(),
                 category: CommandCategory::Navigation,
                 shortcut: Some("4".to_string()),
-                keywords: vec!["storage".into(), "d1".into(), "kv".into(), "database".into(), "sql".into()],
+                keywords: vec![
+                    "storage".into(),
+                    "d1".into(),
+                    "kv".into(),
+                    "database".into(),
+                    "sql".into(),
+                ],
                 action: PaletteAction::SwitchView(3),
             },
             PaletteCommand {
@@ -151,7 +180,13 @@ impl PaletteEngine {
                 description: "Stream live Cloudflare Workers console logs and errors".to_string(),
                 category: CommandCategory::Navigation,
                 shortcut: Some("5".to_string()),
-                keywords: vec!["tail".into(), "logs".into(), "stream".into(), "realtime".into(), "console".into()],
+                keywords: vec![
+                    "tail".into(),
+                    "logs".into(),
+                    "stream".into(),
+                    "realtime".into(),
+                    "console".into(),
+                ],
                 action: PaletteAction::SwitchView(4),
             },
             PaletteCommand {
@@ -160,36 +195,64 @@ impl PaletteEngine {
                 description: "Monitor real-time threat levels, WAF rules, and attacks".to_string(),
                 category: CommandCategory::Navigation,
                 shortcut: Some("6".to_string()),
-                keywords: vec!["security".into(), "waf".into(), "firewall".into(), "threats".into(), "ddos".into(), "blocks".into()],
+                keywords: vec![
+                    "security".into(),
+                    "waf".into(),
+                    "firewall".into(),
+                    "threats".into(),
+                    "ddos".into(),
+                    "blocks".into(),
+                ],
                 action: PaletteAction::SwitchView(5),
             },
             PaletteCommand {
                 id: "nav_domains".to_string(),
                 title: "Domains & Registrar Dashboard".to_string(),
-                description: "Manage registered domains, renewals, and registrar settings".to_string(),
+                description: "Manage registered domains, renewals, and registrar settings"
+                    .to_string(),
                 category: CommandCategory::Navigation,
                 shortcut: Some("7".to_string()),
-                keywords: vec!["domains".into(), "registrar".into(), "whois".into(), "dns".into(), "nameservers".into()],
+                keywords: vec![
+                    "domains".into(),
+                    "registrar".into(),
+                    "whois".into(),
+                    "dns".into(),
+                    "nameservers".into(),
+                ],
                 action: PaletteAction::SwitchView(6),
             },
-
             // Cloudflare Actions
             PaletteCommand {
                 id: "cf_sync".to_string(),
                 title: "Sync All Cloudflare Resources".to_string(),
-                description: "Fetch and cache all zones, DNS, workers, and security events".to_string(),
+                description: "Fetch and cache all zones, DNS, workers, and security events"
+                    .to_string(),
                 category: CommandCategory::Cloudflare,
                 shortcut: Some("s".to_string()),
-                keywords: vec!["sync".into(), "refresh".into(), "reload".into(), "fetch".into(), "update".into()],
+                keywords: vec![
+                    "sync".into(),
+                    "refresh".into(),
+                    "reload".into(),
+                    "fetch".into(),
+                    "update".into(),
+                ],
                 action: PaletteAction::TriggerSync,
             },
             PaletteCommand {
                 id: "cf_fast_sync".to_string(),
                 title: "Fast Sync Active View".to_string(),
-                description: "Immediately revalidate Cloudflare live data for active view tab".to_string(),
+                description: "Immediately revalidate Cloudflare live data for active view tab"
+                    .to_string(),
                 category: CommandCategory::Cloudflare,
                 shortcut: Some("r".to_string()),
-                keywords: vec!["fast".into(), "sync".into(), "revalidate".into(), "poll".into(), "view".into(), "refresh".into()],
+                keywords: vec![
+                    "fast".into(),
+                    "sync".into(),
+                    "revalidate".into(),
+                    "poll".into(),
+                    "view".into(),
+                    "refresh".into(),
+                ],
                 action: PaletteAction::FastSyncActiveView,
             },
             PaletteCommand {
@@ -198,7 +261,13 @@ impl PaletteEngine {
                 description: "Purge cached assets from Cloudflare Edge CDN".to_string(),
                 category: CommandCategory::Cloudflare,
                 shortcut: None,
-                keywords: vec!["purge".into(), "cache".into(), "flush".into(), "clear".into(), "cdn".into()],
+                keywords: vec![
+                    "purge".into(),
+                    "cache".into(),
+                    "flush".into(),
+                    "clear".into(),
+                    "cdn".into(),
+                ],
                 action: PaletteAction::PurgeCache,
             },
             PaletteCommand {
@@ -207,7 +276,14 @@ impl PaletteEngine {
                 description: "View account profile, manage session, or authenticate".to_string(),
                 category: CommandCategory::Profiles,
                 shortcut: Some("a".to_string()),
-                keywords: vec!["auth".into(), "account".into(), "profile".into(), "login".into(), "user".into(), "credentials".into()],
+                keywords: vec![
+                    "auth".into(),
+                    "account".into(),
+                    "profile".into(),
+                    "login".into(),
+                    "user".into(),
+                    "credentials".into(),
+                ],
                 action: PaletteAction::ToggleAuth,
             },
             PaletteCommand {
@@ -216,27 +292,46 @@ impl PaletteEngine {
                 description: "Authenticate flareTUI by redirecting to your web browser".to_string(),
                 category: CommandCategory::Cloudflare,
                 shortcut: None,
-                keywords: vec!["login".into(), "oauth".into(), "browser".into(), "auth".into(), "signin".into()],
+                keywords: vec![
+                    "login".into(),
+                    "oauth".into(),
+                    "browser".into(),
+                    "auth".into(),
+                    "signin".into(),
+                ],
                 action: PaletteAction::OpenOAuthLogin,
             },
             PaletteCommand {
                 id: "auth_logout".to_string(),
                 title: "Log Out Active Session".to_string(),
-                description: "Disconnect active Cloudflare account and switch to offline mode".to_string(),
+                description: "Disconnect active Cloudflare account and switch to offline mode"
+                    .to_string(),
                 category: CommandCategory::Cloudflare,
                 shortcut: Some("Ctrl+L".to_string()),
-                keywords: vec!["logout".into(), "signout".into(), "disconnect".into(), "auth".into()],
+                keywords: vec![
+                    "logout".into(),
+                    "signout".into(),
+                    "disconnect".into(),
+                    "auth".into(),
+                ],
                 action: PaletteAction::Logout,
             },
-
             // Domains & Registrar Commands
             PaletteCommand {
                 id: "domain_register".to_string(),
                 title: "Register / Add New Domain".to_string(),
-                description: "Onboard domain zone or register domain with Cloudflare Registrar".to_string(),
+                description: "Onboard domain zone or register domain with Cloudflare Registrar"
+                    .to_string(),
                 category: CommandCategory::Domains,
                 shortcut: Some("n".to_string()),
-                keywords: vec!["domain".into(), "register".into(), "add".into(), "new".into(), "zone".into(), "onboard".into()],
+                keywords: vec![
+                    "domain".into(),
+                    "register".into(),
+                    "add".into(),
+                    "new".into(),
+                    "zone".into(),
+                    "onboard".into(),
+                ],
                 action: PaletteAction::OpenDomainCreateModal,
             },
             PaletteCommand {
@@ -245,28 +340,44 @@ impl PaletteEngine {
                 description: "Enable or disable automatic renewal for selected domain".to_string(),
                 category: CommandCategory::Domains,
                 shortcut: Some("a".to_string()),
-                keywords: vec!["auto-renew".into(), "renew".into(), "subscription".into(), "domain".into()],
+                keywords: vec![
+                    "auto-renew".into(),
+                    "renew".into(),
+                    "subscription".into(),
+                    "domain".into(),
+                ],
                 action: PaletteAction::ToggleDomainAutoRenew,
             },
             PaletteCommand {
                 id: "domain_toggle_lock".to_string(),
                 title: "Toggle Domain Transfer Lock".to_string(),
-                description: "Enable or disable registrar transfer lock for selected domain".to_string(),
+                description: "Enable or disable registrar transfer lock for selected domain"
+                    .to_string(),
                 category: CommandCategory::Domains,
                 shortcut: Some("l".to_string()),
-                keywords: vec!["lock".into(), "transfer".into(), "domain".into(), "registrar".into()],
+                keywords: vec![
+                    "lock".into(),
+                    "transfer".into(),
+                    "domain".into(),
+                    "registrar".into(),
+                ],
                 action: PaletteAction::ToggleDomainLock,
             },
             PaletteCommand {
                 id: "domain_toggle_privacy".to_string(),
                 title: "Toggle WHOIS Privacy Protection".to_string(),
-                description: "Enable or disable WHOIS privacy redaction for selected domain".to_string(),
+                description: "Enable or disable WHOIS privacy redaction for selected domain"
+                    .to_string(),
                 category: CommandCategory::Domains,
                 shortcut: Some("p".to_string()),
-                keywords: vec!["privacy".into(), "whois".into(), "redact".into(), "domain".into()],
+                keywords: vec![
+                    "privacy".into(),
+                    "whois".into(),
+                    "redact".into(),
+                    "domain".into(),
+                ],
                 action: PaletteAction::ToggleDomainPrivacy,
             },
-
             // Storage
             PaletteCommand {
                 id: "storage_d1_console".to_string(),
@@ -274,7 +385,13 @@ impl PaletteEngine {
                 description: "Interactive SQL query runner with table schema browser".to_string(),
                 category: CommandCategory::Storage,
                 shortcut: Some("d".to_string()),
-                keywords: vec!["d1".into(), "sql".into(), "query".into(), "sqlite".into(), "console".into()],
+                keywords: vec![
+                    "d1".into(),
+                    "sql".into(),
+                    "query".into(),
+                    "sqlite".into(),
+                    "console".into(),
+                ],
                 action: PaletteAction::OpenD1Console,
             },
             PaletteCommand {
@@ -283,21 +400,33 @@ impl PaletteEngine {
                 description: "Explore, search, and view JSON values in KV namespaces".to_string(),
                 category: CommandCategory::Storage,
                 shortcut: Some("k".to_string()),
-                keywords: vec!["kv".into(), "keys".into(), "browser".into(), "values".into(), "json".into()],
+                keywords: vec![
+                    "kv".into(),
+                    "keys".into(),
+                    "browser".into(),
+                    "values".into(),
+                    "json".into(),
+                ],
                 action: PaletteAction::OpenKvModal,
             },
-
             // Security
             PaletteCommand {
                 id: "sec_inspect".to_string(),
                 title: "Inspect Security Threat Event".to_string(),
-                description: "Open detailed inspector with IP lookup and WAF rule details".to_string(),
+                description: "Open detailed inspector with IP lookup and WAF rule details"
+                    .to_string(),
                 category: CommandCategory::Security,
                 shortcut: Some("Enter".to_string()),
-                keywords: vec!["inspect".into(), "threat".into(), "ray".into(), "ip".into(), "rule".into(), "payload".into()],
+                keywords: vec![
+                    "inspect".into(),
+                    "threat".into(),
+                    "ray".into(),
+                    "ip".into(),
+                    "rule".into(),
+                    "payload".into(),
+                ],
                 action: PaletteAction::OpenSecurityInspector,
             },
-
             // Profiles
             PaletteCommand {
                 id: "profile_switch".to_string(),
@@ -305,10 +434,15 @@ impl PaletteEngine {
                 description: "Hot-swap active credentials and profile environment".to_string(),
                 category: CommandCategory::Profiles,
                 shortcut: Some("Ctrl+U".to_string()),
-                keywords: vec!["profile".into(), "account".into(), "switch".into(), "token".into(), "credentials".into()],
+                keywords: vec![
+                    "profile".into(),
+                    "account".into(),
+                    "switch".into(),
+                    "token".into(),
+                    "credentials".into(),
+                ],
                 action: PaletteAction::OpenProfileSwitcher,
             },
-
             // System
             PaletteCommand {
                 id: "sys_help".to_string(),
@@ -316,7 +450,12 @@ impl PaletteEngine {
                 description: "Display global keybindings and navigation cheat sheet".to_string(),
                 category: CommandCategory::System,
                 shortcut: Some("?".to_string()),
-                keywords: vec!["help".into(), "shortcuts".into(), "keys".into(), "guide".into()],
+                keywords: vec![
+                    "help".into(),
+                    "shortcuts".into(),
+                    "keys".into(),
+                    "guide".into(),
+                ],
                 action: PaletteAction::OpenHelp,
             },
             PaletteCommand {
@@ -328,15 +467,21 @@ impl PaletteEngine {
                 keywords: vec!["quit".into(), "exit".into(), "close".into()],
                 action: PaletteAction::Quit,
             },
-
             // Theme Switching
             PaletteCommand {
                 id: "theme_cf_dark".to_string(),
                 title: "Theme: Cloudflare Dark (Default)".to_string(),
-                description: "Switch to official Cloudflare Dark orange and navy palette".to_string(),
+                description: "Switch to official Cloudflare Dark orange and navy palette"
+                    .to_string(),
                 category: CommandCategory::System,
                 shortcut: None,
-                keywords: vec!["theme".into(), "cloudflare".into(), "dark".into(), "orange".into(), "color".into()],
+                keywords: vec![
+                    "theme".into(),
+                    "cloudflare".into(),
+                    "dark".into(),
+                    "orange".into(),
+                    "color".into(),
+                ],
                 action: PaletteAction::SetTheme("Cloudflare Dark".to_string()),
             },
             PaletteCommand {
@@ -345,16 +490,29 @@ impl PaletteEngine {
                 description: "Switch to soothing Catppuccin Mocha pastel palette".to_string(),
                 category: CommandCategory::System,
                 shortcut: None,
-                keywords: vec!["theme".into(), "catppuccin".into(), "mocha".into(), "pastel".into(), "mauve".into()],
+                keywords: vec![
+                    "theme".into(),
+                    "catppuccin".into(),
+                    "mocha".into(),
+                    "pastel".into(),
+                    "mauve".into(),
+                ],
                 action: PaletteAction::SetTheme("Catppuccin Mocha".to_string()),
             },
             PaletteCommand {
                 id: "theme_tokyo_night".to_string(),
                 title: "Theme: Tokyo Night".to_string(),
-                description: "Switch to vibrant Tokyo Night neon cyan and purple palette".to_string(),
+                description: "Switch to vibrant Tokyo Night neon cyan and purple palette"
+                    .to_string(),
                 category: CommandCategory::System,
                 shortcut: None,
-                keywords: vec!["theme".into(), "tokyo".into(), "night".into(), "neon".into(), "cyan".into()],
+                keywords: vec![
+                    "theme".into(),
+                    "tokyo".into(),
+                    "night".into(),
+                    "neon".into(),
+                    "cyan".into(),
+                ],
                 action: PaletteAction::SetTheme("Tokyo Night".to_string()),
             },
             PaletteCommand {
@@ -363,18 +521,31 @@ impl PaletteEngine {
                 description: "Switch to arctic, north-bluish Nord palette".to_string(),
                 category: CommandCategory::System,
                 shortcut: None,
-                keywords: vec!["theme".into(), "nord".into(), "arctic".into(), "blue".into(), "frost".into()],
+                keywords: vec![
+                    "theme".into(),
+                    "nord".into(),
+                    "arctic".into(),
+                    "blue".into(),
+                    "frost".into(),
+                ],
                 action: PaletteAction::SetTheme("Nord".to_string()),
             },
-
             // System Fast Sync & Persistence Settings
             PaletteCommand {
                 id: "sys_fast_sync_toggle".to_string(),
                 title: "Toggle Fast Live Sync".to_string(),
-                description: "Enable or disable background periodic polling of Cloudflare changes".to_string(),
+                description: "Enable or disable background periodic polling of Cloudflare changes"
+                    .to_string(),
                 category: CommandCategory::System,
                 shortcut: None,
-                keywords: vec!["fast".into(), "sync".into(), "live".into(), "toggle".into(), "poll".into(), "cache".into()],
+                keywords: vec![
+                    "fast".into(),
+                    "sync".into(),
+                    "live".into(),
+                    "toggle".into(),
+                    "poll".into(),
+                    "cache".into(),
+                ],
                 action: PaletteAction::ToggleFastSync,
             },
             PaletteCommand {
@@ -383,16 +554,30 @@ impl PaletteEngine {
                 description: "Change background live sync polling frequency".to_string(),
                 category: CommandCategory::System,
                 shortcut: None,
-                keywords: vec!["sync".into(), "interval".into(), "frequency".into(), "rate".into(), "period".into(), "timer".into()],
+                keywords: vec![
+                    "sync".into(),
+                    "interval".into(),
+                    "frequency".into(),
+                    "rate".into(),
+                    "period".into(),
+                    "timer".into(),
+                ],
                 action: PaletteAction::CycleSyncInterval,
             },
             PaletteCommand {
                 id: "sys_auto_sync_tab_toggle".to_string(),
                 title: "Toggle Auto-Sync on Tab Switch".to_string(),
-                description: "Revalidate Cloudflare data automatically when switching tabs".to_string(),
+                description: "Revalidate Cloudflare data automatically when switching tabs"
+                    .to_string(),
                 category: CommandCategory::System,
                 shortcut: None,
-                keywords: vec!["auto".into(), "sync".into(), "tab".into(), "switch".into(), "navigation".into()],
+                keywords: vec![
+                    "auto".into(),
+                    "sync".into(),
+                    "tab".into(),
+                    "switch".into(),
+                    "navigation".into(),
+                ],
                 action: PaletteAction::ToggleAutoSyncOnTabChange,
             },
         ];
@@ -465,7 +650,11 @@ impl PaletteEngine {
             }
         }
 
-        results.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.command.title.cmp(&b.command.title)));
+        results.sort_by(|a, b| {
+            b.score
+                .cmp(&a.score)
+                .then_with(|| a.command.title.cmp(&b.command.title))
+        });
         results
     }
 }
@@ -479,7 +668,10 @@ mod tests {
         let engine = PaletteEngine::new();
         assert!(engine.commands().len() >= 10);
         assert!(engine.commands().iter().any(|c| c.id == "nav_security"));
-        assert!(engine.commands().iter().any(|c| c.id == "storage_d1_console"));
+        assert!(engine
+            .commands()
+            .iter()
+            .any(|c| c.id == "storage_d1_console"));
         assert!(engine.commands().iter().any(|c| c.id == "profile_switch"));
     }
 
@@ -556,7 +748,9 @@ mod tests {
         assert!(!dom_res.is_empty());
         assert!(dom_res.iter().any(|r| r.command.id == "nav_domains"));
         assert!(dom_res.iter().any(|r| r.command.id == "domain_register"));
-        assert!(dom_res.iter().any(|r| r.command.id == "domain_toggle_autorenew"));
+        assert!(dom_res
+            .iter()
+            .any(|r| r.command.id == "domain_toggle_autorenew"));
         assert!(dom_res.iter().any(|r| r.command.id == "domain_toggle_lock"));
     }
 
@@ -566,10 +760,14 @@ mod tests {
         let fast_res = engine.search("fast sync");
         assert!(!fast_res.is_empty());
         assert!(fast_res.iter().any(|r| r.command.id == "cf_fast_sync"));
-        assert!(fast_res.iter().any(|r| r.command.id == "sys_fast_sync_toggle"));
+        assert!(fast_res
+            .iter()
+            .any(|r| r.command.id == "sys_fast_sync_toggle"));
 
         let interval_res = engine.search("interval");
         assert!(!interval_res.is_empty());
-        assert!(interval_res.iter().any(|r| r.command.id == "sys_sync_interval_cycle"));
+        assert!(interval_res
+            .iter()
+            .any(|r| r.command.id == "sys_sync_interval_cycle"));
     }
 }

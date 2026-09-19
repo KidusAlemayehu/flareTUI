@@ -496,30 +496,59 @@ impl CloudflareClient {
             }
         }
 
-        color_eyre::eyre::bail!("Token verification failed: Invalid API Token or missing permissions")
+        color_eyre::eyre::bail!(
+            "Token verification failed: Invalid API Token or missing permissions"
+        )
     }
 
     pub async fn get_accounts(&self) -> Result<Vec<Account>> {
         let url = format!("{}/accounts", self.base_url);
-        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<Account>>>().await?;
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<Vec<Account>>>()
+            .await?;
         Ok(resp.result.unwrap_or_default())
     }
 
     pub async fn get_user(&self) -> Result<UserResult> {
         let url = format!("{}/user", self.base_url);
-        let resp = self.client.get(&url).send().await?.json::<ApiResponse<UserResult>>().await?;
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<UserResult>>()
+            .await?;
         if !resp.success {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch user".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to fetch user".to_string());
             color_eyre::eyre::bail!("{msg}");
         }
-        resp.result.ok_or_else(|| color_eyre::eyre::eyre!("User object missing in API response"))
+        resp.result
+            .ok_or_else(|| color_eyre::eyre::eyre!("User object missing in API response"))
     }
 
     pub async fn get_zones(&self) -> Result<Vec<ZoneResult>> {
         let url = format!("{}/zones?per_page=50", self.base_url);
-        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<ZoneResult>>>().await?;
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<Vec<ZoneResult>>>()
+            .await?;
         if !resp.success {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch zones".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to fetch zones".to_string());
             color_eyre::eyre::bail!("{msg}");
         }
         Ok(resp.result.unwrap_or_default())
@@ -527,32 +556,70 @@ impl CloudflareClient {
 
     pub async fn get_dns_records(&self, zone_id: &str) -> Result<Vec<DnsRecordResult>> {
         let url = format!("{}/zones/{zone_id}/dns_records?per_page=100", self.base_url);
-        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<DnsRecordResult>>>().await?;
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<Vec<DnsRecordResult>>>()
+            .await?;
         if !resp.success {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch DNS records".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to fetch DNS records".to_string());
             color_eyre::eyre::bail!("{msg}");
         }
         Ok(resp.result.unwrap_or_default())
     }
 
-    pub async fn toggle_dns_proxy(&self, zone_id: &str, record_id: &str, current_proxied: bool) -> Result<bool> {
+    pub async fn toggle_dns_proxy(
+        &self,
+        zone_id: &str,
+        record_id: &str,
+        current_proxied: bool,
+    ) -> Result<bool> {
         let url = format!("{}/zones/{zone_id}/dns_records/{record_id}", self.base_url);
         let new_proxied = !current_proxied;
-        let body = PatchDnsRecord { proxied: new_proxied };
-        let resp = self.client.patch(&url).json(&body).send().await?.json::<ApiResponse<DnsRecordResult>>().await?;
+        let body = PatchDnsRecord {
+            proxied: new_proxied,
+        };
+        let resp = self
+            .client
+            .patch(&url)
+            .json(&body)
+            .send()
+            .await?
+            .json::<ApiResponse<DnsRecordResult>>()
+            .await?;
         if resp.success {
             Ok(new_proxied)
         } else {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to update proxy".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to update proxy".to_string());
             color_eyre::eyre::bail!("{msg}")
         }
     }
 
     pub async fn get_workers(&self, account_id: &str) -> Result<Vec<WorkerScriptResult>> {
         let url = format!("{}/accounts/{account_id}/workers/scripts", self.base_url);
-        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<WorkerScriptResult>>>().await?;
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<Vec<WorkerScriptResult>>>()
+            .await?;
         if !resp.success {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch workers".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to fetch workers".to_string());
             color_eyre::eyre::bail!("{msg}");
         }
         Ok(resp.result.unwrap_or_default())
@@ -560,81 +627,212 @@ impl CloudflareClient {
 
     pub async fn get_pages(&self, account_id: &str) -> Result<Vec<PagesProjectResult>> {
         let url = format!("{}/accounts/{account_id}/pages/projects", self.base_url);
-        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<PagesProjectResult>>>().await?;
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<Vec<PagesProjectResult>>>()
+            .await?;
         if !resp.success {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch pages".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to fetch pages".to_string());
             color_eyre::eyre::bail!("{msg}");
         }
         Ok(resp.result.unwrap_or_default())
     }
 
-    pub async fn get_pages_deployments(&self, account_id: &str, project_name: &str) -> Result<Vec<PagesDeploymentResult>> {
-        let url = format!("{}/accounts/{account_id}/pages/projects/{project_name}/deployments?per_page=25", self.base_url);
-        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<PagesDeploymentResult>>>().await?;
+    pub async fn get_pages_deployments(
+        &self,
+        account_id: &str,
+        project_name: &str,
+    ) -> Result<Vec<PagesDeploymentResult>> {
+        let url = format!(
+            "{}/accounts/{account_id}/pages/projects/{project_name}/deployments?per_page=25",
+            self.base_url
+        );
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<Vec<PagesDeploymentResult>>>()
+            .await?;
         Ok(resp.result.unwrap_or_default())
     }
 
-    pub async fn rollback_pages_deployment(&self, account_id: &str, project_name: &str, deployment_id: &str) -> Result<PagesDeploymentResult> {
+    pub async fn rollback_pages_deployment(
+        &self,
+        account_id: &str,
+        project_name: &str,
+        deployment_id: &str,
+    ) -> Result<PagesDeploymentResult> {
         let url = format!("{}/accounts/{account_id}/pages/projects/{project_name}/deployments/{deployment_id}/rollback", self.base_url);
-        let resp = self.client.post(&url).send().await?.json::<ApiResponse<PagesDeploymentResult>>().await?;
+        let resp = self
+            .client
+            .post(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<PagesDeploymentResult>>()
+            .await?;
         if resp.success {
             if let Some(res) = resp.result {
                 return Ok(res);
             }
         }
-        let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to rollback deployment".to_string());
+        let msg = resp
+            .errors
+            .first()
+            .map(|e| e.message.clone())
+            .unwrap_or_else(|| "Failed to rollback deployment".to_string());
         color_eyre::eyre::bail!("{msg}")
     }
 
-    pub async fn get_pages_build_logs(&self, account_id: &str, project_name: &str, deployment_id: &str) -> Result<Vec<PagesBuildLogEntry>> {
+    pub async fn get_pages_build_logs(
+        &self,
+        account_id: &str,
+        project_name: &str,
+        deployment_id: &str,
+    ) -> Result<Vec<PagesBuildLogEntry>> {
         let url = format!("{}/accounts/{account_id}/pages/projects/{project_name}/deployments/{deployment_id}/history/logs", self.base_url);
-        let resp = self.client.get(&url).send().await?.json::<ApiResponse<PagesBuildLogResult>>().await?;
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<PagesBuildLogResult>>()
+            .await?;
         Ok(resp.result.and_then(|r| r.data).unwrap_or_default())
     }
 
-    pub async fn get_pages_domains(&self, account_id: &str, project_name: &str) -> Result<Vec<PagesDomainResult>> {
-        let url = format!("{}/accounts/{account_id}/pages/projects/{project_name}/domains", self.base_url);
-        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<PagesDomainResult>>>().await?;
+    pub async fn get_pages_domains(
+        &self,
+        account_id: &str,
+        project_name: &str,
+    ) -> Result<Vec<PagesDomainResult>> {
+        let url = format!(
+            "{}/accounts/{account_id}/pages/projects/{project_name}/domains",
+            self.base_url
+        );
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<Vec<PagesDomainResult>>>()
+            .await?;
         Ok(resp.result.unwrap_or_default())
     }
 
-    pub async fn create_worker_tail(&self, account_id: &str, script_name: &str) -> Result<TailSessionResult> {
-        let url = format!("{}/accounts/{account_id}/workers/scripts/{script_name}/tails", self.base_url);
-        let resp = self.client.post(&url).send().await?.json::<ApiResponse<TailSessionResult>>().await?;
+    pub async fn create_worker_tail(
+        &self,
+        account_id: &str,
+        script_name: &str,
+    ) -> Result<TailSessionResult> {
+        let url = format!(
+            "{}/accounts/{account_id}/workers/scripts/{script_name}/tails",
+            self.base_url
+        );
+        let resp = self
+            .client
+            .post(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<TailSessionResult>>()
+            .await?;
         if resp.success {
             if let Some(res) = resp.result {
                 return Ok(res);
             }
         }
-        let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to create tail session".to_string());
+        let msg = resp
+            .errors
+            .first()
+            .map(|e| e.message.clone())
+            .unwrap_or_else(|| "Failed to create tail session".to_string());
         color_eyre::eyre::bail!("{msg}")
     }
 
-    pub async fn delete_worker_tail(&self, account_id: &str, script_name: &str, tail_id: &str) -> Result<()> {
-        let url = format!("{}/accounts/{account_id}/workers/scripts/{script_name}/tails/{tail_id}", self.base_url);
-        let resp = self.client.delete(&url).send().await?.json::<ApiResponse<Option<serde_json::Value>>>().await?;
+    pub async fn delete_worker_tail(
+        &self,
+        account_id: &str,
+        script_name: &str,
+        tail_id: &str,
+    ) -> Result<()> {
+        let url = format!(
+            "{}/accounts/{account_id}/workers/scripts/{script_name}/tails/{tail_id}",
+            self.base_url
+        );
+        let resp = self
+            .client
+            .delete(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<Option<serde_json::Value>>>()
+            .await?;
         if !resp.success {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to delete tail session".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to delete tail session".to_string());
             color_eyre::eyre::bail!("{msg}");
         }
         Ok(())
     }
 
-    pub async fn get_worker_bindings(&self, account_id: &str, script_name: &str) -> Result<Vec<WorkerBinding>> {
-        let url = format!("{}/accounts/{account_id}/workers/scripts/{script_name}/bindings", self.base_url);
-        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<WorkerBinding>>>().await?;
+    pub async fn get_worker_bindings(
+        &self,
+        account_id: &str,
+        script_name: &str,
+    ) -> Result<Vec<WorkerBinding>> {
+        let url = format!(
+            "{}/accounts/{account_id}/workers/scripts/{script_name}/bindings",
+            self.base_url
+        );
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<Vec<WorkerBinding>>>()
+            .await?;
         if !resp.success {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch worker bindings".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to fetch worker bindings".to_string());
             color_eyre::eyre::bail!("{msg}");
         }
         Ok(resp.result.unwrap_or_default())
     }
 
-    pub async fn get_worker_routes(&self, account_id: &str, script_name: &str) -> Result<Vec<WorkerRouteDetail>> {
-        let url = format!("{}/accounts/{account_id}/workers/scripts/{script_name}/routes", self.base_url);
-        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<WorkerRouteDetail>>>().await?;
+    pub async fn get_worker_routes(
+        &self,
+        account_id: &str,
+        script_name: &str,
+    ) -> Result<Vec<WorkerRouteDetail>> {
+        let url = format!(
+            "{}/accounts/{account_id}/workers/scripts/{script_name}/routes",
+            self.base_url
+        );
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<Vec<WorkerRouteDetail>>>()
+            .await?;
         if !resp.success {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch worker routes".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to fetch worker routes".to_string());
             color_eyre::eyre::bail!("{msg}");
         }
         Ok(resp.result.unwrap_or_default())
@@ -642,31 +840,47 @@ impl CloudflareClient {
 
     pub async fn get_zone_settings(&self, zone_id: &str) -> Result<ZoneSettings> {
         let url = format!("{}/zones/{zone_id}/settings", self.base_url);
-        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<serde_json::Value>>>().await?;
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<Vec<serde_json::Value>>>()
+            .await?;
         let mut settings = ZoneSettings::default();
 
         if let Some(items) = resp.result {
             for item in items {
-                if let (Some(id), Some(val)) = (item.get("id").and_then(|v| v.as_str()), item.get("value")) {
+                if let (Some(id), Some(val)) =
+                    (item.get("id").and_then(|v| v.as_str()), item.get("value"))
+                {
                     match id {
                         "ssl" => {
                             if let Some(s) = val.as_str() {
-                                settings.ssl = Some(SettingValue { value: s.to_string() });
+                                settings.ssl = Some(SettingValue {
+                                    value: s.to_string(),
+                                });
                             }
                         }
                         "development_mode" => {
                             if let Some(s) = val.as_str() {
-                                settings.development_mode = Some(SettingValue { value: s.to_string() });
+                                settings.development_mode = Some(SettingValue {
+                                    value: s.to_string(),
+                                });
                             }
                         }
                         "security_level" => {
                             if let Some(s) = val.as_str() {
-                                settings.security_level = Some(SettingValue { value: s.to_string() });
+                                settings.security_level = Some(SettingValue {
+                                    value: s.to_string(),
+                                });
                             }
                         }
                         "min_tls_version" => {
                             if let Some(s) = val.as_str() {
-                                settings.min_tls_version = Some(SettingValue { value: s.to_string() });
+                                settings.min_tls_version = Some(SettingValue {
+                                    value: s.to_string(),
+                                });
                             }
                         }
                         _ => {}
@@ -680,23 +894,50 @@ impl CloudflareClient {
     pub async fn set_zone_ssl(&self, zone_id: &str, ssl_mode: &str) -> Result<()> {
         let url = format!("{}/zones/{zone_id}/settings/ssl", self.base_url);
         let body = SettingUpdate { value: ssl_mode };
-        let resp = self.client.patch(&url).json(&body).send().await?.json::<ApiResponse<serde_json::Value>>().await?;
+        let resp = self
+            .client
+            .patch(&url)
+            .json(&body)
+            .send()
+            .await?
+            .json::<ApiResponse<serde_json::Value>>()
+            .await?;
         if resp.success {
             Ok(())
         } else {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to update SSL".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to update SSL".to_string());
             color_eyre::eyre::bail!("{msg}")
         }
     }
 
     pub async fn set_zone_dev_mode(&self, zone_id: &str, enabled: bool) -> Result<()> {
-        let url = format!("{}/zones/{zone_id}/settings/development_mode", self.base_url);
-        let body = SettingUpdate { value: if enabled { "on" } else { "off" } };
-        let resp = self.client.patch(&url).json(&body).send().await?.json::<ApiResponse<serde_json::Value>>().await?;
+        let url = format!(
+            "{}/zones/{zone_id}/settings/development_mode",
+            self.base_url
+        );
+        let body = SettingUpdate {
+            value: if enabled { "on" } else { "off" },
+        };
+        let resp = self
+            .client
+            .patch(&url)
+            .json(&body)
+            .send()
+            .await?
+            .json::<ApiResponse<serde_json::Value>>()
+            .await?;
         if resp.success {
             Ok(())
         } else {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to update Dev Mode".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to update Dev Mode".to_string());
             color_eyre::eyre::bail!("{msg}")
         }
     }
@@ -704,113 +945,248 @@ impl CloudflareClient {
     pub async fn set_zone_security_level(&self, zone_id: &str, level: &str) -> Result<()> {
         let url = format!("{}/zones/{zone_id}/settings/security_level", self.base_url);
         let body = SettingUpdate { value: level };
-        let resp = self.client.patch(&url).json(&body).send().await?.json::<ApiResponse<serde_json::Value>>().await?;
+        let resp = self
+            .client
+            .patch(&url)
+            .json(&body)
+            .send()
+            .await?
+            .json::<ApiResponse<serde_json::Value>>()
+            .await?;
         if resp.success {
             Ok(())
         } else {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to update Security Level".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to update Security Level".to_string());
             color_eyre::eyre::bail!("{msg}")
         }
     }
 
     pub async fn purge_zone_cache(&self, zone_id: &str) -> Result<()> {
         let url = format!("{}/zones/{zone_id}/purge_cache", self.base_url);
-        let body = PurgeCacheRequest { purge_everything: true };
-        let resp = self.client.post(&url).json(&body).send().await?.json::<ApiResponse<serde_json::Value>>().await?;
+        let body = PurgeCacheRequest {
+            purge_everything: true,
+        };
+        let resp = self
+            .client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await?
+            .json::<ApiResponse<serde_json::Value>>()
+            .await?;
         if resp.success {
             Ok(())
         } else {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to purge cache".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to purge cache".to_string());
             color_eyre::eyre::bail!("{msg}")
         }
     }
 
-    pub async fn create_dns_record(&self, zone_id: &str, record: &NewDnsRecord) -> Result<DnsRecordResult> {
+    pub async fn create_dns_record(
+        &self,
+        zone_id: &str,
+        record: &NewDnsRecord,
+    ) -> Result<DnsRecordResult> {
         let url = format!("{}/zones/{zone_id}/dns_records", self.base_url);
-        let resp = self.client.post(&url).json(record).send().await?.json::<ApiResponse<DnsRecordResult>>().await?;
+        let resp = self
+            .client
+            .post(&url)
+            .json(record)
+            .send()
+            .await?
+            .json::<ApiResponse<DnsRecordResult>>()
+            .await?;
         if resp.success {
             if let Some(res) = resp.result {
                 return Ok(res);
             }
         }
-        let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to create DNS record".to_string());
+        let msg = resp
+            .errors
+            .first()
+            .map(|e| e.message.clone())
+            .unwrap_or_else(|| "Failed to create DNS record".to_string());
         color_eyre::eyre::bail!("{msg}")
     }
 
-    pub async fn update_dns_record(&self, zone_id: &str, record_id: &str, record: &NewDnsRecord) -> Result<DnsRecordResult> {
+    pub async fn update_dns_record(
+        &self,
+        zone_id: &str,
+        record_id: &str,
+        record: &NewDnsRecord,
+    ) -> Result<DnsRecordResult> {
         let url = format!("{}/zones/{zone_id}/dns_records/{record_id}", self.base_url);
-        let resp = self.client.put(&url).json(record).send().await?.json::<ApiResponse<DnsRecordResult>>().await?;
+        let resp = self
+            .client
+            .put(&url)
+            .json(record)
+            .send()
+            .await?
+            .json::<ApiResponse<DnsRecordResult>>()
+            .await?;
         if resp.success {
             if let Some(res) = resp.result {
                 return Ok(res);
             }
         }
-        let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to update DNS record".to_string());
+        let msg = resp
+            .errors
+            .first()
+            .map(|e| e.message.clone())
+            .unwrap_or_else(|| "Failed to update DNS record".to_string());
         color_eyre::eyre::bail!("{msg}")
     }
 
     pub async fn delete_dns_record(&self, zone_id: &str, record_id: &str) -> Result<()> {
         let url = format!("{}/zones/{zone_id}/dns_records/{record_id}", self.base_url);
-        let resp = self.client.delete(&url).send().await?.json::<ApiResponse<serde_json::Value>>().await?;
+        let resp = self
+            .client
+            .delete(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<serde_json::Value>>()
+            .await?;
         if resp.success {
             Ok(())
         } else {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to delete DNS record".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to delete DNS record".to_string());
             color_eyre::eyre::bail!("{msg}")
         }
     }
 
     pub async fn get_d1_databases(&self, account_id: &str) -> Result<Vec<D1DatabaseResult>> {
         let url = format!("{}/accounts/{account_id}/d1/database", self.base_url);
-        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<D1DatabaseResult>>>().await?;
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<Vec<D1DatabaseResult>>>()
+            .await?;
         if !resp.success {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch D1 databases".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to fetch D1 databases".to_string());
             color_eyre::eyre::bail!("{msg}");
         }
         Ok(resp.result.unwrap_or_default())
     }
 
-    pub async fn execute_d1_query(&self, account_id: &str, database_id: &str, sql: &str) -> Result<Vec<D1QueryResult>> {
-        let url = format!("{}/accounts/{account_id}/d1/database/{database_id}/query", self.base_url);
+    pub async fn execute_d1_query(
+        &self,
+        account_id: &str,
+        database_id: &str,
+        sql: &str,
+    ) -> Result<Vec<D1QueryResult>> {
+        let url = format!(
+            "{}/accounts/{account_id}/d1/database/{database_id}/query",
+            self.base_url
+        );
         let body = D1QueryRequest {
             sql: sql.to_string(),
             params: None,
         };
-        let resp = self.client.post(&url).json(&body).send().await?.json::<ApiResponse<Vec<D1QueryResult>>>().await?;
+        let resp = self
+            .client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await?
+            .json::<ApiResponse<Vec<D1QueryResult>>>()
+            .await?;
         if !resp.success {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to execute D1 query".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to execute D1 query".to_string());
             color_eyre::eyre::bail!("{msg}");
         }
         Ok(resp.result.unwrap_or_default())
     }
 
     pub async fn get_kv_namespaces(&self, account_id: &str) -> Result<Vec<KvNamespaceResult>> {
-        let url = format!("{}/accounts/{account_id}/storage/kv/namespaces?per_page=100", self.base_url);
-        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<KvNamespaceResult>>>().await?;
+        let url = format!(
+            "{}/accounts/{account_id}/storage/kv/namespaces?per_page=100",
+            self.base_url
+        );
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<Vec<KvNamespaceResult>>>()
+            .await?;
         if !resp.success {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch KV namespaces".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to fetch KV namespaces".to_string());
             color_eyre::eyre::bail!("{msg}");
         }
         Ok(resp.result.unwrap_or_default())
     }
 
-    pub async fn get_kv_keys(&self, account_id: &str, namespace_id: &str, limit: Option<usize>, prefix: Option<&str>) -> Result<Vec<KvKeyResult>> {
-        let mut url = format!("{}/accounts/{account_id}/storage/kv/namespaces/{namespace_id}/keys?limit={}", self.base_url, limit.unwrap_or(100));
+    pub async fn get_kv_keys(
+        &self,
+        account_id: &str,
+        namespace_id: &str,
+        limit: Option<usize>,
+        prefix: Option<&str>,
+    ) -> Result<Vec<KvKeyResult>> {
+        let mut url = format!(
+            "{}/accounts/{account_id}/storage/kv/namespaces/{namespace_id}/keys?limit={}",
+            self.base_url,
+            limit.unwrap_or(100)
+        );
         if let Some(p) = prefix {
             if !p.is_empty() {
                 url.push_str(&format!("&prefix={p}"));
             }
         }
-        let resp = self.client.get(&url).send().await?.json::<ApiResponse<Vec<KvKeyResult>>>().await?;
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<Vec<KvKeyResult>>>()
+            .await?;
         if !resp.success {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to fetch KV keys".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to fetch KV keys".to_string());
             color_eyre::eyre::bail!("{msg}");
         }
         Ok(resp.result.unwrap_or_default())
     }
 
-    pub async fn get_kv_value(&self, account_id: &str, namespace_id: &str, key_name: &str) -> Result<String> {
-        let url = format!("{}/accounts/{account_id}/storage/kv/namespaces/{namespace_id}/values/{key_name}", self.base_url);
+    pub async fn get_kv_value(
+        &self,
+        account_id: &str,
+        namespace_id: &str,
+        key_name: &str,
+    ) -> Result<String> {
+        let url = format!(
+            "{}/accounts/{account_id}/storage/kv/namespaces/{namespace_id}/values/{key_name}",
+            self.base_url
+        );
         let resp = self.client.get(&url).send().await?;
         if resp.status().is_success() {
             let text = resp.text().await?;
@@ -820,9 +1196,16 @@ impl CloudflareClient {
         }
     }
 
-    pub async fn get_security_events(&self, zone_id: &str, limit: Option<usize>) -> Result<Vec<SecurityEvent>> {
+    pub async fn get_security_events(
+        &self,
+        zone_id: &str,
+        limit: Option<usize>,
+    ) -> Result<Vec<SecurityEvent>> {
         let lim = limit.unwrap_or(50);
-        let url = format!("{}/zones/{zone_id}/security/events?limit={lim}", self.base_url);
+        let url = format!(
+            "{}/zones/{zone_id}/security/events?limit={lim}",
+            self.base_url
+        );
         let resp = self.client.get(&url).send().await;
 
         match resp {
@@ -872,7 +1255,10 @@ impl CloudflareClient {
             body.insert("paused".to_string(), serde_json::Value::Bool(p));
         }
         if let Some(pri) = priority {
-            body.insert("priority".to_string(), serde_json::Value::Number(pri.into()));
+            body.insert(
+                "priority".to_string(),
+                serde_json::Value::Number(pri.into()),
+            );
         }
         let resp = self.client.patch(&url).json(&body).send().await;
         match resp {
@@ -885,8 +1271,10 @@ impl CloudflareClient {
         let events = self.get_security_events(zone_id, Some(100)).await?;
         let mut summary = SecurityAnalyticsSummary::default();
 
-        let mut country_counts: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
-        let mut source_counts: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+        let mut country_counts: std::collections::HashMap<String, u64> =
+            std::collections::HashMap::new();
+        let mut source_counts: std::collections::HashMap<String, u64> =
+            std::collections::HashMap::new();
 
         for event in &events {
             summary.total_threats += 1;
@@ -900,10 +1288,17 @@ impl CloudflareClient {
                 summary.rate_limited_count += 1;
             }
 
-            let country = event.client_country.clone().unwrap_or_else(|| "Unknown".to_string());
+            let country = event
+                .client_country
+                .clone()
+                .unwrap_or_else(|| "Unknown".to_string());
             *country_counts.entry(country).or_insert(0) += 1;
 
-            let source = if event.source.is_empty() { "waf".to_string() } else { event.source.clone() };
+            let source = if event.source.is_empty() {
+                "waf".to_string()
+            } else {
+                event.source.clone()
+            };
             *source_counts.entry(source).or_insert(0) += 1;
         }
 
@@ -926,7 +1321,9 @@ impl CloudflareClient {
                 action: "block".to_string(),
                 source: "waf".to_string(),
                 rule_id: Some("100001".to_string()),
-                rule_description: Some("SQL Injection Protection - URI/Body Inspection".to_string()),
+                rule_description: Some(
+                    "SQL Injection Protection - URI/Body Inspection".to_string(),
+                ),
                 client_ip: "198.51.100.42".to_string(),
                 client_country: Some("Netherlands".to_string()),
                 client_asn: Some("AS13335".to_string()),
@@ -1060,14 +1457,18 @@ impl CloudflareClient {
         match resp {
             Ok(r) if r.status().is_success() => {
                 if let Ok(text) = r.text().await {
-                    if let Ok(api_resp) = serde_json::from_str::<ApiResponse<R2BucketsResponse>>(&text) {
+                    if let Ok(api_resp) =
+                        serde_json::from_str::<ApiResponse<R2BucketsResponse>>(&text)
+                    {
                         if api_resp.success {
                             if let Some(res) = api_resp.result {
                                 return Ok(res.buckets);
                             }
                         }
                     }
-                    if let Ok(api_resp) = serde_json::from_str::<ApiResponse<Vec<R2BucketResult>>>(&text) {
+                    if let Ok(api_resp) =
+                        serde_json::from_str::<ApiResponse<Vec<R2BucketResult>>>(&text)
+                    {
                         if api_resp.success {
                             if let Some(buckets) = api_resp.result {
                                 return Ok(buckets);
@@ -1081,8 +1482,17 @@ impl CloudflareClient {
         }
     }
 
-    pub async fn get_r2_objects(&self, account_id: &str, bucket_name: &str, prefix: Option<&str>, delimiter: Option<&str>) -> Result<R2ObjectsListResult> {
-        let mut url = format!("{}/accounts/{account_id}/r2/buckets/{bucket_name}/objects", self.base_url);
+    pub async fn get_r2_objects(
+        &self,
+        account_id: &str,
+        bucket_name: &str,
+        prefix: Option<&str>,
+        delimiter: Option<&str>,
+    ) -> Result<R2ObjectsListResult> {
+        let mut url = format!(
+            "{}/accounts/{account_id}/r2/buckets/{bucket_name}/objects",
+            self.base_url
+        );
         let mut queries = Vec::new();
         if let Some(p) = prefix {
             if !p.is_empty() {
@@ -1178,7 +1588,10 @@ impl CloudflareClient {
         let filtered: Vec<R2ObjectResult> = if pref.is_empty() {
             all_objects
         } else {
-            all_objects.into_iter().filter(|o| o.key.starts_with(pref)).collect()
+            all_objects
+                .into_iter()
+                .filter(|o| o.key.starts_with(pref))
+                .collect()
         };
 
         R2ObjectsListResult {
@@ -1215,22 +1628,42 @@ impl CloudflareClient {
         locked: Option<bool>,
         privacy: Option<bool>,
     ) -> Result<RegistrarDomain> {
-        let url = format!("{}/accounts/{account_id}/registrar/domains/{domain_name}", self.base_url);
+        let url = format!(
+            "{}/accounts/{account_id}/registrar/domains/{domain_name}",
+            self.base_url
+        );
         let body = UpdateRegistrarDomainRequest {
             auto_renew,
             locked,
             privacy,
         };
-        let resp = self.client.put(&url).json(&body).send().await?.json::<ApiResponse<RegistrarDomain>>().await?;
+        let resp = self
+            .client
+            .put(&url)
+            .json(&body)
+            .send()
+            .await?
+            .json::<ApiResponse<RegistrarDomain>>()
+            .await?;
         if resp.success {
-            resp.result.ok_or_else(|| color_eyre::eyre::eyre!("Updated domain missing in API response"))
+            resp.result
+                .ok_or_else(|| color_eyre::eyre::eyre!("Updated domain missing in API response"))
         } else {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to update domain".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to update domain".to_string());
             color_eyre::eyre::bail!("{msg}")
         }
     }
 
-    pub async fn create_zone(&self, account_id: &str, domain_name: &str, jump_start: bool) -> Result<ZoneResult> {
+    pub async fn create_zone(
+        &self,
+        account_id: &str,
+        domain_name: &str,
+        jump_start: bool,
+    ) -> Result<ZoneResult> {
         let url = format!("{}/zones", self.base_url);
         let body = CreateZoneRequest {
             name: domain_name.trim().to_lowercase(),
@@ -1241,11 +1674,23 @@ impl CloudflareClient {
             zone_type: "full".to_string(),
         };
 
-        let resp = self.client.post(&url).json(&body).send().await?.json::<ApiResponse<ZoneResult>>().await?;
+        let resp = self
+            .client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await?
+            .json::<ApiResponse<ZoneResult>>()
+            .await?;
         if resp.success {
-            resp.result.ok_or_else(|| color_eyre::eyre::eyre!("New zone missing in API response"))
+            resp.result
+                .ok_or_else(|| color_eyre::eyre::eyre!("New zone missing in API response"))
         } else {
-            let msg = resp.errors.first().map(|e| e.message.clone()).unwrap_or_else(|| "Failed to create zone".to_string());
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to create zone".to_string());
             color_eyre::eyre::bail!("{msg}")
         }
     }
@@ -1338,9 +1783,15 @@ mod tests {
         let script: WorkerScriptResult = serde_json::from_str(json).expect("deserialize worker");
         assert_eq!(script.id, "my-worker");
         assert_eq!(script.compatibility_date.as_deref(), Some("2024-09-01"));
-        assert_eq!(script.compatibility_flags, Some(vec!["nodejs_compat".to_string()]));
+        assert_eq!(
+            script.compatibility_flags,
+            Some(vec!["nodejs_compat".to_string()])
+        );
         assert_eq!(script.usage_model.as_deref(), Some("standard"));
-        assert_eq!(script.handlers, Some(vec!["fetch".to_string(), "scheduled".to_string()]));
+        assert_eq!(
+            script.handlers,
+            Some(vec!["fetch".to_string(), "scheduled".to_string()])
+        );
     }
 
     #[test]
@@ -1351,12 +1802,16 @@ mod tests {
             {"name": "CACHE_KV", "type": "kv_namespace", "namespace_id": "kv123"}
         ]"#;
 
-        let bindings: Vec<WorkerBinding> = serde_json::from_str(json).expect("deserialize bindings");
+        let bindings: Vec<WorkerBinding> =
+            serde_json::from_str(json).expect("deserialize bindings");
         assert_eq!(bindings.len(), 3);
         assert_eq!(bindings[0].name, "BOT_TOKEN");
         assert_eq!(bindings[0].binding_type, "secret_text");
         assert_eq!(bindings[1].binding_type, "d1");
-        assert_eq!(bindings[1].database_id.as_deref(), Some("76632ad7-a168-49f6-b81a-90306079a5fe"));
+        assert_eq!(
+            bindings[1].database_id.as_deref(),
+            Some("76632ad7-a168-49f6-b81a-90306079a5fe")
+        );
         assert_eq!(bindings[2].binding_type, "kv_namespace");
         assert_eq!(bindings[2].namespace_id.as_deref(), Some("kv123"));
     }
@@ -1496,7 +1951,10 @@ mod tests {
         let rule: WafRule = serde_json::from_str(json).expect("deserialize waf rule");
         assert_eq!(rule.id, "rule_admin_challenge");
         assert_eq!(rule.action, "managed_challenge");
-        assert_eq!(rule.expression, "(http.request.uri.path contains \"/admin/\")");
+        assert_eq!(
+            rule.expression,
+            "(http.request.uri.path contains \"/admin/\")"
+        );
         assert!(!rule.paused);
         assert_eq!(rule.priority, Some(2));
         assert_eq!(rule.reference.as_deref(), Some("SEC-POLICY-ADMIN"));
@@ -1564,7 +2022,10 @@ mod tests {
 
         let mock_objs = CloudflareClient::mock_r2_objects("test-bucket", Some("static/"));
         assert_eq!(mock_objs.objects.len(), 3);
-        assert!(mock_objs.objects.iter().all(|o| o.key.starts_with("static/")));
+        assert!(mock_objs
+            .objects
+            .iter()
+            .all(|o| o.key.starts_with("static/")));
     }
 
     #[test]
@@ -1583,7 +2044,8 @@ mod tests {
             "dnssec": true
         }"#;
 
-        let domain: RegistrarDomain = serde_json::from_str(json).expect("deserialize registrar domain");
+        let domain: RegistrarDomain =
+            serde_json::from_str(json).expect("deserialize registrar domain");
         assert_eq!(domain.id, "dom-test-123");
         assert_eq!(domain.name, "example-enterprise.com");
         assert_eq!(domain.status, "active");

@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Clear, Paragraph, Table, Row, Cell, Wrap},
+    widgets::{Block, BorderType, Borders, Cell, Clear, Paragraph, Row, Table, Wrap},
     Frame,
 };
 
@@ -53,8 +53,12 @@ impl ZoneInspectorModal {
 
         // 1. Overview Table
         let status_style = match self.zone.status.as_str() {
-            "active" => Style::default().fg(theme.success).add_modifier(Modifier::BOLD),
-            _ => Style::default().fg(theme.warning).add_modifier(Modifier::BOLD),
+            "active" => Style::default()
+                .fg(theme.success)
+                .add_modifier(Modifier::BOLD),
+            _ => Style::default()
+                .fg(theme.warning)
+                .add_modifier(Modifier::BOLD),
         };
 
         let overview_rows = vec![
@@ -62,7 +66,11 @@ impl ZoneInspectorModal {
                 Cell::from("Zone ID:").style(Style::default().fg(theme.text_dim)),
                 Cell::from(self.zone.id.clone()).style(Style::default().fg(Color::White)),
                 Cell::from("Plan:").style(Style::default().fg(theme.text_dim)),
-                Cell::from(self.zone.plan.clone()).style(Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+                Cell::from(self.zone.plan.clone()).style(
+                    Style::default()
+                        .fg(theme.secondary)
+                        .add_modifier(Modifier::BOLD),
+                ),
             ]),
             Row::new(vec![
                 Cell::from("Status:").style(Style::default().fg(theme.text_dim)),
@@ -89,25 +97,53 @@ impl ZoneInspectorModal {
         f.render_widget(overview_table, chunks[0]);
 
         // 2. Settings Grid
-        let ssl_val = self.settings.ssl.as_ref().map(|s| s.value.as_str()).unwrap_or("flexible");
-        let dev_val = self.settings.development_mode.as_ref().map(|s| s.value.as_str()).unwrap_or("off");
-        let sec_val = self.settings.security_level.as_ref().map(|s| s.value.as_str()).unwrap_or("medium");
-        let tls_val = self.settings.min_tls_version.as_ref().map(|s| s.value.as_str()).unwrap_or("1.2");
+        let ssl_val = self
+            .settings
+            .ssl
+            .as_ref()
+            .map(|s| s.value.as_str())
+            .unwrap_or("flexible");
+        let dev_val = self
+            .settings
+            .development_mode
+            .as_ref()
+            .map(|s| s.value.as_str())
+            .unwrap_or("off");
+        let sec_val = self
+            .settings
+            .security_level
+            .as_ref()
+            .map(|s| s.value.as_str())
+            .unwrap_or("medium");
+        let tls_val = self
+            .settings
+            .min_tls_version
+            .as_ref()
+            .map(|s| s.value.as_str())
+            .unwrap_or("1.2");
 
         let ssl_style = match ssl_val {
-            "strict" | "full" => Style::default().fg(theme.success).add_modifier(Modifier::BOLD),
-            "flexible" => Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD),
+            "strict" | "full" => Style::default()
+                .fg(theme.success)
+                .add_modifier(Modifier::BOLD),
+            "flexible" => Style::default()
+                .fg(theme.secondary)
+                .add_modifier(Modifier::BOLD),
             _ => Style::default().fg(theme.error),
         };
 
         let dev_style = if dev_val == "on" {
-            Style::default().fg(theme.warning).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(theme.warning)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(theme.text_dim)
         };
 
         let sec_style = if sec_val == "under_attack" {
-            Style::default().fg(theme.error).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(theme.error)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(theme.info)
         };
@@ -123,7 +159,10 @@ impl ZoneInspectorModal {
                 Span::styled("⚡ Dev Mode:     ", Style::default().fg(theme.text_dim)),
                 Span::styled(format!("{:<14}", dev_val.to_uppercase()), dev_style),
                 Span::styled("📜 Min TLS:        ", Style::default().fg(theme.text_dim)),
-                Span::styled(format!("{:<14}", tls_val), Style::default().fg(Color::White)),
+                Span::styled(
+                    format!("{:<14}", tls_val),
+                    Style::default().fg(Color::White),
+                ),
             ]),
         ])
         .wrap(Wrap { trim: true })
@@ -143,28 +182,53 @@ impl ZoneInspectorModal {
                 Span::styled(fb, Style::default().fg(Color::White)),
             ])
         } else if self.is_loading {
-            Line::from(vec![
-                Span::styled("⏳ Communicating with Cloudflare v4 API...", Style::default().fg(theme.warning)),
-            ])
+            Line::from(vec![Span::styled(
+                "⏳ Communicating with Cloudflare v4 API...",
+                Style::default().fg(theme.warning),
+            )])
         } else {
-            Line::from(vec![
-                Span::styled("Press hotkey to trigger edge changes live on Cloudflare:", Style::default().fg(theme.text_dim)),
-            ])
+            Line::from(vec![Span::styled(
+                "Press hotkey to trigger edge changes live on Cloudflare:",
+                Style::default().fg(theme.text_dim),
+            )])
         };
 
         let actions_text = vec![
             feedback_line,
             Line::from(vec![
-                Span::styled(" [s] ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    " [s] ",
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("Cycle SSL Mode   ", Style::default().fg(Color::White)),
-                Span::styled(" [d] ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    " [d] ",
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("Toggle Dev Mode   ", Style::default().fg(Color::White)),
-                Span::styled(" [u] ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    " [u] ",
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("Under Attack Mode", Style::default().fg(Color::White)),
             ]),
             Line::from(vec![
-                Span::styled(" [p] ", Style::default().fg(theme.error).add_modifier(Modifier::BOLD)),
-                Span::styled("Purge Everything (Edge Cache)    ", Style::default().fg(theme.error)),
+                Span::styled(
+                    " [p] ",
+                    Style::default()
+                        .fg(theme.error)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    "Purge Everything (Edge Cache)    ",
+                    Style::default().fg(theme.error),
+                ),
                 Span::styled(" [Esc] ", Style::default().fg(theme.secondary)),
                 Span::styled("Close Inspector", Style::default().fg(theme.text_dim)),
             ]),

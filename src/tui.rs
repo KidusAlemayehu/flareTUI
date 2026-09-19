@@ -1,4 +1,3 @@
-use std::io::{stdout, Stdout};
 use color_eyre::Result;
 use crossterm::{
     cursor,
@@ -7,6 +6,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
+use std::io::{stdout, Stdout};
 
 pub struct Tui {
     pub terminal: Terminal<CrosstermBackend<Stdout>>,
@@ -20,14 +20,24 @@ impl Tui {
 
     pub fn enter(&mut self) -> Result<()> {
         enable_raw_mode()?;
-        execute!(stdout(), EnterAlternateScreen, EnableMouseCapture, cursor::Hide)?;
+        execute!(
+            stdout(),
+            EnterAlternateScreen,
+            EnableMouseCapture,
+            cursor::Hide
+        )?;
         self.terminal.clear()?;
         Ok(())
     }
 
     pub fn exit(&mut self) -> Result<()> {
         if crossterm::terminal::is_raw_mode_enabled()? {
-            execute!(stdout(), LeaveAlternateScreen, DisableMouseCapture, cursor::Show)?;
+            execute!(
+                stdout(),
+                LeaveAlternateScreen,
+                DisableMouseCapture,
+                cursor::Show
+            )?;
             disable_raw_mode()?;
         }
         Ok(())
@@ -37,7 +47,12 @@ impl Tui {
 pub fn install_panic_hook() {
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
-        let _ = execute!(stdout(), LeaveAlternateScreen, DisableMouseCapture, cursor::Show);
+        let _ = execute!(
+            stdout(),
+            LeaveAlternateScreen,
+            DisableMouseCapture,
+            cursor::Show
+        );
         let _ = disable_raw_mode();
         original_hook(panic_info);
     }));

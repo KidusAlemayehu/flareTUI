@@ -78,16 +78,25 @@ impl WorkersView {
                     };
 
                     let status_style = match w.status.as_str() {
-                        "Healthy" => Style::default().fg(theme.success).add_modifier(Modifier::BOLD),
-                        _ => Style::default().fg(theme.warning).add_modifier(Modifier::BOLD),
+                        "Healthy" => Style::default()
+                            .fg(theme.success)
+                            .add_modifier(Modifier::BOLD),
+                        _ => Style::default()
+                            .fg(theme.warning)
+                            .add_modifier(Modifier::BOLD),
                     };
 
                     Row::new(vec![
-                        Cell::from(format!("{prefix}{}", w.name))
-                            .style(Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+                        Cell::from(format!("{prefix}{}", w.name)).style(
+                            Style::default()
+                                .fg(theme.secondary)
+                                .add_modifier(Modifier::BOLD),
+                        ),
                         Cell::from(w.routes.clone()),
-                        Cell::from(w.last_deployed.clone()).style(Style::default().fg(theme.text_dim)),
-                        Cell::from(w.compatibility_date.clone()).style(Style::default().fg(theme.text_dim)),
+                        Cell::from(w.last_deployed.clone())
+                            .style(Style::default().fg(theme.text_dim)),
+                        Cell::from(w.compatibility_date.clone())
+                            .style(Style::default().fg(theme.text_dim)),
                         Cell::from(w.status.clone()).style(status_style),
                     ])
                     .style(style)
@@ -106,13 +115,22 @@ impl WorkersView {
             ],
         )
         .header(
-            Row::new(vec!["Worker Script", "Active Routes", "Last Deployed", "Compat Date", "Status"])
-                .style(theme.header_style())
-                .bottom_margin(1),
+            Row::new(vec![
+                "Worker Script",
+                "Active Routes",
+                "Last Deployed",
+                "Compat Date",
+                "Status",
+            ])
+            .style(theme.header_style())
+            .bottom_margin(1),
         )
         .block(
             Block::default()
-                .title(format!(" Cloudflare Workers (Total: {}) ", self.workers.len()))
+                .title(format!(
+                    " Cloudflare Workers (Total: {}) ",
+                    self.workers.len()
+                ))
                 .title_style(theme.title())
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)

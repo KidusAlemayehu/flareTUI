@@ -51,17 +51,32 @@ impl TailStream {
     }
 
     pub fn parse_cloudflare_tail_message(json: &Value) -> Option<LogEntry> {
-        let (method, url_str) = if let Some(request) = json.get("event").and_then(|e| e.get("request")) {
-            let m = request.get("method").and_then(|v| v.as_str()).unwrap_or("GET").to_string();
-            let u = request.get("url").and_then(|v| v.as_str()).unwrap_or("/").to_string();
-            (m, u)
-        } else if let Some(sched) = json.get("event").and_then(|e| e.get("cron")) {
-            ("CRON".to_string(), sched.as_str().unwrap_or("cron").to_string())
-        } else if let Some(queue) = json.get("event").and_then(|e| e.get("queue")) {
-            ("QUEUE".to_string(), queue.as_str().unwrap_or("queue").to_string())
-        } else {
-            ("EVENT".to_string(), "handler".to_string())
-        };
+        let (method, url_str) =
+            if let Some(request) = json.get("event").and_then(|e| e.get("request")) {
+                let m = request
+                    .get("method")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("GET")
+                    .to_string();
+                let u = request
+                    .get("url")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("/")
+                    .to_string();
+                (m, u)
+            } else if let Some(sched) = json.get("event").and_then(|e| e.get("cron")) {
+                (
+                    "CRON".to_string(),
+                    sched.as_str().unwrap_or("cron").to_string(),
+                )
+            } else if let Some(queue) = json.get("event").and_then(|e| e.get("queue")) {
+                (
+                    "QUEUE".to_string(),
+                    queue.as_str().unwrap_or("queue").to_string(),
+                )
+            } else {
+                ("EVENT".to_string(), "handler".to_string())
+            };
 
         let parsed_path = Url::parse(&url_str)
             .map(|u| u.path().to_string())
@@ -97,7 +112,10 @@ impl TailStream {
         if let Some(exc_arr) = json.get("exceptions").and_then(|e| e.as_array()) {
             for exc in exc_arr {
                 let name = exc.get("name").and_then(|v| v.as_str()).unwrap_or("Error");
-                let message = exc.get("message").and_then(|v| v.as_str()).unwrap_or("Unknown error");
+                let message = exc
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Unknown error");
                 exceptions.push(format!("{name}: {message}"));
             }
         }
@@ -196,6 +214,8 @@ mod tests {
         assert_eq!(entry.status, 500);
         assert_eq!(entry.outcome, "exception");
         assert_eq!(entry.exceptions.len(), 1);
-        assert!(entry.message.contains("TypeError: Cannot read property 'id' of undefined"));
+        assert!(entry
+            .message
+            .contains("TypeError: Cannot read property 'id' of undefined"));
     }
 }

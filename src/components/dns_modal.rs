@@ -200,34 +200,56 @@ impl DnsModal {
         let type_text = if type_chunks[0].width >= 34 {
             vec![
                 Span::styled("Type: [◄ ", Style::default().fg(theme.text_dim)),
-                Span::styled(&self.record_type, Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    &self.record_type,
+                    Style::default()
+                        .fg(theme.secondary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(" ►] (Space to cycle)", Style::default().fg(theme.text_dim)),
             ]
         } else {
             vec![
                 Span::styled("Type: ◄ ", Style::default().fg(theme.text_dim)),
-                Span::styled(&self.record_type, Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    &self.record_type,
+                    Style::default()
+                        .fg(theme.secondary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(" ►", Style::default().fg(theme.text_dim)),
             ]
         };
 
-        let type_para = Paragraph::new(Line::from(type_text))
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded)
-                    .border_style(theme.block_border(is_type_foc)),
-            );
+        let type_para = Paragraph::new(Line::from(type_text)).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(theme.block_border(is_type_foc)),
+        );
         f.render_widget(type_para, type_chunks[0]);
 
         let proxy_label = if self.proxied {
             if type_chunks[1].width >= 32 {
-                Span::styled("🟠 Proxied (Orange Cloud)", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
+                Span::styled(
+                    "🟠 Proxied (Orange Cloud)",
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                )
             } else {
-                Span::styled("🟠 Proxied", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
+                Span::styled(
+                    "🟠 Proxied",
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                )
             }
         } else if type_chunks[1].width >= 32 {
-            Span::styled("⚪ DNS Only (Grey Cloud)", Style::default().fg(theme.text_dim))
+            Span::styled(
+                "⚪ DNS Only (Grey Cloud)",
+                Style::default().fg(theme.text_dim),
+            )
         } else {
             Span::styled("⚪ DNS Only", Style::default().fg(theme.text_dim))
         };
@@ -250,7 +272,11 @@ impl DnsModal {
         let name_para = Paragraph::new(Line::from(vec![
             Span::styled("Name: ", Style::default().fg(theme.text_dim)),
             Span::styled(&self.name, Style::default().fg(Color::White)),
-            if is_name_foc { Span::styled("█", Style::default().fg(theme.primary)) } else { Span::raw("") },
+            if is_name_foc {
+                Span::styled("█", Style::default().fg(theme.primary))
+            } else {
+                Span::raw("")
+            },
         ]))
         .block(
             Block::default()
@@ -265,7 +291,11 @@ impl DnsModal {
         let content_para = Paragraph::new(Line::from(vec![
             Span::styled("Content: ", Style::default().fg(theme.text_dim)),
             Span::styled(&self.content, Style::default().fg(Color::White)),
-            if is_content_foc { Span::styled("█", Style::default().fg(theme.primary)) } else { Span::raw("") },
+            if is_content_foc {
+                Span::styled("█", Style::default().fg(theme.primary))
+            } else {
+                Span::raw("")
+            },
         ]))
         .block(
             Block::default()
@@ -288,7 +318,12 @@ impl DnsModal {
         };
         let ttl_para = Paragraph::new(Line::from(vec![
             Span::styled("TTL: ", Style::default().fg(theme.text_dim)),
-            Span::styled(ttl_str, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                ttl_str,
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" (Space to cycle)", Style::default().fg(theme.text_dim)),
         ]))
         .block(
@@ -306,13 +341,15 @@ impl DnsModal {
                 Span::styled(err, Style::default().fg(theme.error)),
             ])
         } else if popup_width >= 72 {
-            Line::from(vec![
-                Span::styled("[Tab] Next Field   [Enter] Save to Cloudflare   [Esc] Cancel", Style::default().fg(theme.text_dim)),
-            ])
+            Line::from(vec![Span::styled(
+                "[Tab] Next Field   [Enter] Save to Cloudflare   [Esc] Cancel",
+                Style::default().fg(theme.text_dim),
+            )])
         } else {
-            Line::from(vec![
-                Span::styled("[Tab] Next   [Enter] Save   [Esc] Cancel", Style::default().fg(theme.text_dim)),
-            ])
+            Line::from(vec![Span::styled(
+                "[Tab] Next   [Enter] Save   [Esc] Cancel",
+                Style::default().fg(theme.text_dim),
+            )])
         };
         let footer = Paragraph::new(footer_text).wrap(Wrap { trim: true });
         f.render_widget(footer, chunks[4]);

@@ -32,7 +32,10 @@ impl DomainsView {
     }
 
     pub fn reload(&mut self, account_id: &str) {
-        self.domains = self.db.get_registrar_domains(account_id).unwrap_or_default();
+        self.domains = self
+            .db
+            .get_registrar_domains(account_id)
+            .unwrap_or_default();
         let total = self.filtered_domains().len();
         if self.selected_idx >= total && total > 0 {
             self.selected_idx = total - 1;
@@ -48,7 +51,9 @@ impl DomainsView {
         } else {
             self.domains
                 .iter()
-                .filter(|d| d.name.to_lowercase().contains(&q) || d.status.to_lowercase().contains(&q))
+                .filter(|d| {
+                    d.name.to_lowercase().contains(&q) || d.status.to_lowercase().contains(&q)
+                })
                 .collect()
         }
     }
@@ -98,7 +103,11 @@ impl DomainsView {
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let search_height = if self.search_active || !self.search_query.is_empty() { 3 } else { 0 };
+        let search_height = if self.search_active || !self.search_query.is_empty() {
+            3
+        } else {
+            0
+        };
 
         let main_chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -112,13 +121,20 @@ impl DomainsView {
         // 1. Search Bar
         if search_height > 0 {
             let search_border_style = if self.search_active {
-                Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(theme.primary)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(theme.secondary)
             };
 
             let search_input = Paragraph::new(Line::from(vec![
-                Span::styled(" Filter Domains: ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    " Filter Domains: ",
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(&self.search_query, Style::default().fg(Color::White)),
                 if self.search_active {
                     Span::styled("█", Style::default().fg(theme.primary))
@@ -146,9 +162,23 @@ impl DomainsView {
     fn render_domains_table(&self, f: &mut Frame, area: Rect, theme: &Theme) {
         let filtered = self.filtered_domains();
 
-        let header_cells = ["Status", "Domain Name", "Auto-Renew", "Lock", "Privacy", "Expires At", "Nameservers"]
-            .iter()
-            .map(|h| Cell::from(*h).style(Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)));
+        let header_cells = [
+            "Status",
+            "Domain Name",
+            "Auto-Renew",
+            "Lock",
+            "Privacy",
+            "Expires At",
+            "Nameservers",
+        ]
+        .iter()
+        .map(|h| {
+            Cell::from(*h).style(
+                Style::default()
+                    .fg(theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            )
+        });
         let header = Row::new(header_cells).height(1).bottom_margin(1);
 
         let rows = filtered.iter().enumerate().map(|(idx, d)| {
@@ -226,7 +256,10 @@ impl DomainsView {
         .header(header)
         .block(
             Block::default()
-                .title(format!(" Cloudflare Registrar Domains ({}) ", filtered.len()))
+                .title(format!(
+                    " Cloudflare Registrar Domains ({}) ",
+                    filtered.len()
+                ))
                 .title_style(theme.title())
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
@@ -270,7 +303,12 @@ impl DomainsView {
             let domain_info = Paragraph::new(vec![
                 Line::from(vec![
                     Span::styled(" Domain Name   : ", Style::default().fg(theme.text_dim)),
-                    Span::styled(&domain.name, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        &domain.name,
+                        Style::default()
+                            .fg(Color::White)
+                            .add_modifier(Modifier::BOLD),
+                    ),
                 ]),
                 Line::from(vec![
                     Span::styled(" Registry Status: ", Style::default().fg(theme.text_dim)),
@@ -278,17 +316,28 @@ impl DomainsView {
                 ]),
                 Line::from(vec![
                     Span::styled(" Registrar     : ", Style::default().fg(theme.text_dim)),
-                    Span::styled("Cloudflare Registrar (At-Cost Pricing)", Style::default().fg(theme.primary)),
+                    Span::styled(
+                        "Cloudflare Registrar (At-Cost Pricing)",
+                        Style::default().fg(theme.primary),
+                    ),
                 ]),
                 Line::from(vec![
                     Span::styled(" Registered On : ", Style::default().fg(theme.text_dim)),
                     Span::styled(created, Style::default().fg(theme.text)),
                     Span::styled("    Expires On: ", Style::default().fg(theme.text_dim)),
-                    Span::styled(expires, Style::default().fg(theme.info).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        expires,
+                        Style::default().fg(theme.info).add_modifier(Modifier::BOLD),
+                    ),
                 ]),
                 Line::from(""),
                 Line::from(vec![
-                    Span::styled(" Quick Actions : ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        " Quick Actions : ",
+                        Style::default()
+                            .fg(theme.primary)
+                            .add_modifier(Modifier::BOLD),
+                    ),
                     Span::styled("[a] Auto-Renew  ", Style::default().fg(theme.secondary)),
                     Span::styled("[l] Transfer Lock  ", Style::default().fg(theme.info)),
                     Span::styled("[p] Privacy  ", Style::default().fg(theme.success)),
@@ -329,11 +378,10 @@ impl DomainsView {
                     .collect()
             };
 
-            let mut right_lines = vec![
-                Line::from(vec![
-                    Span::styled(" Assigned Nameservers:", Style::default().fg(theme.text_dim)),
-                ]),
-            ];
+            let mut right_lines = vec![Line::from(vec![Span::styled(
+                " Assigned Nameservers:",
+                Style::default().fg(theme.text_dim),
+            )])];
             right_lines.extend(ns_lines);
             right_lines.push(Line::from(""));
             right_lines.push(Line::from(vec![
@@ -351,9 +399,12 @@ impl DomainsView {
             ]));
 
             if let Some(feedback) = &self.action_feedback {
-                right_lines.push(Line::from(vec![
-                    Span::styled(format!(" ▶ {feedback}"), Style::default().fg(theme.success).add_modifier(Modifier::BOLD)),
-                ]));
+                right_lines.push(Line::from(vec![Span::styled(
+                    format!(" ▶ {feedback}"),
+                    Style::default()
+                        .fg(theme.success)
+                        .add_modifier(Modifier::BOLD),
+                )]));
             }
 
             let ns_card = Paragraph::new(right_lines).block(
@@ -365,9 +416,10 @@ impl DomainsView {
             );
             f.render_widget(ns_card, chunks[1]);
         } else {
-            let empty_p = Paragraph::new(Line::from(vec![
-                Span::styled("No domain selected. Press [n] to onboard a new domain or register via Cloudflare.", Style::default().fg(theme.text_dim)),
-            ]))
+            let empty_p = Paragraph::new(Line::from(vec![Span::styled(
+                "No domain selected. Press [n] to onboard a new domain or register via Cloudflare.",
+                Style::default().fg(theme.text_dim),
+            )]))
             .block(
                 Block::default()
                     .title(" Domain Details ")
@@ -492,7 +544,10 @@ mod tests {
             created_at: "2024-08-15".into(),
             locked: true,
             privacy: true,
-            name_servers: vec!["eva.ns.cloudflare.com".into(), "kurt.ns.cloudflare.com".into()],
+            name_servers: vec![
+                "eva.ns.cloudflare.com".into(),
+                "kurt.ns.cloudflare.com".into(),
+            ],
         }];
         db.replace_registrar_domains("acc", &domains).unwrap();
 

@@ -365,7 +365,8 @@ impl D1ConsoleModal {
         match self.focus_pane {
             D1FocusPane::Sidebar => {
                 if !self.tables.is_empty() {
-                    self.selected_table_idx = (self.selected_table_idx + 10).min(self.tables.len().saturating_sub(1));
+                    self.selected_table_idx =
+                        (self.selected_table_idx + 10).min(self.tables.len().saturating_sub(1));
                 }
             }
             D1FocusPane::ResultsTable => {
@@ -476,9 +477,7 @@ impl D1ConsoleModal {
             Some(serde_json::Value::Number(n)) => {
                 (n.to_string(), Style::default().fg(Color::Rgb(80, 170, 240)))
             }
-            Some(serde_json::Value::String(s)) => {
-                (s.clone(), Style::default().fg(Color::White))
-            }
+            Some(serde_json::Value::String(s)) => (s.clone(), Style::default().fg(Color::White)),
             Some(serde_json::Value::Array(a)) => (
                 format!("[{} items]", a.len()),
                 Style::default().fg(Color::Rgb(200, 150, 255)),
@@ -577,7 +576,8 @@ impl D1ConsoleModal {
                     Style::default().fg(theme.text)
                 };
 
-                table_rows.push(Row::new(vec![Cell::from(display), Cell::from(meta)]).style(row_style));
+                table_rows
+                    .push(Row::new(vec![Cell::from(display), Cell::from(meta)]).style(row_style));
             }
         }
 
@@ -620,19 +620,39 @@ impl D1ConsoleModal {
         // 2. Query Presets
         let preset_lines = vec![
             Line::from(vec![
-                Span::styled("[1] ", Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "[1] ",
+                    Style::default()
+                        .fg(theme.secondary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw("Scan LIMIT 25"),
             ]),
             Line::from(vec![
-                Span::styled("[2] ", Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "[2] ",
+                    Style::default()
+                        .fg(theme.secondary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw("Count Rows"),
             ]),
             Line::from(vec![
-                Span::styled("[3] ", Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "[3] ",
+                    Style::default()
+                        .fg(theme.secondary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw("Table Schema"),
             ]),
             Line::from(vec![
-                Span::styled("[4] ", Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "[4] ",
+                    Style::default()
+                        .fg(theme.secondary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw("sqlite_schema"),
             ]),
         ];
@@ -699,13 +719,21 @@ impl D1ConsoleModal {
         if self.is_executing {
             metrics_spans.push(Span::styled(
                 " [ ⚡ EXECUTING ] ",
-                Style::default().bg(theme.warning).fg(Color::Black).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .bg(theme.warning)
+                    .fg(Color::Black)
+                    .add_modifier(Modifier::BOLD),
             ));
-            metrics_spans.push(Span::raw(" Running SQL query against Cloudflare D1 edge replica..."));
+            metrics_spans.push(Span::raw(
+                " Running SQL query against Cloudflare D1 edge replica...",
+            ));
         } else if let Some(err) = &self.error_message {
             metrics_spans.push(Span::styled(
                 " [ ✖ FAILED ] ",
-                Style::default().bg(theme.error).fg(Color::White).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .bg(theme.error)
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
             ));
             metrics_spans.push(Span::styled(
                 format!(" {} ", err),
@@ -718,12 +746,12 @@ impl D1ConsoleModal {
                 let written = meta.rows_written.unwrap_or(0);
                 metrics_spans.push(Span::styled(
                     format!(" [ ✔ OK {:.1}ms ] ", dur),
-                    Style::default().bg(theme.success).fg(Color::Black).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .bg(theme.success)
+                        .fg(Color::Black)
+                        .add_modifier(Modifier::BOLD),
                 ));
-                metrics_spans.push(Span::raw(format!(
-                    " Read: {} | Written: {}",
-                    read, written
-                )));
+                metrics_spans.push(Span::raw(format!(" Read: {} | Written: {}", read, written)));
                 if let Some(changes) = meta.changes {
                     if changes > 0 {
                         metrics_spans.push(Span::raw(format!(" | Changes: {}", changes)));
@@ -735,7 +763,10 @@ impl D1ConsoleModal {
             } else {
                 metrics_spans.push(Span::styled(
                     " [ ✔ OK ] ",
-                    Style::default().bg(theme.success).fg(Color::Black).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .bg(theme.success)
+                        .fg(Color::Black)
+                        .add_modifier(Modifier::BOLD),
                 ));
                 metrics_spans.push(Span::raw(" Query completed"));
             }
@@ -759,10 +790,7 @@ impl D1ConsoleModal {
             }
         };
 
-        metrics_spans.push(Span::styled(
-            key_hints,
-            Style::default().fg(theme.text_dim),
-        ));
+        metrics_spans.push(Span::styled(key_hints, Style::default().fg(theme.text_dim)));
 
         let metrics_block = Block::default()
             .borders(Borders::ALL)
@@ -775,13 +803,7 @@ impl D1ConsoleModal {
         f.render_widget(metrics_para, main_chunks[2]);
     }
 
-    fn render_results_table(
-        &self,
-        f: &mut Frame,
-        area: Rect,
-        is_focused: bool,
-        theme: &Theme,
-    ) {
+    fn render_results_table(&self, f: &mut Frame, area: Rect, is_focused: bool, theme: &Theme) {
         let columns = self.get_columns();
         let row_count = self
             .query_result
@@ -917,10 +939,12 @@ impl D1ConsoleModal {
                         let is_selected = is_focused && actual_row_idx == self.selected_result_row;
 
                         if let serde_json::Value::Object(map) = row_val {
-                            for (col_offset, col) in columns[start_col..end_col].iter().enumerate() {
+                            for (col_offset, col) in columns[start_col..end_col].iter().enumerate()
+                            {
                                 let actual_col_idx = start_col + col_offset;
                                 let (val_str, style) = Self::format_cell_value(map.get(col));
-                                let is_cell_focused = is_selected && actual_col_idx == self.selected_col_idx;
+                                let is_cell_focused =
+                                    is_selected && actual_col_idx == self.selected_col_idx;
                                 let cell_style = if is_cell_focused {
                                     Style::default()
                                         .bg(Color::Rgb(70, 70, 100))
@@ -946,9 +970,7 @@ impl D1ConsoleModal {
             }
         }
 
-        let widths: Vec<Constraint> = (start_col..end_col)
-            .map(|_| Constraint::Min(18))
-            .collect();
+        let widths: Vec<Constraint> = (start_col..end_col).map(|_| Constraint::Min(18)).collect();
 
         let table = Table::new(data_rows, widths)
             .header(header_row)
@@ -975,7 +997,8 @@ mod tests {
             CachedD1Table {
                 database_id: "db-123".to_string(),
                 table_name: "orders".to_string(),
-                schema_sql: "CREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER);".to_string(),
+                schema_sql: "CREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER);"
+                    .to_string(),
                 row_count: 450,
             },
         ];
@@ -1158,4 +1181,3 @@ mod tests {
         assert!(modal.result_scroll_y.get() > 0);
     }
 }
-

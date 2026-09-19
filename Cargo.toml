@@ -6,6 +6,17 @@ authors = ["kidus"]
 description = "A production-grade keyboard-driven Terminal User Interface for Cloudflare management"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/KidusAlemayehu/flareTUI"
+homepage = "https://github.com/KidusAlemayehu/flareTUI"
+keywords = ["cloudflare", "tui", "terminal", "dns", "waf"]
+categories = ["command-line-utilities", "network-programming"]
+exclude = [
+    "cache.db*",
+    "token.txt",
+    ".VSCodeCounter/",
+    ".github/",
+    "tests/",
+]
 
 [[bin]]
 name = "flareTUI"
@@ -45,3 +56,10 @@ color-eyre = "0.6"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

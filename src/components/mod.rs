@@ -1,22 +1,22 @@
 pub mod auth_modal;
+pub mod command_palette_modal;
 pub mod confirm_modal;
+pub mod d1_console_modal;
 pub mod dns_modal;
+pub mod domain_create_modal;
 pub mod header;
 pub mod help;
+pub mod kv_modal;
 pub mod pages_deployments;
 pub mod pages_logs_modal;
 pub mod pages_rollback_modal;
-pub mod status_bar;
-pub mod views;
-pub mod zone_inspector;
-pub mod worker_inspector;
-pub mod tail_log_modal;
-pub mod d1_console_modal;
-pub mod kv_modal;
-pub mod security_inspector;
-pub mod command_palette_modal;
 pub mod profile_modal;
-pub mod domain_create_modal;
+pub mod security_inspector;
+pub mod status_bar;
+pub mod tail_log_modal;
+pub mod views;
+pub mod worker_inspector;
+pub mod zone_inspector;
 
 use ratatui::layout::Rect;
 
@@ -33,10 +33,14 @@ pub fn centered_rect(
     max_h: u16,
 ) -> Rect {
     let target_w = (area.width * percent_x / 100).clamp(min_w, max_w);
-    let popup_w = target_w.min(area.width.saturating_sub(2)).max(20.min(area.width));
+    let popup_w = target_w
+        .min(area.width.saturating_sub(2))
+        .max(20.min(area.width));
 
     let target_h = (area.height * percent_y / 100).clamp(min_h, max_h);
-    let popup_h = target_h.min(area.height.saturating_sub(2)).max(10.min(area.height));
+    let popup_h = target_h
+        .min(area.height.saturating_sub(2))
+        .max(10.min(area.height));
 
     Rect {
         x: (area.width.saturating_sub(popup_w)) / 2,

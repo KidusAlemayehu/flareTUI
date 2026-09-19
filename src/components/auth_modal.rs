@@ -36,6 +36,12 @@ pub struct AuthModal {
     pub action_feedback: Option<String>,
 }
 
+impl Default for AuthModal {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AuthModal {
     pub fn new() -> Self {
         Self {
@@ -127,7 +133,13 @@ impl AuthModal {
                 .style(Style::default().fg(theme.border));
             f.render_widget(div_text, chunks[1]);
 
-            self.render_authenticated_content(f, chunks[2], theme, &config, active_profile.as_ref());
+            self.render_authenticated_content(
+                f,
+                chunks[2],
+                theme,
+                &config,
+                active_profile.as_ref(),
+            );
 
             self.render_authenticated_footer(f, chunks[3], theme);
             return;
@@ -154,7 +166,13 @@ impl AuthModal {
             .split(popup_area);
 
         // 1. Top Section: Mode tabs + Session indicator
-        self.render_header_tabs(f, chunks[0], theme, is_authenticated, active_profile.as_ref());
+        self.render_header_tabs(
+            f,
+            chunks[0],
+            theme,
+            is_authenticated,
+            active_profile.as_ref(),
+        );
 
         // 2. Horizontal divider
         let div_text = Paragraph::new("─".repeat(chunks[1].width as usize))
@@ -186,13 +204,19 @@ impl AuthModal {
 
         // Tab buttons: [1] Browser Login (OAuth)   [2] API Token (Manual)
         let tab1_style = if self.mode == AuthMode::OAuth {
-            Style::default().fg(Color::Black).bg(theme.primary).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Black)
+                .bg(theme.primary)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(theme.text_dim)
         };
 
         let tab2_style = if self.mode == AuthMode::Token {
-            Style::default().fg(Color::Black).bg(theme.primary).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Black)
+                .bg(theme.primary)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(theme.text_dim)
         };
@@ -209,7 +233,10 @@ impl AuthModal {
             let name = active_profile.map(|p| p.name.as_str()).unwrap_or("default");
             Line::from(vec![
                 Span::styled("● ", Style::default().fg(theme.success)),
-                Span::styled(format!("Session: {name}"), Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    format!("Session: {name}"),
+                    Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+                ),
             ])
         } else {
             Line::from(vec![
@@ -246,9 +273,12 @@ impl AuthModal {
 
                 let action_box = Paragraph::new(vec![
                     Line::from(""),
-                    Line::from(vec![
-                        Span::styled("  ▶ Press [Enter] or [o] to Launch Browser & Authorize  ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
-                    ]),
+                    Line::from(vec![Span::styled(
+                        "  ▶ Press [Enter] or [o] to Launch Browser & Authorize  ",
+                        Style::default()
+                            .fg(theme.primary)
+                            .add_modifier(Modifier::BOLD),
+                    )]),
                 ])
                 .alignment(Alignment::Center)
                 .block(
@@ -261,26 +291,40 @@ impl AuthModal {
 
                 let hint = if let Some(err) = &self.error_msg {
                     Line::from(vec![
-                        Span::styled("Error: ", Style::default().fg(theme.error).add_modifier(Modifier::BOLD)),
+                        Span::styled(
+                            "Error: ",
+                            Style::default()
+                                .fg(theme.error)
+                                .add_modifier(Modifier::BOLD),
+                        ),
                         Span::styled(err, Style::default().fg(theme.error)),
                     ])
                 } else {
-                    Line::from(vec![
-                        Span::styled("No browser? Press [Tab] to switch to manual API Token input.", Style::default().fg(theme.text_dim)),
-                    ])
+                    Line::from(vec![Span::styled(
+                        "No browser? Press [Tab] to switch to manual API Token input.",
+                        Style::default().fg(theme.text_dim),
+                    )])
                 };
                 f.render_widget(Paragraph::new(hint), content_chunks[2]);
             }
             OAuthStatus::Waiting { port, auth_url, .. } => {
-                let status_header = Paragraph::new(vec![
-                    Line::from(vec![
-                        Span::styled("Waiting for browser authorization...", Style::default().fg(theme.warning).add_modifier(Modifier::BOLD)),
-                        Span::styled(format!(" (Listening on http://127.0.0.1:{port}/callback)"), Style::default().fg(theme.text_dim)),
-                    ]),
-                ]);
+                let status_header = Paragraph::new(vec![Line::from(vec![
+                    Span::styled(
+                        "Waiting for browser authorization...",
+                        Style::default()
+                            .fg(theme.warning)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(
+                        format!(" (Listening on http://127.0.0.1:{port}/callback)"),
+                        Style::default().fg(theme.text_dim),
+                    ),
+                ])]);
                 f.render_widget(status_header, content_chunks[0]);
 
-                let max_url_len = (content_chunks[1].width as usize).saturating_sub(12).max(20);
+                let max_url_len = (content_chunks[1].width as usize)
+                    .saturating_sub(12)
+                    .max(20);
                 let display_url = if auth_url.len() > max_url_len {
                     format!("{}...", &auth_url[..max_url_len.saturating_sub(3)])
                 } else {
@@ -289,12 +333,21 @@ impl AuthModal {
 
                 let url_box = Paragraph::new(vec![
                     Line::from(vec![
-                        Span::styled(" URL: ", Style::default().fg(theme.info).add_modifier(Modifier::BOLD)),
-                        Span::styled(display_url, Style::default().fg(Color::Cyan).add_modifier(Modifier::UNDERLINED)),
+                        Span::styled(
+                            " URL: ",
+                            Style::default().fg(theme.info).add_modifier(Modifier::BOLD),
+                        ),
+                        Span::styled(
+                            display_url,
+                            Style::default()
+                                .fg(Color::Cyan)
+                                .add_modifier(Modifier::UNDERLINED),
+                        ),
                     ]),
-                    Line::from(vec![
-                        Span::styled(" [c] Copy URL to clipboard buffer", Style::default().fg(theme.text_dim)),
-                    ]),
+                    Line::from(vec![Span::styled(
+                        " [c] Copy URL to clipboard buffer",
+                        Style::default().fg(theme.text_dim),
+                    )]),
                 ])
                 .block(
                     Block::default()
@@ -306,7 +359,10 @@ impl AuthModal {
                 f.render_widget(url_box, content_chunks[1]);
 
                 let masked_input = if self.input_token.is_empty() {
-                    Span::styled("Or paste callback token/code here...", Style::default().fg(theme.text_dim))
+                    Span::styled(
+                        "Or paste callback token/code here...",
+                        Style::default().fg(theme.text_dim),
+                    )
                 } else {
                     Span::styled(&self.input_token, Style::default().fg(Color::White))
                 };
@@ -322,8 +378,18 @@ impl AuthModal {
                 let success = Paragraph::new(vec![
                     Line::from(""),
                     Line::from(vec![
-                        Span::styled("✓ ", Style::default().fg(theme.success).add_modifier(Modifier::BOLD)),
-                        Span::styled(msg, Style::default().fg(theme.success).add_modifier(Modifier::BOLD)),
+                        Span::styled(
+                            "✓ ",
+                            Style::default()
+                                .fg(theme.success)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        Span::styled(
+                            msg,
+                            Style::default()
+                                .fg(theme.success)
+                                .add_modifier(Modifier::BOLD),
+                        ),
                     ]),
                 ])
                 .alignment(Alignment::Center);
@@ -332,13 +398,19 @@ impl AuthModal {
             OAuthStatus::Error(err) => {
                 let err_widget = Paragraph::new(vec![
                     Line::from(vec![
-                        Span::styled("Authorization Failed: ", Style::default().fg(theme.error).add_modifier(Modifier::BOLD)),
+                        Span::styled(
+                            "Authorization Failed: ",
+                            Style::default()
+                                .fg(theme.error)
+                                .add_modifier(Modifier::BOLD),
+                        ),
                         Span::styled(err, Style::default().fg(theme.error)),
                     ]),
                     Line::from(""),
-                    Line::from(vec![
-                        Span::styled("Press [Enter] or [o] to retry, or [Tab] for manual token.", Style::default().fg(theme.text_dim)),
-                    ]),
+                    Line::from(vec![Span::styled(
+                        "Press [Enter] or [o] to retry, or [Tab] for manual token.",
+                        Style::default().fg(theme.text_dim),
+                    )]),
                 ]);
                 f.render_widget(err_widget, content_chunks[1]);
             }
@@ -356,17 +428,24 @@ impl AuthModal {
             .split(area);
 
         let instructions = Paragraph::new(vec![
-            Line::from(vec![
-                Span::styled("Create an API Token with Zone & Worker read/edit permissions at:", Style::default().fg(theme.text_dim)),
-            ]),
-            Line::from(vec![
-                Span::styled("https://dash.cloudflare.com/profile/api-tokens", Style::default().fg(theme.info).add_modifier(Modifier::UNDERLINED)),
-            ]),
+            Line::from(vec![Span::styled(
+                "Create an API Token with Zone & Worker read/edit permissions at:",
+                Style::default().fg(theme.text_dim),
+            )]),
+            Line::from(vec![Span::styled(
+                "https://dash.cloudflare.com/profile/api-tokens",
+                Style::default()
+                    .fg(theme.info)
+                    .add_modifier(Modifier::UNDERLINED),
+            )]),
         ]);
         f.render_widget(instructions, chunks[0]);
 
         let masked_input = if self.input_token.is_empty() {
-            Span::styled("Paste or type your Cloudflare API Token here...", Style::default().fg(theme.text_dim))
+            Span::styled(
+                "Paste or type your Cloudflare API Token here...",
+                Style::default().fg(theme.text_dim),
+            )
         } else {
             let len = self.input_token.len();
             if len <= 8 {
@@ -378,7 +457,12 @@ impl AuthModal {
         };
 
         let input_box = Paragraph::new(Line::from(vec![
-            Span::styled(" Token: ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                " Token: ",
+                Style::default()
+                    .fg(theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
             masked_input,
             Span::styled("█", Style::default().fg(theme.primary)),
         ]))
@@ -392,17 +476,24 @@ impl AuthModal {
 
         let status_line = if let Some(err) = &self.error_msg {
             Line::from(vec![
-                Span::styled("Error: ", Style::default().fg(theme.error).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "Error: ",
+                    Style::default()
+                        .fg(theme.error)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(err, Style::default().fg(theme.error)),
             ])
         } else if self.is_validating {
-            Line::from(vec![
-                Span::styled("Validating token against Cloudflare API v4...", Style::default().fg(theme.warning)),
-            ])
+            Line::from(vec![Span::styled(
+                "Validating token against Cloudflare API v4...",
+                Style::default().fg(theme.warning),
+            )])
         } else {
-            Line::from(vec![
-                Span::styled("[Enter] Connect & Sync   [Esc] Cancel", Style::default().fg(theme.text_dim)),
-            ])
+            Line::from(vec![Span::styled(
+                "[Enter] Connect & Sync   [Esc] Cancel",
+                Style::default().fg(theme.text_dim),
+            )])
         };
 
         let footer = Paragraph::new(status_line);
@@ -410,18 +501,25 @@ impl AuthModal {
     }
 
     fn render_footer(&self, f: &mut Frame, area: Rect, theme: &Theme, is_authenticated: bool) {
-        let mut spans = vec![
-            Span::styled("[Tab] Switch Mode  ", Style::default().fg(theme.text_dim)),
-        ];
+        let mut spans = vec![Span::styled(
+            "[Tab] Switch Mode  ",
+            Style::default().fg(theme.text_dim),
+        )];
 
         if is_authenticated {
-            spans.push(Span::styled("[Ctrl+L] Log Out Active Profile  ", Style::default().fg(theme.warning)));
+            spans.push(Span::styled(
+                "[Ctrl+L] Log Out Active Profile  ",
+                Style::default().fg(theme.warning),
+            ));
         }
 
         if let Some(fb) = &self.action_feedback {
             spans.push(Span::styled(fb, Style::default().fg(theme.success)));
         } else {
-            spans.push(Span::styled("[Esc] Close", Style::default().fg(theme.text_dim)));
+            spans.push(Span::styled(
+                "[Esc] Close",
+                Style::default().fg(theme.text_dim),
+            ));
         }
 
         let p = Paragraph::new(Line::from(spans)).alignment(Alignment::Center);
@@ -443,26 +541,44 @@ impl AuthModal {
 
         let email = active_profile
             .and_then(|p| p.account_name.as_deref())
-            .or_else(|| config.account_name.as_deref())
+            .or(config.account_name.as_deref())
             .unwrap_or("kidusalemayehu705@gmail.com");
 
         let header_left = Paragraph::new(vec![
             Line::from(vec![
-                Span::styled("● ", Style::default().fg(theme.success).add_modifier(Modifier::BOLD)),
-                Span::styled("Active Account: ", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
-                Span::styled(email, Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "● ",
+                    Style::default()
+                        .fg(theme.success)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    "Active Account: ",
+                    Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    email,
+                    Style::default()
+                        .fg(theme.secondary)
+                        .add_modifier(Modifier::BOLD),
+                ),
             ]),
-            Line::from(vec![
-                Span::styled("Connected to Cloudflare Edge API v4", Style::default().fg(theme.text_dim)),
-            ]),
+            Line::from(vec![Span::styled(
+                "Connected to Cloudflare Edge API v4",
+                Style::default().fg(theme.text_dim),
+            )]),
         ]);
         f.render_widget(header_left, sub[0]);
 
         let prof_name = active_profile.map(|p| p.name.as_str()).unwrap_or("default");
-        let badge_style = Style::default().fg(Color::Black).bg(theme.primary).add_modifier(Modifier::BOLD);
-        let header_right = Paragraph::new(Line::from(vec![
-            Span::styled(format!(" Profile: {prof_name} "), badge_style),
-        ]))
+        let badge_style = Style::default()
+            .fg(Color::Black)
+            .bg(theme.primary)
+            .add_modifier(Modifier::BOLD);
+        let header_right = Paragraph::new(Line::from(vec![Span::styled(
+            format!(" Profile: {prof_name} "),
+            badge_style,
+        )]))
         .alignment(Alignment::Right);
         f.render_widget(header_right, sub[1]);
     }
@@ -485,13 +601,13 @@ impl AuthModal {
 
         let email = active_profile
             .and_then(|p| p.account_name.as_deref())
-            .or_else(|| config.account_name.as_deref())
+            .or(config.account_name.as_deref())
             .unwrap_or("kidusalemayehu705@gmail.com");
 
         let prof_name = active_profile.map(|p| p.name.as_str()).unwrap_or("default");
         let account_id = active_profile
             .and_then(|p| p.account_id.as_deref())
-            .or_else(|| config.account_id.as_deref())
+            .or(config.account_id.as_deref())
             .unwrap_or("e50e525d4a021564b2a920f05515e6a6");
 
         let raw_token = config.active_token().unwrap_or_default();
@@ -507,17 +623,30 @@ impl AuthModal {
             vec![
                 Line::from(vec![
                     Span::styled("  Account Email : ", Style::default().fg(theme.text_dim)),
-                    Span::styled(email, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        email,
+                        Style::default()
+                            .fg(Color::White)
+                            .add_modifier(Modifier::BOLD),
+                    ),
                 ]),
                 Line::from(vec![
                     Span::styled("  Profile Name  : ", Style::default().fg(theme.text_dim)),
-                    Span::styled(prof_name, Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        prof_name,
+                        Style::default()
+                            .fg(theme.primary)
+                            .add_modifier(Modifier::BOLD),
+                    ),
                     Span::styled("    Account ID : ", Style::default().fg(theme.text_dim)),
                     Span::styled(account_id, Style::default().fg(theme.info)),
                 ]),
                 Line::from(vec![
                     Span::styled("  Session Status: ", Style::default().fg(theme.text_dim)),
-                    Span::styled("● Active & Authenticated", Style::default().fg(theme.success)),
+                    Span::styled(
+                        "● Active & Authenticated",
+                        Style::default().fg(theme.success),
+                    ),
                     Span::styled("    Token      : ", Style::default().fg(theme.text_dim)),
                     Span::styled(masked_token, Style::default().fg(theme.text_dim)),
                 ]),
@@ -526,17 +655,34 @@ impl AuthModal {
             vec![
                 Line::from(vec![
                     Span::styled("  Email : ", Style::default().fg(theme.text_dim)),
-                    Span::styled(email, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        email,
+                        Style::default()
+                            .fg(Color::White)
+                            .add_modifier(Modifier::BOLD),
+                    ),
                 ]),
                 Line::from(vec![
                     Span::styled("  Profile: ", Style::default().fg(theme.text_dim)),
-                    Span::styled(prof_name, Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        prof_name,
+                        Style::default()
+                            .fg(theme.primary)
+                            .add_modifier(Modifier::BOLD),
+                    ),
                     Span::styled("  Status: ", Style::default().fg(theme.text_dim)),
                     Span::styled("● Active", Style::default().fg(theme.success)),
                 ]),
                 Line::from(vec![
                     Span::styled("  Acc ID: ", Style::default().fg(theme.text_dim)),
-                    Span::styled(if account_id.len() > 18 { format!("{}...", &account_id[..15]) } else { account_id.to_string() }, Style::default().fg(theme.info)),
+                    Span::styled(
+                        if account_id.len() > 18 {
+                            format!("{}...", &account_id[..15])
+                        } else {
+                            account_id.to_string()
+                        },
+                        Style::default().fg(theme.info),
+                    ),
                     Span::styled("  Token: ", Style::default().fg(theme.text_dim)),
                     Span::styled(masked_token, Style::default().fg(theme.text_dim)),
                 ]),
@@ -556,12 +702,16 @@ impl AuthModal {
 
         let logout_box = Paragraph::new(vec![
             Line::from(""),
-            Line::from(vec![
-                Span::styled("  ▶ Press [Enter] or [l] to Log Out of This Account  ", Style::default().fg(theme.warning).add_modifier(Modifier::BOLD)),
-            ]),
-            Line::from(vec![
-                Span::styled("Safely terminates active Cloudflare session and switches to offline cached mode", Style::default().fg(theme.text_dim)),
-            ]),
+            Line::from(vec![Span::styled(
+                "  ▶ Press [Enter] or [l] to Log Out of This Account  ",
+                Style::default()
+                    .fg(theme.warning)
+                    .add_modifier(Modifier::BOLD),
+            )]),
+            Line::from(vec![Span::styled(
+                "Safely terminates active Cloudflare session and switches to offline cached mode",
+                Style::default().fg(theme.text_dim),
+            )]),
         ])
         .alignment(Alignment::Center)
         .block(
@@ -576,7 +726,12 @@ impl AuthModal {
 
     fn render_authenticated_footer(&self, f: &mut Frame, area: Rect, theme: &Theme) {
         let p = Paragraph::new(Line::from(vec![
-            Span::styled("[Enter] / [l] Log Out  ", Style::default().fg(theme.warning).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "[Enter] / [l] Log Out  ",
+                Style::default()
+                    .fg(theme.warning)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled("[p] Switch Profile  ", Style::default().fg(theme.primary)),
             Span::styled("[Esc] Close", Style::default().fg(theme.text_dim)),
         ]))
@@ -631,7 +786,10 @@ mod tests {
 
         modal.copy_oauth_url();
         assert!(modal.action_feedback.is_some());
-        assert!(modal.action_feedback.unwrap().contains("Copied authorization URL"));
+        assert!(modal
+            .action_feedback
+            .unwrap()
+            .contains("Copied authorization URL"));
     }
 
     #[test]
@@ -642,7 +800,9 @@ mod tests {
         let theme = Theme::default();
 
         // 1. Full modal render
-        terminal.draw(|f| modal.render(f, f.area(), &theme)).unwrap();
+        terminal
+            .draw(|f| modal.render(f, f.area(), &theme))
+            .unwrap();
 
         // 2. Direct render of authenticated sections with mock profile
         let mut auth_config = crate::cloudflare::auth::Config::default();

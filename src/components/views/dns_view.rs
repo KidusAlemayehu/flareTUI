@@ -107,7 +107,11 @@ impl DnsView {
             if let Ok(new_status) = self.db.toggle_dns_proxy(&rec.id) {
                 let name = rec.name.clone();
                 self.reload_records();
-                let status_str = if new_status { "🟠 Proxied" } else { "⚪ DNS Only" };
+                let status_str = if new_status {
+                    "🟠 Proxied"
+                } else {
+                    "⚪ DNS Only"
+                };
                 return Some(format!("Updated {name} to {status_str}"));
             }
         }
@@ -161,11 +165,10 @@ impl DnsView {
         // Left Pane: Zones List
         let zones_focused = self.focus == DnsFocus::Zones;
         let zone_rows: Vec<Row> = if self.zones.is_empty() {
-            vec![Row::new(vec![
-                Cell::from("  No zones on account"),
-                Cell::from("-"),
-            ])
-            .style(Style::default().fg(theme.text_dim))]
+            vec![
+                Row::new(vec![Cell::from("  No zones on account"), Cell::from("-")])
+                    .style(Style::default().fg(theme.text_dim)),
+            ]
         } else {
             self.zones
                 .iter()
@@ -180,7 +183,9 @@ impl DnsView {
                     };
 
                     let plan_style = match z.plan.as_str() {
-                        "Enterprise" => Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
+                        "Enterprise" => Style::default()
+                            .fg(theme.primary)
+                            .add_modifier(Modifier::BOLD),
                         "Pro" => Style::default().fg(theme.info),
                         _ => Style::default().fg(theme.text_dim),
                     };
@@ -203,9 +208,17 @@ impl DnsView {
             .block(
                 Block::default()
                     .title(" Zones (Press 's' to switch) ")
-                    .title_style(if zones_focused { theme.title() } else { Style::default().fg(theme.text_dim) })
+                    .title_style(if zones_focused {
+                        theme.title()
+                    } else {
+                        Style::default().fg(theme.text_dim)
+                    })
                     .borders(Borders::ALL)
-                    .border_type(if zones_focused { BorderType::Thick } else { BorderType::Rounded })
+                    .border_type(if zones_focused {
+                        BorderType::Thick
+                    } else {
+                        BorderType::Rounded
+                    })
                     .border_style(theme.block_border(zones_focused)),
             );
         f.render_widget(zones_table, split_chunks[0]);
@@ -250,7 +263,11 @@ impl DnsView {
             } else {
                 vec![Row::new(vec![
                     Cell::from("  -"),
-                    Cell::from(if self.zones.is_empty() { "No zones loaded" } else { "No records in this zone" }),
+                    Cell::from(if self.zones.is_empty() {
+                        "No zones loaded"
+                    } else {
+                        "No records in this zone"
+                    }),
                     Cell::from("-"),
                     Cell::from("-"),
                     Cell::from("-"),
@@ -272,19 +289,32 @@ impl DnsView {
 
                     let type_style = match r.record_type.as_str() {
                         "A" => Style::default().fg(theme.info).add_modifier(Modifier::BOLD),
-                        "AAAA" => Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-                        "CNAME" => Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD),
+                        "AAAA" => Style::default()
+                            .fg(Color::Cyan)
+                            .add_modifier(Modifier::BOLD),
+                        "CNAME" => Style::default()
+                            .fg(theme.secondary)
+                            .add_modifier(Modifier::BOLD),
                         "TXT" => Style::default().fg(theme.text_dim),
                         _ => Style::default().fg(Color::Magenta),
                     };
 
                     let proxy_span = if r.proxied {
-                        Span::styled("🟠 Proxied", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD))
+                        Span::styled(
+                            "🟠 Proxied",
+                            Style::default()
+                                .fg(theme.primary)
+                                .add_modifier(Modifier::BOLD),
+                        )
                     } else {
                         Span::styled("⚪ DNS Only", Style::default().fg(theme.text_dim))
                     };
 
-                    let ttl_str = if r.ttl == 1 { "Auto".to_string() } else { format!("{}s", r.ttl) };
+                    let ttl_str = if r.ttl == 1 {
+                        "Auto".to_string()
+                    } else {
+                        format!("{}s", r.ttl)
+                    };
 
                     Row::new(vec![
                         Cell::from(format!("{prefix}{}", r.record_type)).style(type_style),
@@ -315,16 +345,33 @@ impl DnsView {
             ],
         )
         .header(
-            Row::new(vec!["Type", "Name", "Content / Target", "Proxy Status", "TTL"])
-                .style(theme.header_style())
-                .bottom_margin(1),
+            Row::new(vec![
+                "Type",
+                "Name",
+                "Content / Target",
+                "Proxy Status",
+                "TTL",
+            ])
+            .style(theme.header_style())
+            .bottom_margin(1),
         )
         .block(
             Block::default()
-                .title(format!(" DNS Records: {active_zone_name} (Total: {}){warn_suffix} ", filtered.len()))
-                .title_style(if records_focused { theme.title() } else { Style::default().fg(theme.text_dim) })
+                .title(format!(
+                    " DNS Records: {active_zone_name} (Total: {}){warn_suffix} ",
+                    filtered.len()
+                ))
+                .title_style(if records_focused {
+                    theme.title()
+                } else {
+                    Style::default().fg(theme.text_dim)
+                })
                 .borders(Borders::ALL)
-                .border_type(if records_focused { BorderType::Thick } else { BorderType::Rounded })
+                .border_type(if records_focused {
+                    BorderType::Thick
+                } else {
+                    BorderType::Rounded
+                })
                 .border_style(theme.block_border(records_focused)),
         );
         f.render_widget(records_table, split_chunks[1]);
@@ -337,7 +384,12 @@ impl DnsView {
                 theme.border
             };
             let search_bar = Paragraph::new(Line::from(vec![
-                Span::styled("🔍 Filter: ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "🔍 Filter: ",
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(&self.search_query, Style::default().fg(Color::White)),
                 if self.search_active {
                     Span::styled("█", Style::default().fg(theme.primary))

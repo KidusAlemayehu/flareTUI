@@ -77,14 +77,23 @@ impl PagesView {
                     };
 
                     let status_style = match p.latest_deployment_status.as_str() {
-                        "Success" => Style::default().fg(theme.success).add_modifier(Modifier::BOLD),
-                        "Building" => Style::default().fg(theme.warning).add_modifier(Modifier::BOLD),
-                        _ => Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
+                        "Success" => Style::default()
+                            .fg(theme.success)
+                            .add_modifier(Modifier::BOLD),
+                        "Building" => Style::default()
+                            .fg(theme.warning)
+                            .add_modifier(Modifier::BOLD),
+                        _ => Style::default()
+                            .fg(theme.error)
+                            .add_modifier(Modifier::BOLD),
                     };
 
                     Row::new(vec![
-                        Cell::from(format!("{prefix}{}", p.name))
-                            .style(Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+                        Cell::from(format!("{prefix}{}", p.name)).style(
+                            Style::default()
+                                .fg(theme.secondary)
+                                .add_modifier(Modifier::BOLD),
+                        ),
                         Cell::from(p.subdomain.clone()).style(Style::default().fg(theme.info)),
                         Cell::from(p.production_branch.clone()),
                         Cell::from(p.latest_deployment_status.clone()).style(status_style),
@@ -106,9 +115,15 @@ impl PagesView {
             ],
         )
         .header(
-            Row::new(vec!["Project Name", "Pages Domain", "Branch", "Deploy Status", "Last Updated"])
-                .style(theme.header_style())
-                .bottom_margin(1),
+            Row::new(vec![
+                "Project Name",
+                "Pages Domain",
+                "Branch",
+                "Deploy Status",
+                "Last Updated",
+            ])
+            .style(theme.header_style())
+            .bottom_margin(1),
         )
         .block(
             Block::default()
@@ -123,15 +138,26 @@ impl PagesView {
         if let Some(p) = self.pages.get(self.selected_idx) {
             let details = vec![
                 Line::from(vec![
-                    Span::styled("Live URL: ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
-                    Span::styled(format!("https://{}", p.subdomain), Style::default().fg(theme.info)),
+                    Span::styled(
+                        "Live URL: ",
+                        Style::default()
+                            .fg(theme.primary)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(
+                        format!("https://{}", p.subdomain),
+                        Style::default().fg(theme.info),
+                    ),
                     Span::raw("    "),
                     Span::styled("Branch: ", Style::default().fg(theme.primary)),
                     Span::styled(&p.production_branch, Style::default().fg(Color::White)),
                 ]),
                 Line::from(vec![
                     Span::styled("Framework: ", Style::default().fg(theme.text_dim)),
-                    Span::styled("Git Integration / Cloudflare Pages", Style::default().fg(Color::White)),
+                    Span::styled(
+                        "Git Integration / Cloudflare Pages",
+                        Style::default().fg(Color::White),
+                    ),
                 ]),
             ];
 
@@ -145,13 +171,16 @@ impl PagesView {
             f.render_widget(details_widget, chunks[1]);
         } else {
             let details_widget = Paragraph::new(vec![
-                Line::from(vec![
-                    Span::styled("No Cloudflare Pages projects found on this account.", Style::default().fg(theme.text_dim)),
-                ]),
-                Line::from(vec![
-                    Span::styled("Deploy web apps and static sites with Cloudflare Pages.", Style::default().fg(theme.primary)),
-                ]),
-            ]).block(
+                Line::from(vec![Span::styled(
+                    "No Cloudflare Pages projects found on this account.",
+                    Style::default().fg(theme.text_dim),
+                )]),
+                Line::from(vec![Span::styled(
+                    "Deploy web apps and static sites with Cloudflare Pages.",
+                    Style::default().fg(theme.primary),
+                )]),
+            ])
+            .block(
                 Block::default()
                     .title(" Project Details ")
                     .borders(Borders::ALL)

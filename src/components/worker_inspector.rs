@@ -70,7 +70,10 @@ impl WorkerInspectorModal {
             .split(popup_area);
 
         let block = Block::default()
-            .title(format!(" ⚡ Worker Script Inspector: {} ", self.worker_name))
+            .title(format!(
+                " ⚡ Worker Script Inspector: {} ",
+                self.worker_name
+            ))
             .title_style(theme.title())
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
@@ -80,8 +83,12 @@ impl WorkerInspectorModal {
 
         // 1. Metadata overview
         let status_style = match self.status.as_str() {
-            "Healthy" | "active" => Style::default().fg(theme.success).add_modifier(Modifier::BOLD),
-            _ => Style::default().fg(theme.warning).add_modifier(Modifier::BOLD),
+            "Healthy" | "active" => Style::default()
+                .fg(theme.success)
+                .add_modifier(Modifier::BOLD),
+            _ => Style::default()
+                .fg(theme.warning)
+                .add_modifier(Modifier::BOLD),
         };
 
         let flags_display = if self.compatibility_flags.is_empty() {
@@ -105,7 +112,12 @@ impl WorkerInspectorModal {
                 Span::styled(&self.compatibility_date, Style::default().fg(Color::White)),
                 Span::raw("    "),
                 Span::styled("Usage Model: ", Style::default().fg(theme.text_dim)),
-                Span::styled(&self.usage_model, Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    &self.usage_model,
+                    Style::default()
+                        .fg(theme.secondary)
+                        .add_modifier(Modifier::BOLD),
+                ),
             ]),
             Line::from(vec![
                 Span::styled("Handlers: ", Style::default().fg(theme.text_dim)),
@@ -146,9 +158,15 @@ impl WorkerInspectorModal {
 
                     let type_style = match b.binding_type.as_str() {
                         "d1" => Style::default().fg(theme.info).add_modifier(Modifier::BOLD),
-                        "kv_namespace" => Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD),
-                        "r2_bucket" => Style::default().fg(theme.warning).add_modifier(Modifier::BOLD),
-                        "secret_text" => Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
+                        "kv_namespace" => Style::default()
+                            .fg(theme.secondary)
+                            .add_modifier(Modifier::BOLD),
+                        "r2_bucket" => Style::default()
+                            .fg(theme.warning)
+                            .add_modifier(Modifier::BOLD),
+                        "secret_text" => Style::default()
+                            .fg(theme.error)
+                            .add_modifier(Modifier::BOLD),
                         _ => Style::default().fg(Color::White),
                     };
 
@@ -159,8 +177,11 @@ impl WorkerInspectorModal {
                     };
 
                     Row::new(vec![
-                        Cell::from(format!("{prefix}{}", b.name))
-                            .style(Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                        Cell::from(format!("{prefix}{}", b.name)).style(
+                            Style::default()
+                                .fg(Color::White)
+                                .add_modifier(Modifier::BOLD),
+                        ),
                         Cell::from(b.binding_type.clone()).style(type_style),
                         Cell::from(detail_display).style(Style::default().fg(theme.text_dim)),
                     ])
@@ -178,9 +199,13 @@ impl WorkerInspectorModal {
             ],
         )
         .header(
-            Row::new(vec!["Binding Name", "Type", "Resource Target / Configuration"])
-                .style(theme.header_style())
-                .bottom_margin(1),
+            Row::new(vec![
+                "Binding Name",
+                "Type",
+                "Resource Target / Configuration",
+            ])
+            .style(theme.header_style())
+            .bottom_margin(1),
         )
         .block(
             Block::default()
@@ -195,7 +220,13 @@ impl WorkerInspectorModal {
         let routes_text = if self.routes.is_empty() {
             vec![Line::from(vec![
                 Span::styled("Routes: ", Style::default().fg(theme.text_dim)),
-                Span::styled(format!("{}.*.workers.dev (workers.dev default zone)", self.worker_name), Style::default().fg(theme.info)),
+                Span::styled(
+                    format!(
+                        "{}.*.workers.dev (workers.dev default zone)",
+                        self.worker_name
+                    ),
+                    Style::default().fg(theme.info),
+                ),
             ])]
         } else {
             self.routes
@@ -204,42 +235,63 @@ impl WorkerInspectorModal {
                     Line::from(vec![
                         Span::styled("Route: ", Style::default().fg(theme.text_dim)),
                         Span::styled(&r.pattern, Style::default().fg(theme.success)),
-                        Span::styled(format!(" (Zone: {})", r.zone_name.as_deref().unwrap_or("Custom")), Style::default().fg(theme.text_dim)),
+                        Span::styled(
+                            format!(" (Zone: {})", r.zone_name.as_deref().unwrap_or("Custom")),
+                            Style::default().fg(theme.text_dim),
+                        ),
                     ])
                 })
                 .collect()
         };
-        let routes_widget = Paragraph::new(routes_text)
-            .wrap(Wrap { trim: true })
-            .block(
-                Block::default()
-                    .title(" Active Triggers & Routes ")
-                    .title_style(theme.title())
-                    .borders(Borders::BOTTOM)
-                    .border_style(Style::default().fg(theme.border)),
-            );
+        let routes_widget = Paragraph::new(routes_text).wrap(Wrap { trim: true }).block(
+            Block::default()
+                .title(" Active Triggers & Routes ")
+                .title_style(theme.title())
+                .borders(Borders::BOTTOM)
+                .border_style(Style::default().fg(theme.border)),
+        );
         f.render_widget(routes_widget, chunks[2]);
 
         // 4. Feedback & Key Hints
         let feedback_line = if self.is_loading {
-            Line::from(vec![
-                Span::styled("⏳ Loading live script metadata from Cloudflare API...", Style::default().fg(theme.warning)),
-            ])
+            Line::from(vec![Span::styled(
+                "⏳ Loading live script metadata from Cloudflare API...",
+                Style::default().fg(theme.warning),
+            )])
         } else if let Some(fb) = &self.action_feedback {
-            Line::from(vec![
-                Span::styled(format!("✓ {fb}"), Style::default().fg(theme.success)),
-            ])
+            Line::from(vec![Span::styled(
+                format!("✓ {fb}"),
+                Style::default().fg(theme.success),
+            )])
         } else {
             Line::from(vec![
-                Span::styled("[t/Enter] ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "[t/Enter] ",
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("Stream Live Tail   ", Style::default().fg(theme.text)),
-                Span::styled("[j/k] ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "[j/k] ",
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("Navigate Bindings   ", Style::default().fg(theme.text)),
-                Span::styled("[Esc] ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "[Esc] ",
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("Close", Style::default().fg(theme.text)),
             ])
         };
 
-        f.render_widget(Paragraph::new(feedback_line).wrap(Wrap { trim: true }), chunks[3]);
+        f.render_widget(
+            Paragraph::new(feedback_line).wrap(Wrap { trim: true }),
+            chunks[3],
+        );
     }
 }

@@ -1,8 +1,8 @@
-use std::fs;
-use std::path::PathBuf;
 use color_eyre::Result;
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct AccountProfile {
@@ -167,7 +167,10 @@ impl Config {
     }
 
     pub fn logout_active_profile(&mut self) -> bool {
-        let active_name = self.current_profile.clone().unwrap_or_else(|| "default".to_string());
+        let active_name = self
+            .current_profile
+            .clone()
+            .unwrap_or_else(|| "default".to_string());
         if let Some(pos) = self.profiles.iter().position(|p| p.name == active_name) {
             self.profiles[pos].api_token.clear();
         }
@@ -213,9 +216,16 @@ impl AuthManager {
         Ok(())
     }
 
-    pub fn save_token(token: &str, account_id: Option<String>, account_name: Option<String>) -> Result<()> {
+    pub fn save_token(
+        token: &str,
+        account_id: Option<String>,
+        account_name: Option<String>,
+    ) -> Result<()> {
         let mut config = Self::load_config();
-        let active_name = config.current_profile.clone().unwrap_or_else(|| "default".to_string());
+        let active_name = config
+            .current_profile
+            .clone()
+            .unwrap_or_else(|| "default".to_string());
         config.add_or_update_profile(AccountProfile {
             name: active_name.clone(),
             api_token: token.to_string(),

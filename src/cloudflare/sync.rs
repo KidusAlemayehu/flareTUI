@@ -1,6 +1,6 @@
-use color_eyre::Result;
 use crate::cloudflare::client::CloudflareClient;
 use crate::db::{CacheDb, DnsRecord, PagesProject, WorkerScript, Zone};
+use color_eyre::Result;
 
 pub struct SyncReport {
     pub zones_count: usize,
@@ -41,8 +41,15 @@ impl CloudflareSync {
                 id: z.id.clone(),
                 name: z.name.clone(),
                 status: z.status.clone(),
-                plan: z.plan.as_ref().map(|p| p.name.clone()).unwrap_or_else(|| "Free".to_string()),
-                created_on: z.created_on.clone().unwrap_or_else(|| "2024-01-01".to_string()),
+                plan: z
+                    .plan
+                    .as_ref()
+                    .map(|p| p.name.clone())
+                    .unwrap_or_else(|| "Free".to_string()),
+                created_on: z
+                    .created_on
+                    .clone()
+                    .unwrap_or_else(|| "2024-01-01".to_string()),
             };
             db.upsert_zone(&zone)?;
 
@@ -152,7 +159,9 @@ impl CloudflareSync {
                             name: w.id.clone(),
                             routes: routes_str,
                             last_deployed: w.modified_on.unwrap_or_else(|| "Active".to_string()),
-                            compatibility_date: w.compatibility_date.unwrap_or_else(|| "2024-09-23".to_string()),
+                            compatibility_date: w
+                                .compatibility_date
+                                .unwrap_or_else(|| "2024-09-23".to_string()),
                             status: "Healthy".to_string(),
                         };
                         db.upsert_worker(&script)?;
@@ -202,7 +211,9 @@ impl CloudflareSync {
                             id: p.id,
                             name: p.name,
                             subdomain: p.subdomain,
-                            production_branch: p.production_branch.unwrap_or_else(|| "main".to_string()),
+                            production_branch: p
+                                .production_branch
+                                .unwrap_or_else(|| "main".to_string()),
                             latest_deployment_status: status_str,
                             updated_on: p.updated_on.unwrap_or_else(|| "Recently".to_string()),
                         };
@@ -283,8 +294,15 @@ impl CloudflareSync {
                         id: z.id.clone(),
                         name: z.name.clone(),
                         status: z.status.clone(),
-                        plan: z.plan.as_ref().map(|p| p.name.clone()).unwrap_or_else(|| "Free".to_string()),
-                        created_on: z.created_on.clone().unwrap_or_else(|| "2024-01-01".to_string()),
+                        plan: z
+                            .plan
+                            .as_ref()
+                            .map(|p| p.name.clone())
+                            .unwrap_or_else(|| "Free".to_string()),
+                        created_on: z
+                            .created_on
+                            .clone()
+                            .unwrap_or_else(|| "2024-01-01".to_string()),
                     };
                     db.upsert_zone(&zone)?;
                 }
@@ -312,7 +330,11 @@ impl CloudflareSync {
                         let _ = db.replace_zone_dns_records(&zone_id, &records);
                     }
                 }
-                Ok(format!("Fast synced {} zones ({} DNS records)", cf_zones.len(), records_synced))
+                Ok(format!(
+                    "Fast synced {} zones ({} DNS records)",
+                    cf_zones.len(),
+                    records_synced
+                ))
             }
             1 => {
                 // Tab 1: Workers
@@ -346,8 +368,14 @@ impl CloudflareSync {
                         id: w.id.clone(),
                         name: w.id.clone(),
                         routes: routes_str,
-                        last_deployed: w.modified_on.clone().unwrap_or_else(|| "Active".to_string()),
-                        compatibility_date: w.compatibility_date.clone().unwrap_or_else(|| "2024-09-23".to_string()),
+                        last_deployed: w
+                            .modified_on
+                            .clone()
+                            .unwrap_or_else(|| "Active".to_string()),
+                        compatibility_date: w
+                            .compatibility_date
+                            .clone()
+                            .unwrap_or_else(|| "2024-09-23".to_string()),
                         status: "Healthy".to_string(),
                     };
                     let _ = db.upsert_worker(&script);
@@ -409,9 +437,15 @@ impl CloudflareSync {
                         id: p.id.clone(),
                         name: p.name.clone(),
                         subdomain: p.subdomain.clone(),
-                        production_branch: p.production_branch.clone().unwrap_or_else(|| "main".to_string()),
+                        production_branch: p
+                            .production_branch
+                            .clone()
+                            .unwrap_or_else(|| "main".to_string()),
                         latest_deployment_status: status_str,
-                        updated_on: p.updated_on.clone().unwrap_or_else(|| "Recently".to_string()),
+                        updated_on: p
+                            .updated_on
+                            .clone()
+                            .unwrap_or_else(|| "Recently".to_string()),
                     };
                     let _ = db.upsert_page(&project);
                 }
@@ -462,7 +496,10 @@ impl CloudflareSync {
                     let _ = db.replace_kv_namespaces(&nss);
                 }
 
-                Ok(format!("Fast synced {} D1 databases, {} KV namespaces", d1_count, kv_count))
+                Ok(format!(
+                    "Fast synced {} D1 databases, {} KV namespaces",
+                    d1_count, kv_count
+                ))
             }
             4 => {
                 // Tab 4: Live Tail (already real-time streaming)
@@ -531,7 +568,10 @@ impl CloudflareSync {
                     let _ = db.replace_waf_rules(&zone_id, &cached);
                 }
 
-                Ok(format!("Fast synced {} security events, {} WAF rules", events_count, waf_count))
+                Ok(format!(
+                    "Fast synced {} security events, {} WAF rules",
+                    events_count, waf_count
+                ))
             }
             6 => {
                 // Tab 6: Domains & Registrar
@@ -564,7 +604,10 @@ impl CloudflareSync {
                     })
                     .collect();
                 let _ = db.replace_registrar_domains(&account_id, &cached_domains);
-                Ok(format!("Fast synced {} registrar domains", cached_domains.len()))
+                Ok(format!(
+                    "Fast synced {} registrar domains",
+                    cached_domains.len()
+                ))
             }
             _ => Ok("Fast sync: unknown view".to_string()),
         }

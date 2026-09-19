@@ -33,6 +33,12 @@ pub struct LogEntry {
     pub outcome: String,
 }
 
+impl Default for TailView {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TailView {
     pub fn new() -> Self {
         Self {
@@ -104,7 +110,10 @@ impl TailView {
                         || entry.method.to_lowercase().contains(&q)
                         || entry.status.to_string().contains(&q)
                         || entry.outcome.to_lowercase().contains(&q)
-                        || entry.exceptions.iter().any(|e| e.to_lowercase().contains(&q))
+                        || entry
+                            .exceptions
+                            .iter()
+                            .any(|e| e.to_lowercase().contains(&q))
                 })
                 .collect()
         }
@@ -130,7 +139,9 @@ impl TailView {
         if total > 0 && self.selected_idx + 1 < total {
             self.selected_idx += 1;
             if self.selected_idx >= self.scroll_offset + visible_lines.saturating_sub(1) {
-                self.scroll_offset = self.selected_idx.saturating_sub(visible_lines.saturating_sub(2));
+                self.scroll_offset = self
+                    .selected_idx
+                    .saturating_sub(visible_lines.saturating_sub(2));
             }
             if self.selected_idx + 1 == total {
                 self.follow_mode = true;
@@ -161,7 +172,12 @@ impl TailView {
             };
             let cursor = if self.search_active { "█" } else { "" };
             let search_bar = Paragraph::new(Line::from(vec![
-                Span::styled(" Filter Logs: ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    " Filter Logs: ",
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(&self.search_query, Style::default().fg(Color::White)),
                 Span::styled(cursor, Style::default().fg(theme.primary)),
                 Span::raw("   "),
@@ -177,13 +193,26 @@ impl TailView {
         }
 
         let stream_status = if self.is_paused {
-            Span::styled("⏸ PAUSED", Style::default().fg(theme.warning).add_modifier(Modifier::BOLD))
+            Span::styled(
+                "⏸ PAUSED",
+                Style::default()
+                    .fg(theme.warning)
+                    .add_modifier(Modifier::BOLD),
+            )
         } else {
-            Span::styled("● LISTENING", Style::default().fg(theme.success).add_modifier(Modifier::BOLD))
+            Span::styled(
+                "● LISTENING",
+                Style::default()
+                    .fg(theme.success)
+                    .add_modifier(Modifier::BOLD),
+            )
         };
 
         let follow_status = if self.follow_mode {
-            Span::styled("⬇ FOLLOW", Style::default().fg(theme.info).add_modifier(Modifier::BOLD))
+            Span::styled(
+                "⬇ FOLLOW",
+                Style::default().fg(theme.info).add_modifier(Modifier::BOLD),
+            )
         } else {
             Span::styled("⇕ MANUAL", Style::default().fg(theme.text_dim))
         };
@@ -221,12 +250,14 @@ impl TailView {
                 ]
             } else {
                 vec![
-                    Line::from(vec![
-                        Span::styled(format!(" No log entries matched filter: '{}'", self.search_query), Style::default().fg(theme.warning)),
-                    ]),
-                    Line::from(vec![
-                        Span::styled(" Press Esc to clear filter and view all incoming logs.", Style::default().fg(theme.text_dim)),
-                    ]),
+                    Line::from(vec![Span::styled(
+                        format!(" No log entries matched filter: '{}'", self.search_query),
+                        Style::default().fg(theme.warning),
+                    )]),
+                    Line::from(vec![Span::styled(
+                        " Press Esc to clear filter and view all incoming logs.",
+                        Style::default().fg(theme.text_dim),
+                    )]),
                 ]
             }
         } else {
@@ -242,19 +273,37 @@ impl TailView {
 
                     let status_style = match entry.status {
                         100..=199 => Style::default().fg(theme.info).add_modifier(Modifier::BOLD),
-                        200..=299 => Style::default().fg(theme.success).add_modifier(Modifier::BOLD),
-                        300..=399 => Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-                        400..=499 => Style::default().fg(theme.warning).add_modifier(Modifier::BOLD),
-                        _ => Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
+                        200..=299 => Style::default()
+                            .fg(theme.success)
+                            .add_modifier(Modifier::BOLD),
+                        300..=399 => Style::default()
+                            .fg(Color::Cyan)
+                            .add_modifier(Modifier::BOLD),
+                        400..=499 => Style::default()
+                            .fg(theme.warning)
+                            .add_modifier(Modifier::BOLD),
+                        _ => Style::default()
+                            .fg(theme.error)
+                            .add_modifier(Modifier::BOLD),
                     };
 
                     let method_style = match entry.method.as_str() {
                         "GET" => Style::default().fg(theme.info).add_modifier(Modifier::BOLD),
-                        "POST" => Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD),
-                        "PUT" | "PATCH" => Style::default().fg(Color::LightYellow).add_modifier(Modifier::BOLD),
-                        "DELETE" => Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
-                        "SYS" | "ATTACH" => Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
-                        _ => Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
+                        "POST" => Style::default()
+                            .fg(theme.secondary)
+                            .add_modifier(Modifier::BOLD),
+                        "PUT" | "PATCH" => Style::default()
+                            .fg(Color::LightYellow)
+                            .add_modifier(Modifier::BOLD),
+                        "DELETE" => Style::default()
+                            .fg(theme.error)
+                            .add_modifier(Modifier::BOLD),
+                        "SYS" | "ATTACH" => Style::default()
+                            .fg(theme.primary)
+                            .add_modifier(Modifier::BOLD),
+                        _ => Style::default()
+                            .fg(Color::Magenta)
+                            .add_modifier(Modifier::BOLD),
                     };
 
                     let row_style = if is_selected {
@@ -264,12 +313,26 @@ impl TailView {
                     };
 
                     Line::from(vec![
-                        Span::styled(prefix, Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
-                        Span::styled(format!("[{}] ", entry.timestamp), Style::default().fg(theme.text_dim)),
+                        Span::styled(
+                            prefix,
+                            Style::default()
+                                .fg(theme.primary)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        Span::styled(
+                            format!("[{}] ", entry.timestamp),
+                            Style::default().fg(theme.text_dim),
+                        ),
                         Span::styled(format!("{:<6} ", entry.method), method_style),
                         Span::styled(format!("{:<3} ", entry.status), status_style),
-                        Span::styled(format!("{:<4}ms ", entry.duration_ms), Style::default().fg(theme.text_dim)),
-                        Span::styled(format!("{:<22} ", entry.url), Style::default().fg(Color::White)),
+                        Span::styled(
+                            format!("{:<4}ms ", entry.duration_ms),
+                            Style::default().fg(theme.text_dim),
+                        ),
+                        Span::styled(
+                            format!("{:<22} ", entry.url),
+                            Style::default().fg(Color::White),
+                        ),
                         Span::styled("│ ", Style::default().fg(theme.border)),
                         Span::styled(&entry.message, Style::default().fg(theme.text)),
                     ])
@@ -280,13 +343,21 @@ impl TailView {
 
         let title = Line::from(vec![
             Span::raw(" Live Tail Console: "),
-            Span::styled(&self.target_worker, Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                &self.target_worker,
+                Style::default()
+                    .fg(theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" ["),
             stream_status,
             Span::raw("] ["),
             follow_status,
             Span::raw("] ["),
-            Span::styled(format!("{}/{}", filtered.len(), total_count), Style::default().fg(Color::White)),
+            Span::styled(
+                format!("{}/{}", filtered.len(), total_count),
+                Style::default().fg(Color::White),
+            ),
             Span::raw(" entries] "),
         ]);
 

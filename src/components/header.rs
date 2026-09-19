@@ -17,6 +17,12 @@ pub struct Header {
     pub sync_interval_secs: u64,
 }
 
+impl Default for Header {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Header {
     pub fn new() -> Self {
         Self {
@@ -55,21 +61,44 @@ impl Header {
 
         // Logo
         let logo = Paragraph::new(Line::from(vec![
-            Span::styled(" ☁ flare", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
-            Span::styled("TUI ", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                " ☁ flare",
+                Style::default()
+                    .fg(theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "TUI ",
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]));
         f.render_widget(logo, top_chunks[0]);
 
         // Account / Environment badge
         let live_badge = if self.is_live {
-            Span::styled("● Cloudflare Live", Style::default().fg(theme.success).add_modifier(Modifier::BOLD))
+            Span::styled(
+                "● Cloudflare Live",
+                Style::default()
+                    .fg(theme.success)
+                    .add_modifier(Modifier::BOLD),
+            )
         } else {
-            Span::styled("○ Cached Mode (Press 'a' to auth)", Style::default().fg(theme.warning))
+            Span::styled(
+                "○ Cached Mode (Press 'a' to auth)",
+                Style::default().fg(theme.warning),
+            )
         };
 
         let badge = Paragraph::new(Line::from(vec![
             Span::styled("👤 Account: ", Style::default().fg(theme.text_dim)),
-            Span::styled(&self.account_name, Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                &self.account_name,
+                Style::default()
+                    .fg(theme.secondary)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw("  "),
             live_badge,
         ]));
@@ -77,14 +106,21 @@ impl Header {
 
         // Cache & FastSync mode indicator
         let (sync_icon, sync_label, sync_color) = if self.is_live && self.fast_sync {
-            ("⚡ FastSync: ", format!("{}s Poll", self.sync_interval_secs), theme.success)
+            (
+                "⚡ FastSync: ",
+                format!("{}s Poll", self.sync_interval_secs),
+                theme.success,
+            )
         } else {
             ("⚡ Cache: ", "SQLite Local".to_string(), theme.info)
         };
 
         let cache_info = Paragraph::new(Line::from(vec![
             Span::styled(sync_icon, Style::default().fg(theme.text_dim)),
-            Span::styled(sync_label, Style::default().fg(sync_color).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                sync_label,
+                Style::default().fg(sync_color).add_modifier(Modifier::BOLD),
+            ),
         ]))
         .alignment(ratatui::layout::Alignment::Right);
         f.render_widget(cache_info, top_chunks[2]);

@@ -48,7 +48,10 @@ impl TailLogModal {
             .split(popup_area);
 
         let block = Block::default()
-            .title(format!(" 🔍 Worker Log Inspector: {} {} ", self.log.method, self.log.url))
+            .title(format!(
+                " 🔍 Worker Log Inspector: {} {} ",
+                self.log.method, self.log.url
+            ))
             .title_style(theme.title())
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
@@ -58,9 +61,15 @@ impl TailLogModal {
 
         // 1. Summary Header
         let status_style = match self.log.status {
-            200..=299 => Style::default().fg(theme.success).add_modifier(Modifier::BOLD),
-            400..=499 => Style::default().fg(theme.warning).add_modifier(Modifier::BOLD),
-            _ => Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
+            200..=299 => Style::default()
+                .fg(theme.success)
+                .add_modifier(Modifier::BOLD),
+            400..=499 => Style::default()
+                .fg(theme.warning)
+                .add_modifier(Modifier::BOLD),
+            _ => Style::default()
+                .fg(theme.error)
+                .add_modifier(Modifier::BOLD),
         };
 
         let summary_lines = vec![
@@ -69,13 +78,24 @@ impl TailLogModal {
                 Span::styled(format!("{}", self.log.status), status_style),
                 Span::raw("    "),
                 Span::styled("Method: ", Style::default().fg(theme.text_dim)),
-                Span::styled(&self.log.method, Style::default().fg(theme.info).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    &self.log.method,
+                    Style::default().fg(theme.info).add_modifier(Modifier::BOLD),
+                ),
                 Span::raw("    "),
                 Span::styled("Latency: ", Style::default().fg(theme.text_dim)),
-                Span::styled(format!("{}ms", self.log.duration_ms), Style::default().fg(Color::White)),
+                Span::styled(
+                    format!("{}ms", self.log.duration_ms),
+                    Style::default().fg(Color::White),
+                ),
                 Span::raw("    "),
                 Span::styled("Outcome: ", Style::default().fg(theme.text_dim)),
-                Span::styled(&self.log.outcome, Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    &self.log.outcome,
+                    Style::default()
+                        .fg(theme.secondary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw("    "),
                 Span::styled("Time: ", Style::default().fg(theme.text_dim)),
                 Span::styled(&self.log.timestamp, Style::default().fg(theme.text_dim)),
@@ -98,9 +118,12 @@ impl TailLogModal {
         // 2. Body: Raw JSON & Exceptions
         let mut body_lines = Vec::new();
         if !self.log.exceptions.is_empty() {
-            body_lines.push(Line::from(vec![
-                Span::styled("💥 Exceptions & Error Traces:", Style::default().fg(theme.error).add_modifier(Modifier::BOLD)),
-            ]));
+            body_lines.push(Line::from(vec![Span::styled(
+                "💥 Exceptions & Error Traces:",
+                Style::default()
+                    .fg(theme.error)
+                    .add_modifier(Modifier::BOLD),
+            )]));
             for exc in &self.log.exceptions {
                 body_lines.push(Line::from(vec![
                     Span::raw("  "),
@@ -110,9 +133,12 @@ impl TailLogModal {
             body_lines.push(Line::raw(""));
         }
 
-        body_lines.push(Line::from(vec![
-            Span::styled("📜 Log Output / Console Message:", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
-        ]));
+        body_lines.push(Line::from(vec![Span::styled(
+            "📜 Log Output / Console Message:",
+            Style::default()
+                .fg(theme.primary)
+                .add_modifier(Modifier::BOLD),
+        )]));
         body_lines.push(Line::from(vec![
             Span::raw("  "),
             Span::styled(&self.log.message, Style::default().fg(Color::White)),
@@ -120,13 +146,17 @@ impl TailLogModal {
         body_lines.push(Line::raw(""));
 
         if let Some(raw) = &self.log.raw_json {
-            body_lines.push(Line::from(vec![
-                Span::styled("📦 Complete Cloudflare Tail JSON Payload:", Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
-            ]));
+            body_lines.push(Line::from(vec![Span::styled(
+                "📦 Complete Cloudflare Tail JSON Payload:",
+                Style::default()
+                    .fg(theme.secondary)
+                    .add_modifier(Modifier::BOLD),
+            )]));
             for line in raw.lines() {
-                body_lines.push(Line::from(vec![
-                    Span::styled(format!("  {line}"), Style::default().fg(theme.text_dim)),
-                ]));
+                body_lines.push(Line::from(vec![Span::styled(
+                    format!("  {line}"),
+                    Style::default().fg(theme.text_dim),
+                )]));
             }
         }
 
@@ -143,9 +173,19 @@ impl TailLogModal {
 
         // 3. Footer hints
         let hints = Line::from(vec![
-            Span::styled("[j/k] or [↑/↓] ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "[j/k] or [↑/↓] ",
+                Style::default()
+                    .fg(theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled("Scroll Payload   ", Style::default().fg(theme.text)),
-            Span::styled("[Esc] or [Enter] ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "[Esc] or [Enter] ",
+                Style::default()
+                    .fg(theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled("Close Inspector", Style::default().fg(theme.text)),
         ]);
         f.render_widget(Paragraph::new(hints).wrap(Wrap { trim: true }), chunks[2]);

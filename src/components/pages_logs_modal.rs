@@ -48,7 +48,10 @@ impl PagesLogsModal {
         f.render_widget(Clear, popup_area);
 
         let block = Block::default()
-            .title(format!(" 📋 Build Logs: {} [{}] ", self.project_name, self.short_id))
+            .title(format!(
+                " 📋 Build Logs: {} [{}] ",
+                self.project_name, self.short_id
+            ))
             .title_style(theme.title())
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
@@ -68,9 +71,10 @@ impl PagesLogsModal {
         if self.is_loading {
             let loading = Paragraph::new(vec![
                 Line::from(""),
-                Line::from(vec![
-                    Span::styled("   ⏳ Fetching build execution history from Cloudflare v4 API...", Style::default().fg(theme.warning)),
-                ]),
+                Line::from(vec![Span::styled(
+                    "   ⏳ Fetching build execution history from Cloudflare v4 API...",
+                    Style::default().fg(theme.warning),
+                )]),
             ]);
             f.render_widget(loading, chunks[0]);
         } else if self.logs.is_empty() {
@@ -103,10 +107,18 @@ impl PagesLogsModal {
                     };
 
                     let text = entry.line.as_deref().unwrap_or("");
-                    let text_style = if text.contains("Success") || text.contains("Finished") || text.contains("Complete") {
+                    let text_style = if text.contains("Success")
+                        || text.contains("Finished")
+                        || text.contains("Complete")
+                    {
                         Style::default().fg(theme.success)
-                    } else if text.contains("Error") || text.contains("Failed") || text.contains("ERR!") {
-                        Style::default().fg(theme.error).add_modifier(Modifier::BOLD)
+                    } else if text.contains("Error")
+                        || text.contains("Failed")
+                        || text.contains("ERR!")
+                    {
+                        Style::default()
+                            .fg(theme.error)
+                            .add_modifier(Modifier::BOLD)
                     } else if text.contains("WARN") || text.contains("warning") {
                         Style::default().fg(theme.warning)
                     } else if text.starts_with('[') || text.contains("Step") {
@@ -116,8 +128,14 @@ impl PagesLogsModal {
                     };
 
                     Line::from(vec![
-                        Span::styled(format!("{line_no:>4} │ "), Style::default().fg(theme.text_dim)),
-                        Span::styled(format!("{display_ts:<9} "), Style::default().fg(theme.text_dim)),
+                        Span::styled(
+                            format!("{line_no:>4} │ "),
+                            Style::default().fg(theme.text_dim),
+                        ),
+                        Span::styled(
+                            format!("{display_ts:<9} "),
+                            Style::default().fg(theme.text_dim),
+                        ),
                         Span::styled(text, text_style),
                     ])
                 })
@@ -131,7 +149,14 @@ impl PagesLogsModal {
         let footer_text = Line::from(vec![
             Span::styled(" [j/k or ↑/↓] ", Style::default().fg(theme.primary)),
             Span::styled("Scroll Logs   ", Style::default().fg(Color::White)),
-            Span::styled(format!("Line {} of {}   ", self.scroll_offset + 1, self.logs.len().max(1)), Style::default().fg(theme.text_dim)),
+            Span::styled(
+                format!(
+                    "Line {} of {}   ",
+                    self.scroll_offset + 1,
+                    self.logs.len().max(1)
+                ),
+                Style::default().fg(theme.text_dim),
+            ),
             Span::styled(" [Esc] ", Style::default().fg(theme.secondary)),
             Span::styled("Close Logs", Style::default().fg(theme.text_dim)),
         ]);

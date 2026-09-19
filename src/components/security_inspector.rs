@@ -18,7 +18,11 @@ pub enum InspectorTab {
 
 impl InspectorTab {
     pub fn all() -> &'static [InspectorTab] {
-        &[InspectorTab::Details, InspectorTab::Rule, InspectorTab::RawJson]
+        &[
+            InspectorTab::Details,
+            InspectorTab::Rule,
+            InspectorTab::RawJson,
+        ]
     }
 
     pub fn title(&self) -> &'static str {
@@ -78,11 +82,17 @@ impl SecurityInspectorModal {
     }
 
     pub fn copy_ip(&mut self) {
-        self.action_feedback = Some(format!("Copied IP {} to clipboard buffer", self.event.client_ip));
+        self.action_feedback = Some(format!(
+            "Copied IP {} to clipboard buffer",
+            self.event.client_ip
+        ));
     }
 
     pub fn copy_ray_id(&mut self) {
-        self.action_feedback = Some(format!("Copied Ray ID {} to clipboard buffer", self.event.ray_id));
+        self.action_feedback = Some(format!(
+            "Copied Ray ID {} to clipboard buffer",
+            self.event.ray_id
+        ));
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
@@ -101,7 +111,10 @@ impl SecurityInspectorModal {
             .split(popup_area);
 
         let block = Block::default()
-            .title(format!(" Security Event Inspector: Ray ID {} ", self.event.ray_id))
+            .title(format!(
+                " Security Event Inspector: Ray ID {} ",
+                self.event.ray_id
+            ))
             .title_style(theme.title())
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
@@ -157,10 +170,16 @@ impl SecurityInspectorModal {
                 Span::styled("Threat Action:   ", Style::default().fg(Color::DarkGray)),
                 Span::styled(
                     format!(" {} ", self.event.action.to_uppercase()),
-                    Style::default().fg(Color::White).bg(action_color).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::White)
+                        .bg(action_color)
+                        .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled("    Source Engine:  ", Style::default().fg(Color::DarkGray)),
-                Span::styled(&self.event.source, Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    &self.event.source,
+                    Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+                ),
             ]),
             Line::from(vec![
                 Span::styled("Timestamp:       ", Style::default().fg(Color::DarkGray)),
@@ -169,15 +188,25 @@ impl SecurityInspectorModal {
                 Span::styled(&self.event.ray_id, Style::default().fg(theme.secondary)),
             ]),
             Line::from(""),
-            Line::from(vec![
-                Span::styled("--- Client Information ---", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
-            ]),
+            Line::from(vec![Span::styled(
+                "--- Client Information ---",
+                Style::default()
+                    .fg(theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            )]),
             Line::from(vec![
                 Span::styled("Client IP:       ", Style::default().fg(Color::DarkGray)),
-                Span::styled(&self.event.client_ip, Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    &self.event.client_ip,
+                    Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("    Country:        ", Style::default().fg(Color::DarkGray)),
                 Span::styled(
-                    format!("{} ({})", self.event.client_country, get_country_name(&self.event.client_country)),
+                    format!(
+                        "{} ({})",
+                        self.event.client_country,
+                        get_country_name(&self.event.client_country)
+                    ),
                     Style::default().fg(theme.text),
                 ),
             ]),
@@ -195,45 +224,73 @@ impl SecurityInspectorModal {
             Line::from(vec![
                 Span::styled("User-Agent:      ", Style::default().fg(Color::DarkGray)),
                 Span::styled(
-                    if self.event.user_agent.is_empty() { "None / Hidden" } else { &self.event.user_agent },
+                    if self.event.user_agent.is_empty() {
+                        "None / Hidden"
+                    } else {
+                        &self.event.user_agent
+                    },
                     Style::default().fg(theme.text_dim),
                 ),
             ]),
             Line::from(""),
-            Line::from(vec![
-                Span::styled("--- HTTP Request Target ---", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
-            ]),
+            Line::from(vec![Span::styled(
+                "--- HTTP Request Target ---",
+                Style::default()
+                    .fg(theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            )]),
             Line::from(vec![
                 Span::styled("Method:          ", Style::default().fg(Color::DarkGray)),
-                Span::styled(&self.event.http_method, Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    &self.event.http_method,
+                    Style::default()
+                        .fg(theme.secondary)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("    Host:           ", Style::default().fg(Color::DarkGray)),
                 Span::styled(&self.event.http_host, Style::default().fg(theme.text)),
             ]),
             Line::from(vec![
                 Span::styled("Request URI:     ", Style::default().fg(Color::DarkGray)),
-                Span::styled(&self.event.http_path, Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    &self.event.http_path,
+                    Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+                ),
             ]),
             Line::from(""),
-            Line::from(vec![
-                Span::styled("--- Matched Firewall Rule ---", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
-            ]),
+            Line::from(vec![Span::styled(
+                "--- Matched Firewall Rule ---",
+                Style::default()
+                    .fg(theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            )]),
             Line::from(vec![
                 Span::styled("Rule ID:         ", Style::default().fg(Color::DarkGray)),
                 Span::styled(
-                    if self.event.rule_id.is_empty() { "None" } else { &self.event.rule_id },
+                    if self.event.rule_id.is_empty() {
+                        "None"
+                    } else {
+                        &self.event.rule_id
+                    },
                     Style::default().fg(theme.text),
                 ),
             ]),
             Line::from(vec![
                 Span::styled("Description:     ", Style::default().fg(Color::DarkGray)),
                 Span::styled(
-                    if self.event.rule_description.is_empty() { "Direct Security Heuristic" } else { &self.event.rule_description },
+                    if self.event.rule_description.is_empty() {
+                        "Direct Security Heuristic"
+                    } else {
+                        &self.event.rule_description
+                    },
                     Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
                 ),
             ]),
         ];
 
-        let p = Paragraph::new(lines).wrap(Wrap { trim: true }).scroll((self.scroll_offset as u16, 0));
+        let p = Paragraph::new(lines)
+            .wrap(Wrap { trim: true })
+            .scroll((self.scroll_offset as u16, 0));
         f.render_widget(p, area);
     }
 
@@ -242,7 +299,10 @@ impl SecurityInspectorModal {
             vec![
                 Line::from(vec![
                     Span::styled("Rule ID:        ", Style::default().fg(Color::DarkGray)),
-                    Span::styled(&rule.id, Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        &rule.id,
+                        Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+                    ),
                 ]),
                 Line::from(vec![
                     Span::styled("Description:    ", Style::default().fg(Color::DarkGray)),
@@ -250,42 +310,73 @@ impl SecurityInspectorModal {
                 ]),
                 Line::from(vec![
                     Span::styled("Action:         ", Style::default().fg(Color::DarkGray)),
-                    Span::styled(&rule.action, Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        &rule.action,
+                        Style::default()
+                            .fg(theme.primary)
+                            .add_modifier(Modifier::BOLD),
+                    ),
                     Span::styled("    Priority:       ", Style::default().fg(Color::DarkGray)),
                     Span::styled(rule.priority.to_string(), Style::default().fg(theme.text)),
                     Span::styled("    Status:         ", Style::default().fg(Color::DarkGray)),
-                    Span::styled(if rule.paused { "PAUSED" } else { "ACTIVE" }, Style::default().fg(if rule.paused { Color::DarkGray } else { theme.success })),
+                    Span::styled(
+                        if rule.paused { "PAUSED" } else { "ACTIVE" },
+                        Style::default().fg(if rule.paused {
+                            Color::DarkGray
+                        } else {
+                            theme.success
+                        }),
+                    ),
                 ]),
                 Line::from(vec![
                     Span::styled("Reference Code: ", Style::default().fg(Color::DarkGray)),
-                    Span::styled(if rule.ref_code.is_empty() { "None" } else { &rule.ref_code }, Style::default().fg(theme.text_dim)),
+                    Span::styled(
+                        if rule.ref_code.is_empty() {
+                            "None"
+                        } else {
+                            &rule.ref_code
+                        },
+                        Style::default().fg(theme.text_dim),
+                    ),
                 ]),
                 Line::from(""),
-                Line::from(vec![
-                    Span::styled("WireFilter Expression:", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
-                ]),
+                Line::from(vec![Span::styled(
+                    "WireFilter Expression:",
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                )]),
                 Line::from(""),
-                Line::from(vec![
-                    Span::styled(format!("  {}", rule.expression), Style::default().fg(theme.secondary)),
-                ]),
+                Line::from(vec![Span::styled(
+                    format!("  {}", rule.expression),
+                    Style::default().fg(theme.secondary),
+                )]),
             ]
         } else if !self.event.rule_id.is_empty() {
             vec![
                 Line::from(vec![
                     Span::styled("Rule ID:        ", Style::default().fg(Color::DarkGray)),
-                    Span::styled(&self.event.rule_id, Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        &self.event.rule_id,
+                        Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+                    ),
                 ]),
                 Line::from(vec![
                     Span::styled("Description:    ", Style::default().fg(Color::DarkGray)),
-                    Span::styled(&self.event.rule_description, Style::default().fg(theme.secondary)),
+                    Span::styled(
+                        &self.event.rule_description,
+                        Style::default().fg(theme.secondary),
+                    ),
                 ]),
                 Line::from(""),
-                Line::from(vec![
-                    Span::styled("Rule expression not stored locally in SQLite cache.", Style::default().fg(Color::DarkGray)),
-                ]),
-                Line::from(vec![
-                    Span::styled("Press 's' on the main view to perform full rule sync.", Style::default().fg(theme.text_dim)),
-                ]),
+                Line::from(vec![Span::styled(
+                    "Rule expression not stored locally in SQLite cache.",
+                    Style::default().fg(Color::DarkGray),
+                )]),
+                Line::from(vec![Span::styled(
+                    "Press 's' on the main view to perform full rule sync.",
+                    Style::default().fg(theme.text_dim),
+                )]),
             ]
         } else {
             vec![
@@ -294,30 +385,41 @@ impl SecurityInspectorModal {
             ]
         };
 
-        let p = Paragraph::new(lines).wrap(Wrap { trim: true }).scroll((self.scroll_offset as u16, 0));
+        let p = Paragraph::new(lines)
+            .wrap(Wrap { trim: true })
+            .scroll((self.scroll_offset as u16, 0));
         f.render_widget(p, area);
     }
 
     fn render_raw_tab(&self, f: &mut Frame, area: Rect, theme: &Theme) {
-        let json_str = serde_json::to_string_pretty(&self.event).unwrap_or_else(|_| "{}".to_string());
+        let json_str =
+            serde_json::to_string_pretty(&self.event).unwrap_or_else(|_| "{}".to_string());
         let lines: Vec<Line> = json_str
             .lines()
             .enumerate()
             .map(|(i, l)| {
                 Line::from(vec![
-                    Span::styled(format!("{:3} | ", i + 1), Style::default().fg(Color::DarkGray)),
+                    Span::styled(
+                        format!("{:3} | ", i + 1),
+                        Style::default().fg(Color::DarkGray),
+                    ),
                     Span::styled(l, Style::default().fg(theme.text)),
                 ])
             })
             .collect();
 
-        let p = Paragraph::new(lines).wrap(Wrap { trim: true }).scroll((self.scroll_offset as u16, 0));
+        let p = Paragraph::new(lines)
+            .wrap(Wrap { trim: true })
+            .scroll((self.scroll_offset as u16, 0));
         f.render_widget(p, area);
     }
 
     fn render_footer(&self, f: &mut Frame, area: Rect, theme: &Theme) {
         let feedback_span = if let Some(fb) = &self.action_feedback {
-            Span::styled(format!(" {fb} "), Style::default().fg(Color::White).bg(theme.primary))
+            Span::styled(
+                format!(" {fb} "),
+                Style::default().fg(Color::White).bg(theme.primary),
+            )
         } else {
             Span::styled(
                 " [Tab] Switch Tab  [c] Copy IP  [r] Copy Ray ID  [↑/↓] Scroll  [Esc/q] Close ",
@@ -447,9 +549,17 @@ mod tests {
 
         assert!(modal.action_feedback.is_none());
         modal.copy_ip();
-        assert!(modal.action_feedback.as_ref().unwrap().contains("198.51.100.42"));
+        assert!(modal
+            .action_feedback
+            .as_ref()
+            .unwrap()
+            .contains("198.51.100.42"));
 
         modal.copy_ray_id();
-        assert!(modal.action_feedback.as_ref().unwrap().contains("8472a1bf001"));
+        assert!(modal
+            .action_feedback
+            .as_ref()
+            .unwrap()
+            .contains("8472a1bf001"));
     }
 }

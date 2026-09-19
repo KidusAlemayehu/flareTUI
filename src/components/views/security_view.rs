@@ -19,7 +19,11 @@ pub enum SecurityTab {
 
 impl SecurityTab {
     pub fn all() -> &'static [SecurityTab] {
-        &[SecurityTab::Events, SecurityTab::WafRules, SecurityTab::Analytics]
+        &[
+            SecurityTab::Events,
+            SecurityTab::WafRules,
+            SecurityTab::Analytics,
+        ]
     }
 
     pub fn title(&self) -> &'static str {
@@ -240,7 +244,11 @@ impl SecurityView {
         }
         let cur_idx = self.selected_rule_idx;
         let new_idx = if delta < 0 {
-            if cur_idx > 0 { cur_idx - 1 } else { return None; }
+            if cur_idx > 0 {
+                cur_idx - 1
+            } else {
+                return None;
+            }
         } else if cur_idx + 1 < self.rules.len() {
             cur_idx + 1
         } else {
@@ -250,7 +258,11 @@ impl SecurityView {
         let p1 = self.rules[cur_idx].priority;
         let p2 = self.rules[new_idx].priority;
         let target_priority = if p1 == p2 {
-            if delta < 0 { p1.saturating_sub(1) } else { p1 + 1 }
+            if delta < 0 {
+                p1.saturating_sub(1)
+            } else {
+                p1 + 1
+            }
         } else {
             p2
         };
@@ -294,35 +306,66 @@ impl SecurityView {
 
         let mut spans = vec![
             Span::styled("Zone: ", Style::default().fg(Color::DarkGray)),
-            Span::styled(format!("{zone_name}  |  "), Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                format!("{zone_name}  |  "),
+                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+            ),
             Span::styled("Threat Level: ", Style::default().fg(Color::DarkGray)),
             Span::styled(
                 format!(" {} ", self.analytics.threat_level.as_str()),
-                Style::default().fg(level_color).bg(level_bg).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(level_color)
+                    .bg(level_bg)
+                    .add_modifier(Modifier::BOLD),
             ),
             Span::styled("  Score: ", Style::default().fg(Color::DarkGray)),
             Span::styled(
                 format!("{}/100", self.analytics.threat_score),
-                Style::default().fg(level_color).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(level_color)
+                    .add_modifier(Modifier::BOLD),
             ),
             Span::styled("  |  Total: ", Style::default().fg(Color::DarkGray)),
-            Span::styled(format!("{} ", self.analytics.total_events), Style::default().fg(theme.text)),
+            Span::styled(
+                format!("{} ", self.analytics.total_events),
+                Style::default().fg(theme.text),
+            ),
             Span::styled("Mitigated: ", Style::default().fg(Color::DarkGray)),
             Span::styled(
-                format!("{} ({:.1}%) ", self.analytics.total_mitigated, self.analytics.mitigation_rate),
-                Style::default().fg(theme.primary).add_modifier(Modifier::BOLD),
+                format!(
+                    "{} ({:.1}%) ",
+                    self.analytics.total_mitigated, self.analytics.mitigation_rate
+                ),
+                Style::default()
+                    .fg(theme.primary)
+                    .add_modifier(Modifier::BOLD),
             ),
             Span::styled("Blocked: ", Style::default().fg(Color::DarkGray)),
-            Span::styled(format!("{} ", self.analytics.threats_blocked), Style::default().fg(theme.error)),
+            Span::styled(
+                format!("{} ", self.analytics.threats_blocked),
+                Style::default().fg(theme.error),
+            ),
             Span::styled("Challenged: ", Style::default().fg(Color::DarkGray)),
-            Span::styled(format!("{} ", self.analytics.threats_challenged), Style::default().fg(theme.warning)),
+            Span::styled(
+                format!("{} ", self.analytics.threats_challenged),
+                Style::default().fg(theme.warning),
+            ),
             Span::styled("Rate Limited: ", Style::default().fg(Color::DarkGray)),
-            Span::styled(format!("{}", self.analytics.rate_limited), Style::default().fg(theme.info)),
+            Span::styled(
+                format!("{}", self.analytics.rate_limited),
+                Style::default().fg(theme.info),
+            ),
         ];
 
         if let Some(peak) = &self.analytics.sparkline.peak_hour {
-            spans.push(Span::styled("  |  Peak: ", Style::default().fg(Color::DarkGray)));
-            spans.push(Span::styled(peak.clone(), Style::default().fg(theme.secondary)));
+            spans.push(Span::styled(
+                "  |  Peak: ",
+                Style::default().fg(Color::DarkGray),
+            ));
+            spans.push(Span::styled(
+                peak.clone(),
+                Style::default().fg(theme.secondary),
+            ));
         }
 
         let text = vec![Line::from(spans)];
@@ -421,10 +464,12 @@ impl SecurityView {
         let rows = events.iter().enumerate().map(|(idx, ev)| {
             let is_selected = idx == self.selected_event_idx;
             let action_style = match ev.action.to_lowercase().as_str() {
-                "block" => Style::default().fg(theme.error).add_modifier(Modifier::BOLD),
-                "managed_challenge" | "challenge" | "js_challenge" => {
-                    Style::default().fg(theme.warning).add_modifier(Modifier::BOLD)
-                }
+                "block" => Style::default()
+                    .fg(theme.error)
+                    .add_modifier(Modifier::BOLD),
+                "managed_challenge" | "challenge" | "js_challenge" => Style::default()
+                    .fg(theme.warning)
+                    .add_modifier(Modifier::BOLD),
                 "rate_limit" => Style::default().fg(theme.info).add_modifier(Modifier::BOLD),
                 _ => Style::default().fg(theme.text_dim),
             };
@@ -484,7 +529,11 @@ impl SecurityView {
                 .title(Span::styled(
                     format!(
                         " Security Events Feed [{}/{}] - Press [Enter] for Inspector ",
-                        if events.is_empty() { 0 } else { self.selected_event_idx + 1 },
+                        if events.is_empty() {
+                            0
+                        } else {
+                            self.selected_event_idx + 1
+                        },
                         events.len()
                     ),
                     theme.title(),
@@ -496,23 +545,31 @@ impl SecurityView {
 
     fn render_waf_rules_tab(&self, f: &mut Frame, area: Rect, theme: &Theme) {
         if self.rules.is_empty() {
-            let p = Paragraph::new("No WAF rules found for this zone. Sync with 's' to fetch rules.")
-                .alignment(Alignment::Center)
-                .style(Style::default().fg(Color::DarkGray))
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .border_type(BorderType::Rounded)
-                        .border_style(Style::default().fg(theme.border))
-                        .title(" Configured WAF Rules "),
-                );
+            let p =
+                Paragraph::new("No WAF rules found for this zone. Sync with 's' to fetch rules.")
+                    .alignment(Alignment::Center)
+                    .style(Style::default().fg(Color::DarkGray))
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_type(BorderType::Rounded)
+                            .border_style(Style::default().fg(theme.border))
+                            .title(" Configured WAF Rules "),
+                    );
             f.render_widget(p, area);
             return;
         }
 
-        let header_cells = ["Pri", "Status", "Action", "Description", "Expression", "Reference"]
-            .iter()
-            .map(|h| Cell::from(*h).style(theme.header_style()));
+        let header_cells = [
+            "Pri",
+            "Status",
+            "Action",
+            "Description",
+            "Expression",
+            "Reference",
+        ]
+        .iter()
+        .map(|h| Cell::from(*h).style(theme.header_style()));
         let header = Row::new(header_cells).height(1).bottom_margin(1);
 
         let rows = self.rules.iter().enumerate().map(|(idx, rule)| {
@@ -615,7 +672,8 @@ impl SecurityView {
                 _ => theme.text_dim,
             };
             Row::new(vec![
-                Cell::from(ab.action.clone()).style(Style::default().fg(color).add_modifier(Modifier::BOLD)),
+                Cell::from(ab.action.clone())
+                    .style(Style::default().fg(color).add_modifier(Modifier::BOLD)),
                 Cell::from(ab.count.to_string()),
                 Cell::from(format!("{:.1}%", ab.percentage)),
             ])
@@ -791,7 +849,8 @@ impl SecurityView {
             Row::new(vec![
                 Cell::from(rh.description.clone()),
                 Cell::from(rh.action.clone()).style(Style::default().fg(theme.primary)),
-                Cell::from(rh.hits.to_string()).style(Style::default().add_modifier(Modifier::BOLD)),
+                Cell::from(rh.hits.to_string())
+                    .style(Style::default().add_modifier(Modifier::BOLD)),
             ])
         });
 
@@ -873,7 +932,8 @@ mod tests {
                 user_agent: "Mozilla/5.0 Bot".to_string(),
             },
         ];
-        db.replace_security_events(zone_id, &events).expect("replace events");
+        db.replace_security_events(zone_id, &events)
+            .expect("replace events");
 
         let rules = vec![
             CachedWafRule {
@@ -897,7 +957,8 @@ mod tests {
                 ref_code: "BOT_2".to_string(),
             },
         ];
-        db.replace_waf_rules(zone_id, &rules).expect("replace rules");
+        db.replace_waf_rules(zone_id, &rules)
+            .expect("replace rules");
 
         (db, zone_id.to_string())
     }
@@ -1032,7 +1093,13 @@ mod tests {
 
         // Verify local DB was updated
         let db_rules = db.get_waf_rules(&zone_id).unwrap();
-        assert!(db_rules.iter().find(|r| r.id == "rule-sqli").unwrap().paused);
+        assert!(
+            db_rules
+                .iter()
+                .find(|r| r.id == "rule-sqli")
+                .unwrap()
+                .paused
+        );
 
         // Shift priority down (swaps with rule-bot)
         assert_eq!(view.selected_rule_idx, 0);

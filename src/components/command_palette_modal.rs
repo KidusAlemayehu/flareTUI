@@ -71,7 +71,8 @@ impl CommandPaletteModal {
     }
 
     pub fn nav_down(&mut self) {
-        if !self.filtered_results.is_empty() && self.selected_idx + 1 < self.filtered_results.len() {
+        if !self.filtered_results.is_empty() && self.selected_idx + 1 < self.filtered_results.len()
+        {
             self.selected_idx += 1;
         }
     }
@@ -135,7 +136,9 @@ impl CommandPaletteModal {
     }
 
     pub fn selected_command(&self) -> Option<PaletteCommand> {
-        self.filtered_results.get(self.selected_idx).map(|sc| sc.command.clone())
+        self.filtered_results
+            .get(self.selected_idx)
+            .map(|sc| sc.command.clone())
     }
 
     pub fn render(&self, f: &mut Frame, area: Rect, theme: &Theme) {
@@ -174,24 +177,39 @@ impl CommandPaletteModal {
     fn render_search_box(&self, f: &mut Frame, area: Rect, theme: &Theme) {
         let display_text = if self.query.is_empty() {
             vec![
-                Span::styled("> ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
-                Span::styled("Type to fuzzy search commands, zones, tools, actions...", Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    "> ",
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    "Type to fuzzy search commands, zones, tools, actions...",
+                    Style::default().fg(Color::DarkGray),
+                ),
             ]
         } else {
             vec![
-                Span::styled("> ", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
-                Span::styled(&self.query, Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "> ",
+                    Style::default()
+                        .fg(theme.primary)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    &self.query,
+                    Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("█", Style::default().fg(theme.primary)),
             ]
         };
 
-        let p = Paragraph::new(Line::from(display_text))
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(theme.border_focus)),
-            );
+        let p = Paragraph::new(Line::from(display_text)).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(theme.border_focus)),
+        );
 
         f.render_widget(p, area);
     }
@@ -272,16 +290,25 @@ impl CommandPaletteModal {
                 };
 
                 let category_cell = Cell::from(format!(" {:^10} ", sc.command.category.as_str()))
-                    .style(Style::default().fg(Color::Black).bg(badge_color).add_modifier(Modifier::BOLD));
+                    .style(
+                        Style::default()
+                            .fg(Color::Black)
+                            .bg(badge_color)
+                            .add_modifier(Modifier::BOLD),
+                    );
 
                 // Title with fuzzy-matched highlights
                 let mut title_spans = Vec::new();
                 for (char_idx, ch) in sc.command.title.chars().enumerate() {
                     let is_matched = sc.matched_indices.contains(&(char_idx as u32));
                     let span_style = if is_matched {
-                        Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+                        Style::default()
+                            .fg(theme.secondary)
+                            .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
                     } else if is_selected {
-                        Style::default().fg(theme.secondary).add_modifier(Modifier::BOLD)
+                        Style::default()
+                            .fg(theme.secondary)
+                            .add_modifier(Modifier::BOLD)
                     } else {
                         Style::default().fg(theme.text)
                     };
@@ -296,8 +323,8 @@ impl CommandPaletteModal {
                     .as_deref()
                     .map(|s| format!(" [{s}] "))
                     .unwrap_or_default();
-                let shortcut_cell = Cell::from(shortcut_text)
-                    .style(Style::default().fg(theme.text_dim));
+                let shortcut_cell =
+                    Cell::from(shortcut_text).style(Style::default().fg(theme.text_dim));
 
                 let row_style = if is_selected {
                     theme.selected_row()
@@ -330,7 +357,10 @@ impl CommandPaletteModal {
                 Span::styled(cmd.keywords.join(", "), Style::default().fg(theme.text_dim)),
             ]
         } else {
-            vec![Span::styled("Select a command to view details.", Style::default().fg(Color::DarkGray))]
+            vec![Span::styled(
+                "Select a command to view details.",
+                Style::default().fg(Color::DarkGray),
+            )]
         };
 
         let p = Paragraph::new(Line::from(desc))
@@ -345,12 +375,11 @@ impl CommandPaletteModal {
     }
 
     fn render_footer(&self, f: &mut Frame, area: Rect, _theme: &Theme) {
-        let p = Paragraph::new(
-            " [Enter] Execute  [Tab] Cycle Category  [↑/↓] Navigate  [Esc] Close ",
-        )
-        .alignment(Alignment::Center)
-        .wrap(Wrap { trim: true })
-        .style(Style::default().fg(Color::DarkGray));
+        let p =
+            Paragraph::new(" [Enter] Execute  [Tab] Cycle Category  [↑/↓] Navigate  [Esc] Close ")
+                .alignment(Alignment::Center)
+                .wrap(Wrap { trim: true })
+                .style(Style::default().fg(Color::DarkGray));
 
         f.render_widget(p, area);
     }

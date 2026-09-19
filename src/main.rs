@@ -18,9 +18,9 @@ pub mod security;
 pub mod theme;
 pub mod tui;
 
-use std::path::PathBuf;
 use color_eyre::Result;
 use directories::ProjectDirs;
+use std::path::PathBuf;
 use tokio::sync::mpsc;
 
 use crate::action::Action;

@@ -106,22 +106,14 @@ pub fn build_auth_url(port: u16, state: &str, code_challenge: &str) -> String {
 }
 
 const SHA256_K: [u32; 64] = [
-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
-    0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
-    0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
-    0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
-    0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-    0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
-    0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
-    0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
-    0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ];
 
 pub fn sha256(data: &[u8]) -> [u8; 32] {
@@ -155,7 +147,10 @@ pub fn sha256(data: &[u8]) -> [u8; 32] {
         for i in 16..64 {
             let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
             let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
-            w[i] = w[i - 16].wrapping_add(s0).wrapping_add(w[i - 7]).wrapping_add(s1);
+            w[i] = w[i - 16]
+                .wrapping_add(s0)
+                .wrapping_add(w[i - 7])
+                .wrapping_add(s1);
         }
 
         let mut a = h0;
@@ -291,7 +286,9 @@ pub fn percent_decode(input: &str) -> String {
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(val) = u8::from_str_radix(std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or(""), 16) {
+            if let Ok(val) =
+                u8::from_str_radix(std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or(""), 16)
+            {
                 result.push(val as char);
                 i += 3;
                 continue;
@@ -428,15 +425,21 @@ pub async fn listen_for_callback(
         }
 
         if let Some(err) = params.get("error") {
-            let desc = params.get("error_description").cloned().unwrap_or_else(|| err.clone());
-            let html = format!(r#"<!DOCTYPE html>
+            let desc = params
+                .get("error_description")
+                .cloned()
+                .unwrap_or_else(|| err.clone());
+            let html = format!(
+                r#"<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>flareTUI - Authorization Denied</title></head>
 <body style="font-family:sans-serif;background:#0f141c;color:#f87171;text-align:center;padding:50px;">
   <h2>Authorization Denied</h2>
   <p>{}</p>
 </body>
-</html>"#, desc);
+</html>"#,
+                desc
+            );
             let resp = format!(
                 "HTTP/1.1 400 Bad Request\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                 html.len(),
@@ -548,9 +551,7 @@ mod tests {
         let verifier = generate_code_verifier();
         assert!(verifier.len() >= 43 && verifier.len() <= 128);
         for ch in verifier.chars() {
-            assert!(
-                ch.is_ascii_alphanumeric() || ch == '-' || ch == '.' || ch == '_' || ch == '~'
-            );
+            assert!(ch.is_ascii_alphanumeric() || ch == '-' || ch == '.' || ch == '_' || ch == '~');
         }
 
         let challenge = generate_code_challenge(&verifier);
@@ -575,14 +576,22 @@ mod tests {
     fn test_parse_query_params() {
         let query = "code=cfut_test_123&state=abc&account_name=Production%20Team&extra=";
         let params = parse_query_params(query);
-        assert_eq!(params.get("code").map(|s| s.as_str()), Some("cfut_test_123"));
+        assert_eq!(
+            params.get("code").map(|s| s.as_str()),
+            Some("cfut_test_123")
+        );
         assert_eq!(params.get("state").map(|s| s.as_str()), Some("abc"));
-        assert_eq!(params.get("account_name").map(|s| s.as_str()), Some("Production Team"));
+        assert_eq!(
+            params.get("account_name").map(|s| s.as_str()),
+            Some("Production Team")
+        );
     }
 
     #[tokio::test]
     async fn test_oauth_callback_success() {
-        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
         let port = listener.local_addr().expect("local addr").port();
         let expected_state = "test_verified_state_456".to_string();
         let verifier = "test_pkce_verifier_string_123".to_string();
@@ -593,23 +602,34 @@ mod tests {
             .await
             .expect("connect to server");
         let request = "GET /callback?code=cfut_prod_mock_token&state=test_verified_state_456&account_name=My%20Cloudflare%20Org HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
-        client.write_all(request.as_bytes()).await.expect("write request");
+        client
+            .write_all(request.as_bytes())
+            .await
+            .expect("write request");
 
         let mut response = Vec::new();
-        client.read_to_end(&mut response).await.expect("read response");
+        client
+            .read_to_end(&mut response)
+            .await
+            .expect("read response");
         let resp_str = String::from_utf8_lossy(&response);
 
         assert!(resp_str.contains("200 OK"));
         assert!(resp_str.contains("Authentication Successful"));
 
-        let payload = server_task.await.expect("task join").expect("oauth payload");
+        let payload = server_task
+            .await
+            .expect("task join")
+            .expect("oauth payload");
         assert_eq!(payload.token, "cfut_prod_mock_token");
         assert_eq!(payload.account_name, Some("My Cloudflare Org".to_string()));
     }
 
     #[tokio::test]
     async fn test_oauth_callback_full_path() {
-        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
         let port = listener.local_addr().expect("local addr").port();
         let expected_state = "test_verified_state_789".to_string();
         let verifier = "test_pkce_verifier_string_456".to_string();
@@ -620,23 +640,37 @@ mod tests {
             .await
             .expect("connect to server");
         let request = "GET /oauth/callback?code=cfut_full_path_token&state=test_verified_state_789 HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
-        client.write_all(request.as_bytes()).await.expect("write request");
+        client
+            .write_all(request.as_bytes())
+            .await
+            .expect("write request");
 
         let mut response = Vec::new();
-        client.read_to_end(&mut response).await.expect("read response");
+        client
+            .read_to_end(&mut response)
+            .await
+            .expect("read response");
         let resp_str = String::from_utf8_lossy(&response);
 
         assert!(resp_str.contains("200 OK"));
         assert!(resp_str.contains("Authentication Successful"));
 
-        let payload = server_task.await.expect("task join").expect("oauth payload");
+        let payload = server_task
+            .await
+            .expect("task join")
+            .expect("oauth payload");
         assert_eq!(payload.token, "cfut_full_path_token");
-        assert_eq!(payload.account_name, Some(DEFAULT_OAUTH_ACCOUNT_NAME.to_string()));
+        assert_eq!(
+            payload.account_name,
+            Some(DEFAULT_OAUTH_ACCOUNT_NAME.to_string())
+        );
     }
 
     #[tokio::test]
     async fn test_oauth_callback_state_mismatch() {
-        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
         let port = listener.local_addr().expect("local addr").port();
         let expected_state = "expected_state".to_string();
         let verifier = "test_pkce_verifier_string_789".to_string();
@@ -646,11 +680,18 @@ mod tests {
         let mut client = TcpStream::connect(format!("127.0.0.1:{port}"))
             .await
             .expect("connect to server");
-        let request = "GET /callback?code=123&state=wrong_state HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
-        client.write_all(request.as_bytes()).await.expect("write request");
+        let request =
+            "GET /callback?code=123&state=wrong_state HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+        client
+            .write_all(request.as_bytes())
+            .await
+            .expect("write request");
 
         let mut response = Vec::new();
-        client.read_to_end(&mut response).await.expect("read response");
+        client
+            .read_to_end(&mut response)
+            .await
+            .expect("read response");
         let resp_str = String::from_utf8_lossy(&response);
 
         assert!(resp_str.contains("400 Bad Request"));

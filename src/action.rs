@@ -1,4 +1,6 @@
-use crate::cloudflare::client::{D1QueryResult, PagesBuildLogEntry, PagesDeploymentResult, WorkerRouteDetail, ZoneSettings};
+use crate::cloudflare::client::{
+    D1QueryResult, PagesBuildLogEntry, PagesDeploymentResult, WorkerRouteDetail, ZoneSettings,
+};
 use crate::components::views::tail_view::LogEntry;
 use crate::db::CachedWorkerBinding;
 
@@ -97,7 +99,10 @@ pub enum Action {
     TailLog(LogEntry),
     AttachWorkerTail(String),
     StopWorkerTail,
-    TailSessionStarted { worker: String, tail_id: String },
+    TailSessionStarted {
+        worker: String,
+        tail_id: String,
+    },
     ToggleTailPause,
     ClearTailLogs,
     ToggleTailFollow,
@@ -213,7 +218,10 @@ pub enum Action {
 
     // Fast Sync & Settings Persistence
     FastSyncActiveView,
-    FastSyncCompleted { tab: usize, message: String },
+    FastSyncCompleted {
+        tab: usize,
+        message: String,
+    },
     ToggleFastSync,
     CycleSyncInterval,
     ToggleAutoSyncOnTabChange,

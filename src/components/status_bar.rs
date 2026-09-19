@@ -13,6 +13,12 @@ pub struct StatusBar {
     pub is_error: bool,
 }
 
+impl Default for StatusBar {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StatusBar {
     pub fn new() -> Self {
         Self {
@@ -50,7 +56,12 @@ impl StatusBar {
         };
 
         let hints_widget = Paragraph::new(Line::from(vec![
-            Span::styled("KEYS:", Style::default().fg(theme.primary).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "KEYS:",
+                Style::default()
+                    .fg(theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled(key_hints, Style::default().fg(theme.text_dim)),
         ]))
         .block(
@@ -60,7 +71,9 @@ impl StatusBar {
         );
 
         let msg_style = if self.is_error {
-            Style::default().fg(theme.error).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(theme.error)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(theme.success)
         };

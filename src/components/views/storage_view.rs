@@ -105,12 +105,16 @@ impl StorageView {
     pub fn nav_down(&mut self) {
         match self.active_pane {
             StoragePane::D1 => {
-                if !self.d1_databases.is_empty() && self.selected_d1_idx + 1 < self.d1_databases.len() {
+                if !self.d1_databases.is_empty()
+                    && self.selected_d1_idx + 1 < self.d1_databases.len()
+                {
                     self.selected_d1_idx += 1;
                 }
             }
             StoragePane::Kv => {
-                if !self.kv_namespaces.is_empty() && self.selected_kv_idx + 1 < self.kv_namespaces.len() {
+                if !self.kv_namespaces.is_empty()
+                    && self.selected_kv_idx + 1 < self.kv_namespaces.len()
+                {
                     self.selected_kv_idx += 1;
                 }
             }
@@ -158,13 +162,16 @@ impl StorageView {
         let mut d1_rows = Vec::new();
 
         if self.d1_databases.is_empty() {
-            d1_rows.push(Row::new(vec![
-                Cell::from("  No D1 databases provisioned or cached (Press 'r' to sync)"),
-                Cell::from("-"),
-                Cell::from("-"),
-                Cell::from("-"),
-                Cell::from("Inactive"),
-            ]).style(Style::default().fg(theme.text_dim)));
+            d1_rows.push(
+                Row::new(vec![
+                    Cell::from("  No D1 databases provisioned or cached (Press 'r' to sync)"),
+                    Cell::from("-"),
+                    Cell::from("-"),
+                    Cell::from("-"),
+                    Cell::from("Inactive"),
+                ])
+                .style(Style::default().fg(theme.text_dim)),
+            );
         } else {
             for (idx, db) in self.d1_databases.iter().enumerate() {
                 let is_selected = d1_focused && idx == self.selected_d1_idx;
@@ -178,13 +185,16 @@ impl StorageView {
                     Style::default().fg(theme.text)
                 };
 
-                d1_rows.push(Row::new(vec![
-                    Cell::from(name),
-                    Cell::from(db.uuid.clone()),
-                    Cell::from(db.num_tables.to_string()),
-                    Cell::from(size),
-                    Cell::from("Active"),
-                ]).style(row_style));
+                d1_rows.push(
+                    Row::new(vec![
+                        Cell::from(name),
+                        Cell::from(db.uuid.clone()),
+                        Cell::from(db.num_tables.to_string()),
+                        Cell::from(size),
+                        Cell::from("Active"),
+                    ])
+                    .style(row_style),
+                );
             }
         }
 
@@ -231,12 +241,15 @@ impl StorageView {
         let mut kv_rows = Vec::new();
 
         if self.kv_namespaces.is_empty() {
-            kv_rows.push(Row::new(vec![
-                Cell::from("  No KV namespaces provisioned or cached (Press 'r' to sync)"),
-                Cell::from("-"),
-                Cell::from("-"),
-                Cell::from("Inactive"),
-            ]).style(Style::default().fg(theme.text_dim)));
+            kv_rows.push(
+                Row::new(vec![
+                    Cell::from("  No KV namespaces provisioned or cached (Press 'r' to sync)"),
+                    Cell::from("-"),
+                    Cell::from("-"),
+                    Cell::from("Inactive"),
+                ])
+                .style(Style::default().fg(theme.text_dim)),
+            );
         } else {
             for (idx, kv) in self.kv_namespaces.iter().enumerate() {
                 let is_selected = kv_focused && idx == self.selected_kv_idx;
@@ -255,12 +268,15 @@ impl StorageView {
                     "None"
                 };
 
-                kv_rows.push(Row::new(vec![
-                    Cell::from(title),
-                    Cell::from(kv.id.clone()),
-                    Cell::from(url_encoding_status),
-                    Cell::from("Active"),
-                ]).style(row_style));
+                kv_rows.push(
+                    Row::new(vec![
+                        Cell::from(title),
+                        Cell::from(kv.id.clone()),
+                        Cell::from(url_encoding_status),
+                        Cell::from("Active"),
+                    ])
+                    .style(row_style),
+                );
             }
         }
 
@@ -279,9 +295,14 @@ impl StorageView {
             ],
         )
         .header(
-            Row::new(vec!["KV Namespace", "Namespace ID", "URL Encoding", "Status"])
-                .style(theme.header_style())
-                .bottom_margin(1),
+            Row::new(vec![
+                "KV Namespace",
+                "Namespace ID",
+                "URL Encoding",
+                "Status",
+            ])
+            .style(theme.header_style())
+            .bottom_margin(1),
         )
         .block(
             Block::default()
@@ -327,7 +348,11 @@ impl StorageView {
                     Style::default().fg(theme.text)
                 };
 
-                let loc = if bucket.location.is_empty() { "auto" } else { &bucket.location };
+                let loc = if bucket.location.is_empty() {
+                    "auto"
+                } else {
+                    &bucket.location
+                };
 
                 r2_rows.push(
                     Row::new(vec![
@@ -402,7 +427,8 @@ mod tests {
             created_at: "2025-01-01".to_string(),
             num_tables: 3,
             file_size: 4096,
-        }).unwrap();
+        })
+        .unwrap();
         db.upsert_d1_database(&CachedD1Database {
             uuid: "db-2".to_string(),
             name: "users".to_string(),
@@ -410,13 +436,15 @@ mod tests {
             created_at: "2025-01-02".to_string(),
             num_tables: 5,
             file_size: 16384,
-        }).unwrap();
+        })
+        .unwrap();
 
         db.upsert_kv_namespace(&CachedKvNamespace {
             id: "kv-1".to_string(),
             title: "sessions".to_string(),
             supports_url_encoding: true,
-        }).unwrap();
+        })
+        .unwrap();
 
         let mut view = StorageView::new(db);
         assert_eq!(view.d1_databases.len(), 2);
