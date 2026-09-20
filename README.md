@@ -1,12 +1,12 @@
 <div align="center">
 
-```text
+<pre align="center">
    __ _               _____ _   _ ___ 
   / _| | __ _ _ __ __|_   _| | | |_ _|
  | |_| |/ _` | '__/ _ \| | | | | || | 
  |  _| | (_| | | |  __/| | | |_| || | 
  |_| |_|\__,_|_|  \___||_|  \___/|___|
-```
+</pre>
 
 > **A fast, keyboard-centric, production-grade Terminal User Interface for managing Cloudflare assets.**
 
@@ -19,7 +19,7 @@
 
 <br />
 
-[Features](#features) • [Installation](#installation) • [Authentication](#authentication--token-permissions) • [Keybindings](#keyboard-navigation) • [Architecture](#architecture) • [Roadmap](#roadmap)
+[Features](#features) • [Installation](#installation) • [Authentication](#authentication--token-permissions) • [Keybindings](#keyboard-navigation) • [Architecture](#architecture)
 
 </div>
 
@@ -213,26 +213,6 @@ flowchart TD
     CloudflareAPI -->|WS Packets| TailStream
     TailStream -->|Log Stream Actions| ActionQueue
 ```
-
----
-
-## Roadmap
-
-- [x] **Milestone 1**: Core TUI scaffolding, Crossterm/Ratatui event loop, async Tokio architecture.
-- [x] **Milestone 2**: Cloudflare v4 typed HTTP client, token authentication, and profile persistence.
-- [x] **Milestone 3**: Offline SQLite caching layer, zone browser, and DNS management with proxy toggling.
-- [x] **Milestone 4**: Interactive DNS editing, record creation, deletion safety guards, and BIND zone exports.
-- [x] **Milestone 5**: Zone Inspector modal (SSL setting toggle, Dev mode, Security level, Edge cache purge).
-- [x] **Milestone 6**: Workers script explorer, metadata inspection, and D1/KV/R2/Queue bindings resolution.
-- [x] **Milestone 7**: Realtime Worker live tail session dispatcher over WebSockets with in-memory filtering & follow mode.
-- [x] **Milestone 8**: Pages projects overview, deployment history, build log viewer, and rollback dispatcher.
-- [x] **Milestone 9**: Storage Browser (Interactive D1 SQL query runner and KV namespace key-value explorer).
-- [x] **Milestone 10**: WAF & Security analytics dashboard, multi-account fuzzy command palette (`Ctrl+P`), runtime profile switcher.
-- [x] **Milestone 11**: Security & Threat Analytics dashboard (3-column multi-table grid, threat scoring, activity timeline, origin country & ASN breakdown).
-- [x] **Milestone 12**: R2 Object Storage Explorer (3-pane bucket and object hierarchy navigation, virtual directory traversal, local SQLite schema caching).
-- [x] **Milestone 13**: Interactive WAF Control Engine (live rule toggling, priority reordering, safety confirmations, and ruleset mutations).
-- [x] **Milestone 14**: Universal Theme Engine (runtime palette switching via Command Palette: Cloudflare Dark, Catppuccin Mocha, Tokyo Night, Nord).
-- [x] **Milestone 15**: Release Documentation & Packaging (v0.7.0 crate release, expanded feature documentation, changelog synchronization).
 
 ---
 
