@@ -48,20 +48,9 @@
 
 ## Terminal Interface Preview
 
-```text
-  flareTUI    Account: dev@example.com           Cloudflare Live                    Cache: SQLite Local
- 1: Zones & DNS │ 2: Workers │ 3: Pages │ 4: D1 & KV │ 5: Live Tail │ 6: Security & WAF │ 7: Domains & Registrar
-┌ Zones (Press 's' to switch) ─┐┌ DNS Records: example.com (Total: 6) ──────────────────────────────────────────┐
-│▶ example.com     Enterprise   ││ Type    Name               Content / Target            Proxy Status    TTL    │
-│  staging-edge.io Pro          ││▶ A       api.example.com    192.0.2.42                  [o] Proxied     Auto   │
-│  demo-service.dev Free        ││  CNAME   example.com        my-worker.workers.dev       [o] Proxied     Auto   │
-│  internal-vpn.net Business    ││  AAAA    ipv6.example.com   2606:4700:4700::1111        [o] Proxied     Auto   │
-│                               ││  MX      example.com        mail.example.com            [ ] DNS Only    Auto   │
-│                               ││  TXT     _dmarc.example.com "v=DMARC1; p=reject;..."    [ ] DNS Only    Auto   │
-│                               ││  TXT     example.com        "v=spf1 include:_spf...~all"[ ] DNS Only    3600s  │
-└───────────────────────────────┘└──────────────────────────────────────────────────────────────────────────────┘
- [Ctrl+P] Palette  [Ctrl+U] Profiles  [1-7] Tabs  [s/Tab] Switch  [p] Proxy  [?] Help  [q] Quit
-```
+<div align="center">
+  <img src="assets/preview.png" alt="flareTUI Terminal Interface Preview" width="100%">
+</div>
 
 ---
 
