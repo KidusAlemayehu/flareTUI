@@ -6,7 +6,7 @@ use tokio::net::TcpListener;
 pub const CLOUDFLARE_OAUTH_AUTH_URL: &str = "https://dash.cloudflare.com/oauth2/auth";
 pub const CLOUDFLARE_OAUTH_TOKEN_URL: &str = "https://dash.cloudflare.com/oauth2/token";
 pub const DEFAULT_CLIENT_ID: &str = "54d11594-84e4-41aa-b438-e81b8fa78ee7";
-pub const DEFAULT_SCOPES: &str = "account:read user:read workers:write workers_kv:write workers_routes:write workers_scripts:write workers_tail:read pages:write zone:read offline_access";
+pub const DEFAULT_SCOPES: &str = "account:read user:read workers:write workers_kv:write workers_routes:write workers_scripts:write workers_tail:read d1:write pages:write zone:read offline_access";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OAuthSuccessPayload {
@@ -569,6 +569,7 @@ mod tests {
         assert!(url.contains("8976"));
         assert!(url.contains("oauth%2Fcallback"));
         assert!(url.contains(&format!("code_challenge={challenge}")));
+        assert!(url.contains("d1%3Awrite"));
         assert!(url.contains("code_challenge_method=S256"));
     }
 

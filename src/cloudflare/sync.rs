@@ -222,20 +222,27 @@ impl CloudflareSync {
                 }
 
                 // D1 Databases
-                if let Ok(cf_d1) = client.get_d1_databases(&account.id).await {
-                    report.d1_count = cf_d1.len();
-                    let dbs: Vec<crate::db::CachedD1Database> = cf_d1
-                        .into_iter()
-                        .map(|d| crate::db::CachedD1Database {
-                            uuid: d.uuid,
-                            name: d.name,
-                            version: d.version.unwrap_or_else(|| "production".to_string()),
-                            num_tables: d.num_tables.unwrap_or(0),
-                            file_size: d.file_size.unwrap_or(0),
-                            created_at: d.created_at.unwrap_or_else(|| "Active".to_string()),
-                        })
-                        .collect();
-                    let _ = db.replace_d1_databases(&dbs);
+                match client.get_d1_databases(&account.id).await {
+                    Ok(cf_d1) => {
+                        report.d1_count = cf_d1.len();
+                        let dbs: Vec<crate::db::CachedD1Database> = cf_d1
+                            .into_iter()
+                            .map(|d| crate::db::CachedD1Database {
+                                uuid: d.uuid,
+                                name: d.name,
+                                version: d.version.unwrap_or_else(|| "production".to_string()),
+                                num_tables: d.num_tables.unwrap_or(0),
+                                file_size: d.file_size.unwrap_or(0),
+                                created_at: d.created_at.unwrap_or_else(|| "Active".to_string()),
+                            })
+                            .collect();
+                        let _ = db.replace_d1_databases(&dbs);
+                    }
+                    Err(e) => {
+                        if report.warning.is_none() {
+                            report.warning = Some(format!("D1 sync notice: {e}"));
+                        }
+                    }
                 }
 
                 // KV Namespaces
@@ -466,20 +473,26 @@ impl CloudflareSync {
                 }
 
                 let mut d1_count = 0;
-                if let Ok(cf_d1) = client.get_d1_databases(&account_id).await {
-                    d1_count = cf_d1.len();
-                    let dbs: Vec<crate::db::CachedD1Database> = cf_d1
-                        .into_iter()
-                        .map(|d| crate::db::CachedD1Database {
-                            uuid: d.uuid,
-                            name: d.name,
-                            version: d.version.unwrap_or_else(|| "production".to_string()),
-                            num_tables: d.num_tables.unwrap_or(0),
-                            file_size: d.file_size.unwrap_or(0),
-                            created_at: d.created_at.unwrap_or_else(|| "Active".to_string()),
-                        })
-                        .collect();
-                    let _ = db.replace_d1_databases(&dbs);
+                let mut d1_err = None;
+                match client.get_d1_databases(&account_id).await {
+                    Ok(cf_d1) => {
+                        d1_count = cf_d1.len();
+                        let dbs: Vec<crate::db::CachedD1Database> = cf_d1
+                            .into_iter()
+                            .map(|d| crate::db::CachedD1Database {
+                                uuid: d.uuid,
+                                name: d.name,
+                                version: d.version.unwrap_or_else(|| "production".to_string()),
+                                num_tables: d.num_tables.unwrap_or(0),
+                                file_size: d.file_size.unwrap_or(0),
+                                created_at: d.created_at.unwrap_or_else(|| "Active".to_string()),
+                            })
+                            .collect();
+                        let _ = db.replace_d1_databases(&dbs);
+                    }
+                    Err(e) => {
+                        d1_err = Some(e.to_string());
+                    }
                 }
 
                 let mut kv_count = 0;
@@ -496,10 +509,17 @@ impl CloudflareSync {
                     let _ = db.replace_kv_namespaces(&nss);
                 }
 
-                Ok(format!(
-                    "Fast synced {} D1 databases, {} KV namespaces",
-                    d1_count, kv_count
-                ))
+                if let Some(err) = d1_err {
+                    Ok(format!(
+                        "Fast synced {} KV namespaces (D1 error: {})",
+                        kv_count, err
+                    ))
+                } else {
+                    Ok(format!(
+                        "Fast synced {} D1 databases, {} KV namespaces",
+                        d1_count, kv_count
+                    ))
+                }
             }
             4 => {
                 // Tab 4: Live Tail (already real-time streaming)

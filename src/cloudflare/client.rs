@@ -1067,7 +1067,7 @@ impl CloudflareClient {
     }
 
     pub async fn get_d1_databases(&self, account_id: &str) -> Result<Vec<D1DatabaseResult>> {
-        let url = format!("{}/accounts/{account_id}/d1/database", self.base_url);
+        let url = format!("{}/accounts/{account_id}/d1/database?per_page=100", self.base_url);
         let resp = self
             .client
             .get(&url)
