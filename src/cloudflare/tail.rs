@@ -5,6 +5,8 @@ use serde_json::Value;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::watch;
 use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+use tokio_tungstenite::tungstenite::http::HeaderValue;
 
 use crate::components::views::tail_view::LogEntry;
 
@@ -16,7 +18,12 @@ impl TailStream {
         log_tx: UnboundedSender<LogEntry>,
         mut cancel_rx: watch::Receiver<bool>,
     ) -> Result<()> {
-        let (ws_stream, _) = connect_async(ws_url.as_str()).await?;
+        let mut request = ws_url.into_client_request()?;
+        request.headers_mut().insert(
+            "Sec-WebSocket-Protocol",
+            HeaderValue::from_static("trace-v1"),
+        );
+        let (ws_stream, _) = connect_async(request).await?;
         let (_, mut read) = ws_stream.split();
 
         tokio::spawn(async move {

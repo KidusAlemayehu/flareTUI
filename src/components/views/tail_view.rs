@@ -74,7 +74,14 @@ impl TailView {
     }
 
     pub fn toggle_search(&mut self) {
-        self.search_active = !self.search_active;
+        if self.search_active {
+            self.search_active = false;
+            self.search_query.clear();
+            self.selected_idx = 0;
+            self.scroll_offset = 0;
+        } else {
+            self.search_active = true;
+        }
     }
 
     pub fn input_char(&mut self, c: char) {
