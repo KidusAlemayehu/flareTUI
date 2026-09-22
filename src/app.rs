@@ -909,8 +909,8 @@ impl App {
 
                     tokio::spawn(async move {
                         let account_id = match config.account_id {
-                            Some(id) => id,
-                            None => {
+                            Some(ref id) if !id.trim().is_empty() && !id.starts_with("acc_profile_test") => id.clone(),
+                            _ => {
                                 let accounts = client.get_accounts().await.unwrap_or_default();
                                 accounts.first().map(|a| a.id.clone()).unwrap_or_default()
                             }
@@ -948,8 +948,30 @@ impl App {
                                     )));
                                 }
                             }
+                        } else {
+                            let _ = tx.send(Action::Error(
+                                "No Cloudflare account found for Worker tail session".to_string(),
+                            ));
                         }
                     });
+                } else {
+                    self.status_bar.set_error(
+                        "Live Tail requires an active Cloudflare connection. Press 'a' to log in.",
+                    );
+                    self.tail_view
+                        .logs
+                        .push(crate::components::views::tail_view::LogEntry {
+                            timestamp: crate::cloudflare::tail::chrono_or_simple_time(),
+                            method: "AUTH".to_string(),
+                            url: format!("/{}", worker_name),
+                            status: 401,
+                            duration_ms: 0,
+                            message: "Not connected to Cloudflare live API. Press 'a' to authenticate via 1-Click Browser OAuth.".to_string(),
+                            raw_json: None,
+                            exceptions: vec!["AuthenticationRequired: Press 'a' to log in".to_string()],
+                            log_level: Some("error".to_string()),
+                            outcome: "unauthorized".to_string(),
+                        });
                 }
             }
             Action::TailSessionStarted { worker, tail_id } => {

@@ -1,4 +1,5 @@
 use color_eyre::Result;
+#[cfg(not(test))]
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -183,6 +184,15 @@ pub struct AuthManager;
 
 impl AuthManager {
     pub fn config_path() -> Option<PathBuf> {
+        if let Ok(custom) = std::env::var("FLARE_CONFIG_PATH") {
+            return Some(PathBuf::from(custom));
+        }
+        #[cfg(test)]
+        {
+            let tmp = std::env::temp_dir().join("flaretui_test_config.toml");
+            Some(tmp)
+        }
+        #[cfg(not(test))]
         ProjectDirs::from("com", "flare", "flareTUI").map(|dirs| {
             let config_dir = dirs.config_dir();
             let _ = fs::create_dir_all(config_dir);
