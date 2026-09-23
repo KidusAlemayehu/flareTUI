@@ -15,6 +15,7 @@ pub mod db;
 pub mod event;
 pub mod palette;
 pub mod security;
+pub mod system;
 pub mod theme;
 pub mod tui;
 
