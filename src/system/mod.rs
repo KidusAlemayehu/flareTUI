@@ -1,3 +1,5 @@
+pub mod cloudflared;
 pub mod warp;
 
-pub use warp::WarpManager;
+pub use cloudflared::{CloudflaredManager, CloudflaredStatus};
+pub use warp::{WarpManager, WarpStatus};
