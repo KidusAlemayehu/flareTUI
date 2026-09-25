@@ -140,4 +140,23 @@ CREATE TABLE IF NOT EXISTS registrar_domains (
     privacy INTEGER NOT NULL DEFAULT 1,
     name_servers TEXT NOT NULL DEFAULT ''
 );
+
+CREATE TABLE IF NOT EXISTS tunnels (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT '',
+    conns_count INTEGER NOT NULL DEFAULT 0,
+    remote_config INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS tunnel_ingress_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tunnel_id TEXT NOT NULL,
+    hostname TEXT NOT NULL DEFAULT '',
+    path TEXT NOT NULL DEFAULT '',
+    service TEXT NOT NULL,
+    FOREIGN KEY(tunnel_id) REFERENCES tunnels(id) ON DELETE CASCADE
+);
 "#;
