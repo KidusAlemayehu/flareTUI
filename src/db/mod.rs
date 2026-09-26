@@ -155,6 +155,26 @@ pub struct CachedRegistrarDomain {
     pub name_servers: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct CachedTunnel {
+    pub id: String,
+    pub account_id: String,
+    pub name: String,
+    pub status: String,
+    pub created_at: String,
+    pub conns_count: usize,
+    pub remote_config: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct CachedTunnelIngressRule {
+    pub id: i64,
+    pub tunnel_id: String,
+    pub hostname: String,
+    pub path: String,
+    pub service: String,
+}
+
 #[derive(Clone)]
 pub struct CacheDb {
     conn: Arc<Mutex<Connection>>,
@@ -1087,11 +1107,180 @@ impl CacheDb {
         )?;
         Ok(())
     }
+
+    pub fn replace_tunnels(&self, account_id: &str, tunnels: &[CachedTunnel]) -> Result<()> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        if account_id.is_empty() {
+            tx.execute("DELETE FROM tunnels", [])?;
+        } else {
+            tx.execute("DELETE FROM tunnels WHERE account_id = ?1", params![account_id])?;
+        }
+        for t in tunnels {
+            tx.execute(
+                "INSERT INTO tunnels (id, account_id, name, status, created_at, conns_count, remote_config)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![
+                    t.id,
+                    t.account_id,
+                    t.name,
+                    t.status,
+                    t.created_at,
+                    t.conns_count as i64,
+                    if t.remote_config { 1 } else { 0 },
+                ],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn get_tunnels(&self, account_id: &str) -> Result<Vec<CachedTunnel>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = if account_id.is_empty() {
+            conn.prepare(
+                "SELECT id, account_id, name, status, created_at, conns_count, remote_config
+                 FROM tunnels
+                 ORDER BY name ASC",
+            )?
+        } else {
+            conn.prepare(
+                "SELECT id, account_id, name, status, created_at, conns_count, remote_config
+                 FROM tunnels
+                 WHERE account_id = ?1
+                 ORDER BY name ASC",
+            )?
+        };
+
+        let map_row = |row: &rusqlite::Row| {
+            let conns_count: i64 = row.get(5)?;
+            let remote_cfg_int: i32 = row.get(6)?;
+            Ok(CachedTunnel {
+                id: row.get(0)?,
+                account_id: row.get(1)?,
+                name: row.get(2)?,
+                status: row.get(3)?,
+                created_at: row.get(4)?,
+                conns_count: conns_count as usize,
+                remote_config: remote_cfg_int != 0,
+            })
+        };
+
+        let rows = if account_id.is_empty() {
+            stmt.query_map([], map_row)?
+                .collect::<std::result::Result<Vec<_>, _>>()?
+        } else {
+            stmt.query_map(params![account_id], map_row)?
+                .collect::<std::result::Result<Vec<_>, _>>()?
+        };
+
+        Ok(rows)
+    }
+
+    pub fn replace_tunnel_ingress_rules(
+        &self,
+        tunnel_id: &str,
+        rules: &[CachedTunnelIngressRule],
+    ) -> Result<()> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        tx.execute(
+            "DELETE FROM tunnel_ingress_rules WHERE tunnel_id = ?1",
+            params![tunnel_id],
+        )?;
+        for r in rules {
+            tx.execute(
+                "INSERT INTO tunnel_ingress_rules (tunnel_id, hostname, path, service)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![r.tunnel_id, r.hostname, r.path, r.service],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn get_tunnel_ingress_rules(&self, tunnel_id: &str) -> Result<Vec<CachedTunnelIngressRule>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, tunnel_id, hostname, path, service
+             FROM tunnel_ingress_rules
+             WHERE tunnel_id = ?1
+             ORDER BY id ASC",
+        )?;
+        let rows = stmt
+            .query_map(params![tunnel_id], |row| {
+                Ok(CachedTunnelIngressRule {
+                    id: row.get(0)?,
+                    tunnel_id: row.get(1)?,
+                    hostname: row.get(2)?,
+                    path: row.get(3)?,
+                    service: row.get(4)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_tunnels_and_ingress_cache() {
+        let db = CacheDb::open_in_memory().expect("open db");
+        let tunnels = vec![
+            CachedTunnel {
+                id: "tun-123".to_string(),
+                account_id: "acc-1".to_string(),
+                name: "home-lab".to_string(),
+                status: "healthy".to_string(),
+                created_at: "2026-01-01T00:00:00Z".to_string(),
+                conns_count: 2,
+                remote_config: true,
+            },
+            CachedTunnel {
+                id: "tun-456".to_string(),
+                account_id: "acc-1".to_string(),
+                name: "backup-tun".to_string(),
+                status: "down".to_string(),
+                created_at: "2026-02-01T00:00:00Z".to_string(),
+                conns_count: 0,
+                remote_config: false,
+            },
+        ];
+
+        db.replace_tunnels("acc-1", &tunnels).expect("save tunnels");
+        let loaded = db.get_tunnels("acc-1").expect("load tunnels");
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(loaded[0].name, "backup-tun");
+        assert_eq!(loaded[1].name, "home-lab");
+        assert_eq!(loaded[1].status, "healthy");
+
+        let ingress = vec![
+            CachedTunnelIngressRule {
+                id: 1,
+                tunnel_id: "tun-123".to_string(),
+                hostname: "app.example.com".to_string(),
+                path: "/api/*".to_string(),
+                service: "http://localhost:8080".to_string(),
+            },
+            CachedTunnelIngressRule {
+                id: 2,
+                tunnel_id: "tun-123".to_string(),
+                hostname: "".to_string(),
+                path: "".to_string(),
+                service: "http_status:404".to_string(),
+            },
+        ];
+
+        db.replace_tunnel_ingress_rules("tun-123", &ingress).expect("save ingress");
+        let loaded_rules = db.get_tunnel_ingress_rules("tun-123").expect("load ingress");
+        assert_eq!(loaded_rules.len(), 2);
+        assert_eq!(loaded_rules[0].hostname, "app.example.com");
+        assert_eq!(loaded_rules[0].service, "http://localhost:8080");
+        assert_eq!(loaded_rules[1].service, "http_status:404");
+    }
 
     #[test]
     fn test_worker_bindings_cache() {
