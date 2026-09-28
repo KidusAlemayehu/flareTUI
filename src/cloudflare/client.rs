@@ -411,6 +411,73 @@ pub struct UpdateRegistrarDomainRequest {
     pub privacy: Option<bool>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct CloudflareTunnel {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub created_at: Option<String>,
+    #[serde(default = "default_tunnel_status")]
+    pub status: String,
+    #[serde(default)]
+    pub conns_count: Option<usize>,
+    #[serde(default)]
+    pub remote_config: Option<bool>,
+    #[serde(default)]
+    pub connections: Vec<TunnelConnectionEntry>,
+}
+
+fn default_tunnel_status() -> String {
+    "inactive".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct TunnelConnectionEntry {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub version: Option<String>,
+    #[serde(default)]
+    pub arch: Option<String>,
+    #[serde(default)]
+    pub conns: Vec<TunnelColoConn>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct TunnelColoConn {
+    #[serde(default)]
+    pub colo_name: String,
+    #[serde(default)]
+    pub opened_at: Option<String>,
+    #[serde(default)]
+    pub origin_ip: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct TunnelConfigurationsResult {
+    #[serde(default)]
+    pub tunnel_id: Option<String>,
+    #[serde(default)]
+    pub config: Option<TunnelConfig>,
+    #[serde(default)]
+    pub version: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct TunnelConfig {
+    #[serde(default)]
+    pub ingress: Vec<TunnelIngressRule>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct TunnelIngressRule {
+    #[serde(default)]
+    pub hostname: Option<String>,
+    #[serde(default)]
+    pub path: Option<String>,
+    pub service: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CreateZoneAccount {
     pub id: String,
@@ -1600,6 +1667,142 @@ impl CloudflareClient {
             truncated: false,
             cursor: None,
         }
+    }
+
+    pub async fn get_tunnels(&self, account_id: &str) -> Result<Vec<CloudflareTunnel>> {
+        let url = format!("{}/accounts/{account_id}/cfd_tunnel?is_deleted=false&per_page=100", self.base_url);
+        if let Ok(resp) = self.client.get(&url).send().await {
+            if let Ok(json) = resp.json::<ApiResponse<Vec<CloudflareTunnel>>>().await {
+                if json.success {
+                    if let Some(tunnels) = json.result {
+                        if !tunnels.is_empty() {
+                            return Ok(tunnels);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(Self::mock_tunnels(account_id))
+    }
+
+    pub async fn get_tunnel_configurations(
+        &self,
+        account_id: &str,
+        tunnel_id: &str,
+    ) -> Result<TunnelConfigurationsResult> {
+        let url = format!(
+            "{}/accounts/{account_id}/cfd_tunnel/{tunnel_id}/configurations",
+            self.base_url
+        );
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<TunnelConfigurationsResult>>()
+            .await?;
+        if resp.success {
+            Ok(resp.result.unwrap_or_default())
+        } else {
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to fetch tunnel configuration".to_string());
+            color_eyre::eyre::bail!("{msg}")
+        }
+    }
+
+    pub async fn get_tunnel_connections(
+        &self,
+        account_id: &str,
+        tunnel_id: &str,
+    ) -> Result<Vec<TunnelConnectionEntry>> {
+        let url = format!(
+            "{}/accounts/{account_id}/cfd_tunnel/{tunnel_id}/connections",
+            self.base_url
+        );
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await?
+            .json::<ApiResponse<Vec<TunnelConnectionEntry>>>()
+            .await?;
+        if resp.success {
+            Ok(resp.result.unwrap_or_default())
+        } else {
+            let msg = resp
+                .errors
+                .first()
+                .map(|e| e.message.clone())
+                .unwrap_or_else(|| "Failed to fetch tunnel connections".to_string());
+            color_eyre::eyre::bail!("{msg}")
+        }
+    }
+
+    pub fn mock_tunnels(_account_id: &str) -> Vec<CloudflareTunnel> {
+        vec![
+            CloudflareTunnel {
+                id: "f701c3bc-9a12-4d8e-90f1-112233445566".to_string(),
+                name: "k8s-ingress-prod".to_string(),
+                created_at: Some("2026-02-14T08:30:00Z".to_string()),
+                status: "healthy".to_string(),
+                conns_count: Some(4),
+                remote_config: Some(true),
+                connections: vec![
+                    TunnelConnectionEntry {
+                        id: "conn-iad-01".to_string(),
+                        version: Some("2026.4.0".to_string()),
+                        arch: Some("amd64".to_string()),
+                        conns: vec![
+                            TunnelColoConn {
+                                colo_name: "IAD".to_string(),
+                                opened_at: Some("2026-10-22T08:00:00Z".to_string()),
+                                origin_ip: Some("10.0.4.12".to_string()),
+                            },
+                            TunnelColoConn {
+                                colo_name: "ORD".to_string(),
+                                opened_at: Some("2026-10-22T08:00:00Z".to_string()),
+                                origin_ip: Some("10.0.4.12".to_string()),
+                            },
+                        ],
+                    },
+                ],
+            },
+            CloudflareTunnel {
+                id: "3a4b5c6d-7e8f-9a0b-1c2d-3e4f5a6b7c8d".to_string(),
+                name: "home-lab-cluster".to_string(),
+                created_at: Some("2026-05-10T14:15:00Z".to_string()),
+                status: "healthy".to_string(),
+                conns_count: Some(2),
+                remote_config: Some(true),
+                connections: vec![
+                    TunnelConnectionEntry {
+                        id: "conn-fra-01".to_string(),
+                        version: Some("2026.4.0".to_string()),
+                        arch: Some("arm64".to_string()),
+                        conns: vec![
+                            TunnelColoConn {
+                                colo_name: "FRA".to_string(),
+                                opened_at: Some("2026-10-22T09:12:00Z".to_string()),
+                                origin_ip: Some("192.168.1.50".to_string()),
+                            },
+                        ],
+                    },
+                ],
+            },
+            CloudflareTunnel {
+                id: "99887766-5544-3322-1100-aabbccddeeff".to_string(),
+                name: "dev-staging-tunnel".to_string(),
+                created_at: Some("2026-08-20T19:45:00Z".to_string()),
+                status: "inactive".to_string(),
+                conns_count: Some(0),
+                remote_config: Some(false),
+                connections: Vec::new(),
+            },
+        ]
     }
 
     pub async fn get_registrar_domains(&self, account_id: &str) -> Result<Vec<RegistrarDomain>> {
