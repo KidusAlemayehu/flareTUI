@@ -12,6 +12,7 @@ pub struct SyncReport {
     pub security_events_count: usize,
     pub waf_rules_count: usize,
     pub registrar_domains_count: usize,
+    pub tunnels_count: usize,
     pub warning: Option<String>,
 }
 
@@ -29,6 +30,7 @@ impl CloudflareSync {
             security_events_count: 0,
             waf_rules_count: 0,
             registrar_domains_count: 0,
+            tunnels_count: 0,
             warning: None,
         };
 
@@ -278,6 +280,24 @@ impl CloudflareSync {
                         })
                         .collect();
                     let _ = db.replace_registrar_domains(&account.id, &cached_domains);
+                }
+
+                // Cloudflare Tunnels (Zero Trust)
+                if let Ok(cf_tunnels) = client.get_tunnels(&account.id).await {
+                    report.tunnels_count += cf_tunnels.len();
+                    let cached_tunnels: Vec<crate::db::CachedTunnel> = cf_tunnels
+                        .into_iter()
+                        .map(|t| crate::db::CachedTunnel {
+                            id: t.id,
+                            account_id: account.id.clone(),
+                            name: t.name,
+                            status: t.status,
+                            created_at: t.created_at.unwrap_or_default(),
+                            conns_count: t.conns_count.unwrap_or(0),
+                            remote_config: t.remote_config.unwrap_or(true),
+                        })
+                        .collect();
+                    let _ = db.replace_tunnels(&account.id, &cached_tunnels);
                 }
             }
         }
@@ -627,6 +647,39 @@ impl CloudflareSync {
                 Ok(format!(
                     "Fast synced {} registrar domains",
                     cached_domains.len()
+                ))
+            }
+            7 => {
+                // Tab 7: Tunnels & WARP
+                let account_id = match preferred_account_id {
+                    Some(id) if !id.trim().is_empty() => id.to_string(),
+                    _ => {
+                        let accounts = client.get_accounts().await?;
+                        accounts.first().map(|a| a.id.clone()).unwrap_or_default()
+                    }
+                };
+
+                if account_id.is_empty() {
+                    return Ok("Fast sync: no account found for tunnels".to_string());
+                }
+
+                let cf_tunnels = client.get_tunnels(&account_id).await?;
+                let cached_tunnels: Vec<crate::db::CachedTunnel> = cf_tunnels
+                    .into_iter()
+                    .map(|t| crate::db::CachedTunnel {
+                        id: t.id,
+                        account_id: account_id.clone(),
+                        name: t.name,
+                        status: t.status,
+                        created_at: t.created_at.unwrap_or_default(),
+                        conns_count: t.conns_count.unwrap_or(0),
+                        remote_config: t.remote_config.unwrap_or(true),
+                    })
+                    .collect();
+                let _ = db.replace_tunnels(&account_id, &cached_tunnels);
+                Ok(format!(
+                    "Fast synced {} Cloudflare tunnels",
+                    cached_tunnels.len()
                 ))
             }
             _ => Ok("Fast sync: unknown view".to_string()),
