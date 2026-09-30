@@ -340,6 +340,7 @@ impl EventHandler {
             (KeyModifiers::NONE, KeyCode::Char('5')) => Some(Action::SelectTab(4)),
             (KeyModifiers::NONE, KeyCode::Char('6')) => Some(Action::SelectTab(5)),
             (KeyModifiers::NONE, KeyCode::Char('7')) => Some(Action::SelectTab(6)),
+            (KeyModifiers::NONE, KeyCode::Char('8')) => Some(Action::SelectTab(7)),
             (KeyModifiers::NONE, KeyCode::Char('j')) | (KeyModifiers::NONE, KeyCode::Down) => {
                 if active_tab == 4 {
                     Some(Action::TailNavDown)
@@ -382,6 +383,12 @@ impl EventHandler {
             (KeyModifiers::NONE, KeyCode::Char('/')) => Some(Action::ToggleSearch),
             (KeyModifiers::NONE, KeyCode::Char('a')) if active_tab == 6 => {
                 Some(Action::ToggleDomainAutoRenew)
+            }
+            (KeyModifiers::NONE, KeyCode::Char('w')) if active_tab == 7 => {
+                Some(Action::ToggleWarp)
+            }
+            (KeyModifiers::NONE, KeyCode::Char('m')) if active_tab == 7 => {
+                Some(Action::CycleWarpMode)
             }
             (KeyModifiers::NONE, KeyCode::Char('a'))
             | (KeyModifiers::CONTROL, KeyCode::Char('a')) => Some(Action::ToggleAuth),

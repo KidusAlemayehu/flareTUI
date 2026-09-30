@@ -216,6 +216,17 @@ pub enum Action {
     DomainsViewToggleSearch,
     RegistrarDomainsLoaded(Vec<crate::db::CachedRegistrarDomain>),
 
+    // Zero Trust, Cloudflare Tunnels & WARP CLI Actions
+    ToggleWarp,
+    CycleWarpMode,
+    WarpStatusUpdated(crate::system::WarpStatus),
+    CloudflaredStatusUpdated(crate::system::CloudflaredStatus),
+    TunnelsLoaded(Vec<crate::db::CachedTunnel>),
+    TunnelIngressRulesLoaded(String, Vec<crate::db::CachedTunnelIngressRule>),
+    TunnelsViewNavUp,
+    TunnelsViewNavDown,
+    TunnelsViewToggleSearch,
+
     // Fast Sync & Settings Persistence
     FastSyncActiveView,
     FastSyncCompleted {
