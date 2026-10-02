@@ -15,6 +15,7 @@ pub struct Header {
     pub is_live: bool,
     pub fast_sync: bool,
     pub sync_interval_secs: u64,
+    pub warp_connected: bool,
 }
 
 impl Default for Header {
@@ -35,11 +36,13 @@ impl Header {
                 "5: Live Tail",
                 "6: Security & WAF",
                 "7: Domains & Registrar",
+                "8: Tunnels & WARP",
             ],
             account_name: "Personal (kidus)".to_string(),
             is_live: false,
             fast_sync: true,
             sync_interval_secs: 15,
+            warp_connected: false,
         }
     }
 
@@ -115,7 +118,14 @@ impl Header {
             ("⚡ Cache: ", "SQLite Local".to_string(), theme.info)
         };
 
+        let (warp_badge_text, warp_badge_color) = if self.warp_connected {
+            ("🛡️ WARP: ON  ", theme.success)
+        } else {
+            ("🛡️ WARP: OFF  ", theme.text_dim)
+        };
+
         let cache_info = Paragraph::new(Line::from(vec![
+            Span::styled(warp_badge_text, Style::default().fg(warp_badge_color).add_modifier(Modifier::BOLD)),
             Span::styled(sync_icon, Style::default().fg(theme.text_dim)),
             Span::styled(
                 sync_label,
