@@ -49,6 +49,8 @@ pub enum PaletteAction {
     ToggleDomainAutoRenew,
     ToggleDomainLock,
     ToggleDomainPrivacy,
+    ToggleWarp,
+    CycleWarpMode,
     OpenHelp,
     SetTheme(String),
     Quit,
@@ -220,6 +222,54 @@ impl PaletteEngine {
                     "nameservers".into(),
                 ],
                 action: PaletteAction::SwitchView(6),
+            },
+            PaletteCommand {
+                id: "nav_tunnels".to_string(),
+                title: "Zero Trust & Tunnels Dashboard".to_string(),
+                description: "Monitor Cloudflare Tunnels, ingress rules, and WARP CLI status"
+                    .to_string(),
+                category: CommandCategory::Navigation,
+                shortcut: Some("8".to_string()),
+                keywords: vec![
+                    "tunnels".into(),
+                    "tunnel".into(),
+                    "warp".into(),
+                    "cloudflared".into(),
+                    "zero trust".into(),
+                    "ingress".into(),
+                ],
+                action: PaletteAction::SwitchView(7),
+            },
+            PaletteCommand {
+                id: "warp_toggle".to_string(),
+                title: "WARP: Connect / Disconnect".to_string(),
+                description: "Toggle Cloudflare WARP client tunnel connectivity".to_string(),
+                category: CommandCategory::System,
+                shortcut: Some("w".to_string()),
+                keywords: vec![
+                    "warp".into(),
+                    "connect".into(),
+                    "disconnect".into(),
+                    "toggle".into(),
+                    "vpn".into(),
+                    "tunnel".into(),
+                ],
+                action: PaletteAction::ToggleWarp,
+            },
+            PaletteCommand {
+                id: "warp_mode".to_string(),
+                title: "WARP: Cycle Client Mode".to_string(),
+                description: "Switch WARP operating mode between WARP, DoH, and Proxy".to_string(),
+                category: CommandCategory::System,
+                shortcut: Some("m".to_string()),
+                keywords: vec![
+                    "warp".into(),
+                    "mode".into(),
+                    "doh".into(),
+                    "dns".into(),
+                    "switch".into(),
+                ],
+                action: PaletteAction::CycleWarpMode,
             },
             // Cloudflare Actions
             PaletteCommand {
@@ -673,6 +723,15 @@ mod tests {
             .iter()
             .any(|c| c.id == "storage_d1_console"));
         assert!(engine.commands().iter().any(|c| c.id == "profile_switch"));
+        assert!(engine.commands().iter().any(|c| c.id == "nav_tunnels"));
+        assert!(engine.commands().iter().any(|c| c.id == "warp_toggle"));
+    }
+
+    #[test]
+    fn test_palette_tunnels_and_warp_commands() {
+        let mut engine = PaletteEngine::new();
+        let results = engine.search("warp");
+        assert!(results.iter().any(|r| r.command.id == "warp_toggle"));
     }
 
     #[test]
