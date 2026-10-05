@@ -30,8 +30,8 @@ impl HelpModal {
             ]),
             Row::new(vec!["Tab / Shift+Tab", "Cycle through top navigation tabs"]),
             Row::new(vec![
-                "1 .. 7",
-                "Direct jump to View (DNS, Workers, Pages, D1/KV, Logs, Security, Domains)",
+                "1 .. 8",
+                "Direct jump to View (DNS, Workers, Pages, D1/KV, Logs, Security, Domains, Tunnels)",
             ]),
             Row::new(vec!["Ctrl+U", "Open Multi-Account Profile Switcher modal"]),
             Row::new(vec!["Ctrl+L", "Logout active Cloudflare account session"]),
@@ -143,6 +143,14 @@ impl HelpModal {
                 "Toggle Domain Transfer Lock protection",
             ]),
             Row::new(vec!["p (Domains)", "Toggle WHOIS Privacy Protection"]),
+            Row::new(vec![
+                "w (Tunnels)",
+                "Toggle Cloudflare WARP client tunnel connection",
+            ]),
+            Row::new(vec![
+                "m (Tunnels)",
+                "Cycle Cloudflare WARP operating mode (WARP / DoH)",
+            ]),
         ];
 
         let table = Table::new(rows, [Constraint::Length(25), Constraint::Min(45)])
