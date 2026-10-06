@@ -41,6 +41,7 @@ use crate::components::{
         security_view::SecurityView,
         storage_view::StorageView,
         tail_view::TailView,
+        tunnels_view::TunnelsView,
         workers_view::WorkersView,
     },
     worker_inspector::WorkerInspectorModal,
@@ -48,6 +49,7 @@ use crate::components::{
 };
 use crate::db::{CacheDb, DnsRecord};
 use crate::palette::{PaletteAction, PaletteEngine};
+use crate::system::{CloudflaredManager, WarpManager};
 use crate::theme::{Theme, ThemePreset};
 
 pub struct App {
@@ -76,6 +78,7 @@ pub struct App {
     pub tail_view: TailView,
     pub security_view: SecurityView,
     pub domains_view: DomainsView,
+    pub tunnels_view: TunnelsView,
     pub show_help: bool,
     pub show_auth_modal: bool,
     pub should_quit: bool,
@@ -134,6 +137,15 @@ impl App {
             let _ = action_tx.send(Action::Refresh);
         }
 
+        // Background check for local WARP & cloudflared status
+        let sys_tx = action_tx.clone();
+        tokio::spawn(async move {
+            let warp_status = WarpManager::check_status().await;
+            let _ = sys_tx.send(Action::WarpStatusUpdated(warp_status));
+            let cf_status = CloudflaredManager::check_status();
+            let _ = sys_tx.send(Action::CloudflaredStatusUpdated(cf_status));
+        });
+
         Self {
             theme,
             header,
@@ -160,6 +172,7 @@ impl App {
             tail_view: TailView::new(),
             security_view: SecurityView::new(db.clone()),
             domains_view: DomainsView::new(db.clone()),
+            tunnels_view: TunnelsView::new(db.clone()),
             show_help: false,
             show_auth_modal: false,
             should_quit: false,
@@ -184,6 +197,7 @@ impl App {
             || (self.header.active_tab == 4 && self.tail_view.search_active)
             || (self.header.active_tab == 5 && self.security_view.is_searching)
             || (self.header.active_tab == 6 && self.domains_view.search_active)
+            || (self.header.active_tab == 7 && self.tunnels_view.search_active)
     }
 
     pub fn is_domain_modal_active(&self) -> bool {
@@ -282,6 +296,8 @@ impl App {
                     self.security_view.reload(active_zone_id.as_deref());
                 } else if self.header.active_tab == 6 {
                     self.domains_view.reload("");
+                } else if self.header.active_tab == 7 {
+                    self.tunnels_view.reload("");
                 }
                 if self.auto_sync_on_tab_change && self.cf_client.is_some() {
                     let _ = self.action_tx.send(Action::FastSyncActiveView);
@@ -303,6 +319,8 @@ impl App {
                     self.security_view.reload(active_zone_id.as_deref());
                 } else if self.header.active_tab == 6 {
                     self.domains_view.reload("");
+                } else if self.header.active_tab == 7 {
+                    self.tunnels_view.reload("");
                 }
                 if self.auto_sync_on_tab_change && self.cf_client.is_some() {
                     let _ = self.action_tx.send(Action::FastSyncActiveView);
@@ -321,6 +339,8 @@ impl App {
                         self.security_view.reload(active_zone_id.as_deref());
                     } else if self.header.active_tab == 6 {
                         self.domains_view.reload("");
+                    } else if self.header.active_tab == 7 {
+                        self.tunnels_view.reload("");
                     }
                     if self.auto_sync_on_tab_change && self.cf_client.is_some() {
                         let _ = self.action_tx.send(Action::FastSyncActiveView);
@@ -338,6 +358,7 @@ impl App {
                 4 => self.tail_view.nav_up(),
                 5 => self.security_view.nav_up(),
                 6 => self.domains_view.nav_up(),
+                7 => self.tunnels_view.nav_up(),
                 _ => {}
             },
             Action::NavDown => match self.header.active_tab {
@@ -348,6 +369,7 @@ impl App {
                 4 => self.tail_view.nav_down(20),
                 5 => self.security_view.nav_down(),
                 6 => self.domains_view.nav_down(),
+                7 => self.tunnels_view.nav_down(),
                 _ => {}
             },
             Action::NavLeft | Action::NavRight => {}
@@ -485,6 +507,8 @@ impl App {
                     }
                 } else if self.header.active_tab == 6 {
                     self.domains_view.toggle_search();
+                } else if self.header.active_tab == 7 {
+                    self.tunnels_view.toggle_search();
                 }
             }
             Action::Logout => {
@@ -1587,6 +1611,8 @@ impl App {
                     self.security_view.selected_event_idx = 0;
                 } else if self.header.active_tab == 6 && self.domains_view.search_active {
                     self.domains_view.input_search_char(c);
+                } else if self.header.active_tab == 7 && self.tunnels_view.search_active {
+                    self.tunnels_view.input_search_char(c);
                 }
             }
             Action::InputBackspace => {
@@ -1599,6 +1625,8 @@ impl App {
                     self.security_view.selected_event_idx = 0;
                 } else if self.header.active_tab == 6 && self.domains_view.search_active {
                     self.domains_view.input_search_backspace();
+                } else if self.header.active_tab == 7 && self.tunnels_view.search_active {
+                    self.tunnels_view.input_search_backspace();
                 }
             }
             Action::InputSubmit => {
@@ -1610,6 +1638,8 @@ impl App {
                     self.security_view.is_searching = false;
                 } else if self.header.active_tab == 6 {
                     self.domains_view.search_active = false;
+                } else if self.header.active_tab == 7 {
+                    self.tunnels_view.search_active = false;
                 }
             }
             Action::ClearSearch => {
@@ -1623,6 +1653,8 @@ impl App {
                     self.security_view.is_searching = false;
                 } else if self.header.active_tab == 6 {
                     self.domains_view.clear_search();
+                } else if self.header.active_tab == 7 {
+                    self.tunnels_view.clear_search();
                 }
             }
             Action::StatusMessage(msg) => {
@@ -2627,6 +2659,12 @@ impl App {
                                 let _ = self.action_tx.send(Action::SelectTab(6));
                                 let _ = self.action_tx.send(Action::ToggleDomainPrivacy);
                             }
+                            PaletteAction::ToggleWarp => {
+                                let _ = self.action_tx.send(Action::ToggleWarp);
+                            }
+                            PaletteAction::CycleWarpMode => {
+                                let _ = self.action_tx.send(Action::CycleWarpMode);
+                            }
                             PaletteAction::OpenHelp => {
                                 let _ = self.action_tx.send(Action::ToggleHelp);
                             }
@@ -2917,6 +2955,69 @@ impl App {
                 self.domains_view.domains = domains;
             }
 
+            // Zero Trust, Cloudflare Tunnels & WARP CLI Actions
+            Action::ToggleWarp => {
+                let tx = self.action_tx.clone();
+                self.tunnels_view.set_feedback("Toggling Cloudflare WARP state...");
+                self.status_bar.set_status("Toggling Cloudflare WARP connection...");
+                if tokio::runtime::Handle::try_current().is_ok() {
+                    tokio::spawn(async move {
+                        match WarpManager::toggle().await {
+                            Ok(msg) => {
+                                let status = WarpManager::check_status().await;
+                                let _ = tx.send(Action::WarpStatusUpdated(status));
+                                let _ = tx.send(Action::StatusMessage(format!("WARP: {msg}")));
+                            }
+                            Err(e) => {
+                                let _ = tx.send(Action::Error(format!("WARP toggle error: {e}")));
+                            }
+                        }
+                    });
+                }
+            }
+            Action::CycleWarpMode => {
+                let tx = self.action_tx.clone();
+                self.tunnels_view.set_feedback("Cycling WARP client mode...");
+                self.status_bar.set_status("Cycling Cloudflare WARP mode...");
+                if tokio::runtime::Handle::try_current().is_ok() {
+                    tokio::spawn(async move {
+                        match WarpManager::cycle_mode().await {
+                            Ok(msg) => {
+                                let status = WarpManager::check_status().await;
+                                let _ = tx.send(Action::WarpStatusUpdated(status));
+                                let _ = tx.send(Action::StatusMessage(format!("WARP mode: {msg}")));
+                            }
+                            Err(e) => {
+                                let _ = tx.send(Action::Error(format!("WARP mode error: {e}")));
+                            }
+                        }
+                    });
+                }
+            }
+            Action::WarpStatusUpdated(status) => {
+                self.header.warp_connected = status.connected;
+                self.tunnels_view.set_warp_status(status);
+            }
+            Action::CloudflaredStatusUpdated(status) => {
+                self.tunnels_view.set_cloudflared_status(status);
+            }
+            Action::TunnelsLoaded(tunnels) => {
+                self.tunnels_view.tunnels = tunnels;
+                self.tunnels_view.reload_ingress();
+            }
+            Action::TunnelIngressRulesLoaded(_tunnel_id, rules) => {
+                self.tunnels_view.selected_ingress_rules = rules;
+            }
+            Action::TunnelsViewNavUp => {
+                self.tunnels_view.nav_up();
+            }
+            Action::TunnelsViewNavDown => {
+                self.tunnels_view.nav_down();
+            }
+            Action::TunnelsViewToggleSearch => {
+                self.tunnels_view.toggle_search();
+            }
+
             // Fast Sync & Settings Persistence Actions
             Action::FastSyncActiveView => {
                 if !self.is_fast_syncing {
@@ -2981,6 +3082,9 @@ impl App {
                     }
                     6 => {
                         self.domains_view.reload("");
+                    }
+                    7 => {
+                        self.tunnels_view.reload("");
                     }
                     _ => {}
                 }
@@ -3061,6 +3165,7 @@ impl App {
             4 => self.tail_view.render(f, chunks[1], &self.theme),
             5 => self.security_view.render(f, chunks[1], &self.theme),
             6 => self.domains_view.render(f, chunks[1], &self.theme),
+            7 => self.tunnels_view.render(f, chunks[1], &self.theme),
             _ => {}
         }
 
@@ -3401,5 +3506,38 @@ mod tests {
             app.status_bar.message.as_str(),
             "Fast sync: 5 zones updated"
         );
+    }
+
+    #[tokio::test]
+    async fn test_app_tunnels_and_warp_actions() {
+        let db = CacheDb::open_in_memory().unwrap();
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(db, tx);
+
+        // Switch to Tab 8 (index 7: Tunnels & WARP)
+        app.update(Action::SelectTab(7)).unwrap();
+        assert_eq!(app.header.active_tab, 7);
+        assert_eq!(app.header.tabs[7], "8: Tunnels & WARP");
+
+        // WARP status update
+        assert!(!app.header.warp_connected);
+        app.update(Action::WarpStatusUpdated(crate::system::WarpStatus {
+            installed: true,
+            connected: true,
+            status_text: "Connected".to_string(),
+            mode: "WARP".to_string(),
+            organization: Some("Acme Corp".to_string()),
+        }))
+        .unwrap();
+        assert!(app.header.warp_connected);
+        assert!(app.tunnels_view.warp_status.connected);
+
+        // Toggle WARP
+        app.update(Action::ToggleWarp).unwrap();
+        assert!(app.status_bar.message.contains("Cloudflare WARP"));
+
+        // Cycle WARP mode
+        app.update(Action::CycleWarpMode).unwrap();
+        assert!(app.status_bar.message.contains("WARP mode"));
     }
 }
