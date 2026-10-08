@@ -52,6 +52,30 @@
         Manage DNS, Workers, Pages, D1 SQL, Live Tail, Security WAF, and Zero Trust Tunnels without browser context-switching.
       </p>
 
+      <!-- Install Snippet Box -->
+      <div class="install-box" id="install">
+        <div class="install-tabs">
+          <button class="tab-btn active" onclick="switchInstallTab('cargo', this)">Cargo</button>
+          <button class="tab-btn" onclick="switchInstallTab('curl', this)">Curl Installer</button>
+          <button class="tab-btn" onclick="switchInstallTab('build', this)">From Source</button>
+        </div>
+
+        <div id="tab-cargo" class="tab-content active">
+          <code>cargo install flare-tui</code>
+          <button class="copy-btn" onclick="copySnippet('cargo install flare-tui')">Copy</button>
+        </div>
+
+        <div id="tab-curl" class="tab-content">
+          <code>curl -sSL https://get.flaretui.dev | bash</code>
+          <button class="copy-btn" onclick="copySnippet('curl -sSL https://get.flaretui.dev | bash')">Copy</button>
+        </div>
+
+        <div id="tab-build" class="tab-content">
+          <code>git clone https://github.com/KidusAlemayehu/flareTUI && cd flareTUI && cargo build --release</code>
+          <button class="copy-btn" onclick="copySnippet('git clone https://github.com/KidusAlemayehu/flareTUI && cd flareTUI && cargo build --release')">Copy</button>
+        </div>
+      </div>
+
     </section>
   </main>
 </body>
