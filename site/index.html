@@ -76,7 +76,91 @@
         </div>
       </div>
 
+      <!-- Real Terminal Preview Screenshot -->
+      <div class="preview-wrapper">
+        <div class="preview-bar">
+          <span class="dot red"></span>
+          <span class="dot yellow"></span>
+          <span class="dot green"></span>
+          <span class="preview-bar-title">flareTUI v0.8.4 — Live Session</span>
+        </div>
+        <img src="assets/preview.png" alt="flareTUI Live Terminal Interface" class="preview-img">
+      </div>
     </section>
+
+    <!-- Key Capabilities Grid -->
+    <section class="features-section container" id="features">
+      <div class="section-title">
+        <h2>Built for Edge Engineers & DevOps</h2>
+        <p>Everything you need to orchestrate Cloudflare without leaving your tmux or terminal workflow.</p>
+      </div>
+
+      <div class="grid">
+        <!-- 1. DNS & Zones -->
+        <div class="card">
+          <div class="card-icon">⚡</div>
+          <h3>Interactive DNS & Zones</h3>
+          <p>Instant orange-cloud proxy toggle with <code>p</code>, inline record editing, search filtering, and standard RFC-compliant BIND zone exports (<code>x</code>).</p>
+        </div>
+
+        <!-- 2. Workers -->
+        <div class="card">
+          <div class="card-icon">⚙️</div>
+          <h3>Edge Compute & Bindings</h3>
+          <p>Inspect scripts, routes, compatibility flags, and connected storage bindings (D1, KV, R2, Queues, Secrets) directly from an embedded inspector.</p>
+        </div>
+
+        <!-- 3. Pages -->
+        <div class="card">
+          <div class="card-icon">📄</div>
+          <h3>Pages & Instant Rollback</h3>
+          <p>Review deployment histories, inspect live build logs, and trigger single-key instant rollbacks with full safety verification.</p>
+        </div>
+
+        <!-- 4. Distributed Storage -->
+        <div class="card">
+          <div class="card-icon">💾</div>
+          <h3>D1 SQL, KV & R2 Storage</h3>
+          <p>Execute SQL queries on edge D1 databases with pagination and presets, browse KV namespaces with pretty JSON formatting, and inspect R2 buckets.</p>
+        </div>
+
+        <!-- 5. Workers Live Tail -->
+        <div class="card">
+          <div class="card-icon">📡</div>
+          <h3>Real-Time Live Tail</h3>
+          <p>Stream worker execution logs over WebSockets with <code>trace-v1</code> protocol. Live regex filter with <code>/</code>, freeze streams with <code>Space</code>, and inspect raw JSON payloads.</p>
+        </div>
+
+        <!-- 6. Security & WAF -->
+        <div class="card">
+          <div class="card-icon">🛡️</div>
+          <h3>WAF & Security Analytics</h3>
+          <p>Inspect incoming security events, mutate firewall rules, shift priority orders, and analyze threat scores and top anomaly vectors by country and ASN.</p>
+        </div>
+
+        <!-- 7. Registrar & Domains -->
+        <div class="card">
+          <div class="card-icon">🌐</div>
+          <h3>Cloudflare Registrar</h3>
+          <p>Manage WHOIS privacy, DNSSEC verification, auto-renewal toggling, and domain transfer locks with live confirmation modals.</p>
+        </div>
+
+        <!-- 8. Zero Trust & WARP -->
+        <div class="card">
+          <div class="card-icon">🔒</div>
+          <h3>Zero Trust Tunnels & WARP</h3>
+          <p>Monitor edge Cloudflare Tunnels and ingress hostname routes. Control local <code>warp-cli</code> (connect, disconnect, mode cycling) right from the TUI.</p>
+        </div>
+
+        <!-- 9. Offline Cache -->
+        <div class="card">
+          <div class="card-icon">📦</div>
+          <h3>Offline-First SQLite Architecture</h3>
+          <p>Cold-boots in milliseconds using an embedded SQLite database (<code>~/.cache/flaretui/cache.db</code>). Fully functional even when disconnected.</p>
+        </div>
+      </div>
+    </section>
+
   </main>
 </body>
 </html>
