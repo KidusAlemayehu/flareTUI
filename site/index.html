@@ -161,6 +161,116 @@
       </div>
     </section>
 
+    <!-- Keybindings Cheat Sheet -->
+    <section class="cheatsheet-section container" id="shortcuts">
+      <div class="section-title">
+        <h2>Keyboard-First Navigation</h2>
+        <p>Ergonomic Vim-inspired keybindings for zero-mouse operations.</p>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Keybinding</th>
+              <th>Action</th>
+              <th>Scope</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><kbd>Ctrl</kbd> + <kbd>P</kbd></td>
+              <td>Open Universal Command Palette (Fuzzy Search & Actions)</td>
+              <td>Global</td>
+            </tr>
+            <tr>
+              <td><kbd>Ctrl</kbd> + <kbd>U</kbd></td>
+              <td>Open Multi-Account Profile Switcher modal</td>
+              <td>Global</td>
+            </tr>
+            <tr>
+              <td><kbd>1</kbd> .. <kbd>8</kbd></td>
+              <td>Direct jump to View (DNS, Workers, Pages, Storage, Tail, WAF, Domains, Tunnels)</td>
+              <td>Global</td>
+            </tr>
+            <tr>
+              <td><kbd>/</kbd></td>
+              <td>Interactive Search Filter / Live Log Grep</td>
+              <td>All Views</td>
+            </tr>
+            <tr>
+              <td><kbd>r</kbd></td>
+              <td>Trigger Fast-Sync / Live API Refresh</td>
+              <td>Global</td>
+            </tr>
+            <tr>
+              <td><kbd>p</kbd></td>
+              <td>Toggle Cloudflare Orange-Cloud Proxy Status</td>
+              <td>Zones & DNS</td>
+            </tr>
+            <tr>
+              <td><kbd>t</kbd></td>
+              <td>Attach Live WebSocket Tail to Selected Worker</td>
+              <td>Workers</td>
+            </tr>
+            <tr>
+              <td><kbd>Space</kbd></td>
+              <td>Pause / Resume Live Streaming Feed</td>
+              <td>Live Tail</td>
+            </tr>
+            <tr>
+              <td><kbd>w</kbd></td>
+              <td>Connect / Disconnect Cloudflare WARP Client Tunnel</td>
+              <td>Tunnels & WARP</td>
+            </tr>
+            <tr>
+              <td><kbd>m</kbd></td>
+              <td>Cycle WARP Operating Mode (WARP &harr; DoH)</td>
+              <td>Tunnels & WARP</td>
+            </tr>
+            <tr>
+              <td><kbd>?</kbd></td>
+              <td>Toggle In-App Help & Cheatsheet Modal</td>
+              <td>Global</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p>
+        flareTUI is licensed under the <a href="https://github.com/KidusAlemayehu/flareTUI/blob/main/LICENSE-MIT" target="_blank">MIT</a> and <a href="https://github.com/KidusAlemayehu/flareTUI/blob/main/LICENSE-APACHE" target="_blank">Apache-2.0</a> licenses.
+      </p>
+      <p style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">
+        Not affiliated with Cloudflare, Inc. Designed and engineered for terminal enthusiasts.
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    function switchInstallTab(tabName, btn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + tabName).classList.add('active');
+    }
+
+    function copySnippet(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = event.target;
+        const original = btn.innerText;
+        btn.innerText = 'Copied!';
+        btn.style.color = '#3fb950';
+        setTimeout(() => {
+          btn.innerText = original;
+          btn.style.color = '';
+        }, 1800);
+      });
+    }
+  </script>
 </body>
 </html>
