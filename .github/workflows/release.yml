@@ -66,10 +66,15 @@ jobs:
           cd dist
           tar -czvf "${ARCHIVE}.tar.gz" "${ARCHIVE}"
           sha256sum "${ARCHIVE}.tar.gz" > "${ARCHIVE}.tar.gz.sha256"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a "${ARCHIVE}.zip" "${ARCHIVE}"
+            sha256sum "${ARCHIVE}.zip" > "${ARCHIVE}.zip.sha256"
+          fi
 
       - name: Upload assets to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/*.tar.gz
+            dist/*.zip
             dist/*.sha256
