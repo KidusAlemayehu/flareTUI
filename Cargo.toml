@@ -16,6 +16,8 @@ exclude = [
     ".VSCodeCounter/",
     ".github/",
     "tests/",
+    "site/",
+    "assets/",
 ]
 
 [[bin]]
