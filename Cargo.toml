@@ -1,6 +1,6 @@
 [package]
 name = "flare-tui"
-version = "0.8.4"
+version = "0.9.0"
 edition = "2021"
 authors = ["kidus"]
 description = "A production-grade keyboard-driven Terminal User Interface for Cloudflare management"
