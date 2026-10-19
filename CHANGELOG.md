@@ -35,6 +35,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and adher
 
 ---
 
+## 0.9.0 (2026-10-19)
+
+### Added
+
+- Cloudflare Zero Trust Tunnels & Ingress Routing dashboard (Tab `8` / `Tunnels & WARP`):
+  - Real-time tunnel edge health monitoring, connection status, replica counts, and config source detection
+  - Dedicated ingress rule inspector displaying hostname, path, and target service destination mappings
+  - Local SQLite persistence and fast-sync revalidation for Zero Trust tunnel resources
+- Local `warp-cli` & `cloudflared` system sidecar integration:
+  - Non-blocking detection of local Cloudflare WARP client status (`Connected`, `Connecting`, `Disconnected`)
+  - Direct keyboard toggles for quick WARP connection (`[w]`) and operating mode cycling (`[m]` WARP / DoH)
+  - Live header status indicator showing WARP edge connectivity badge (`🛡️ WARP: ON` / `OFF`)
+  - Detection and version reporting for local `cloudflared` daemon
+- Static landing site & Cloudflare Pages deployment:
+  - Terminal-aesthetic responsive landing page located in `site/` with glassmorphic Cloudflare orange styling
+  - Quick-start installation tabs (Cargo, Shell installer script, Source build) and interactive keyboard shortcuts matrix
+  - Automated Cloudflare Pages deployment workflow (`.github/workflows/pages.yml`) via `cloudflare/wrangler-action@v3`
+  - High-security headers in `site/_headers` (HSTS, CSP, X-Frame-Options, immutable asset caching)
+- Cross-platform release automation matrix:
+  - Added Windows target (`x86_64-pc-windows-msvc`) producing `flareTUI.exe` alongside Linux and macOS builds
+  - Automated generation of `.zip` and `.tar.gz` distribution packages with SHA256 checksums
+
+### Fixed
+
+- Workers Live Tail WebSocket handshake failure (HTTP 406 Not Acceptable):
+  - Implemented `Sec-WebSocket-Protocol: trace-v1` subprotocol negotiation in `tail.rs`
+  - Added live regex grep filtering and pause/resume stream buffer handling
+  - Guarded against unauthenticated Live Tail session attachment
+- Cloudflare OAuth authorization scope for D1 Databases:
+  - Appended `d1:write` permission scope to OAuth authorization URL, resolving HTTP 401 code 10000 errors during database queries
+  - Implemented cursor-based pagination for Cloudflare D1 database listing
+- Unit test suite config file isolation:
+  - Isolated test configuration storage to temporary system directory, preventing unit tests from modifying local `~/.config/flaretui/config.toml`
+
+---
+
 ## 0.8.3 (2026-08-06)
 
 ### Added
