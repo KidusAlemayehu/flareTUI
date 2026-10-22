@@ -26,4 +26,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy site --project-name=flaretui
+          preCommands: |
+            npx wrangler pages project create flaretui --production-branch=main || true
+          command: pages deploy site --project-name=flaretui --commit-dirty=true
