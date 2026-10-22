@@ -1,6 +1,8 @@
 use color_eyre::Result;
 use serde::{Deserialize, Serialize};
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::time::Duration;
+use tokio::time::timeout;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WarpStatus {
@@ -51,15 +53,18 @@ impl WarpManager {
             return WarpStatus::not_installed();
         }
 
-        let status_output = tokio::process::Command::new("warp-cli")
-            .arg("status")
-            .output()
-            .await;
+        // Run warp-cli --accept-tos status with 3s timeout
+        let status_cmd = tokio::process::Command::new("warp-cli")
+            .args(["--accept-tos", "status"])
+            .stdin(Stdio::null())
+            .output();
+
+        let status_output = timeout(Duration::from_secs(3), status_cmd).await;
 
         let mut connected = false;
         let mut status_text = "Disconnected".to_string();
 
-        if let Ok(out) = status_output {
+        if let Ok(Ok(out)) = status_output {
             let stdout = String::from_utf8_lossy(&out.stdout);
             let lower = stdout.to_lowercase();
             if lower.contains("status update: connected") || (lower.contains("connected") && !lower.contains("disconnected")) {
@@ -70,26 +75,36 @@ impl WarpManager {
             } else {
                 status_text = "Disconnected".to_string();
             }
+        } else if status_output.is_err() {
+            status_text = "Timeout".to_string();
         }
 
-        // Check settings/mode
-        let settings_output = tokio::process::Command::new("warp-cli")
-            .arg("settings")
-            .output()
-            .await;
+        // Check settings/mode with 3s timeout
+        let settings_cmd = tokio::process::Command::new("warp-cli")
+            .args(["--accept-tos", "settings"])
+            .stdin(Stdio::null())
+            .output();
+
+        let settings_output = timeout(Duration::from_secs(3), settings_cmd).await;
 
         let mut mode = "WARP".to_string();
         let mut organization = None;
 
-        if let Ok(out) = settings_output {
+        if let Ok(Ok(out)) = settings_output {
             let stdout = String::from_utf8_lossy(&out.stdout);
             for line in stdout.lines() {
                 let trimmed = line.trim();
-                if trimmed.to_lowercase().starts_with("mode:") {
-                    mode = trimmed[5..].trim().to_string();
-                } else if trimmed.to_lowercase().starts_with("organization:") || trimmed.to_lowercase().starts_with("team:") {
+                let lower = trimmed.to_lowercase();
+                if lower.contains("mode:") {
+                    if let Some(idx) = lower.find("mode:") {
+                        let val = trimmed[idx + 5..].trim();
+                        if !val.is_empty() {
+                            mode = val.to_string();
+                        }
+                    }
+                } else if lower.contains("organization:") || lower.contains("team:") {
                     let parts: Vec<&str> = trimmed.split(':').collect();
-                    if parts.len() > 1 {
+                    if parts.len() > 1 && !parts[1].trim().is_empty() {
                         organization = Some(parts[1].trim().to_string());
                     }
                 }
@@ -109,13 +124,23 @@ impl WarpManager {
         if !Self::is_installed() {
             color_eyre::eyre::bail!("warp-cli is not installed on this system");
         }
-        let out = tokio::process::Command::new("warp-cli")
-            .arg("connect")
-            .output()
-            .await?;
+        let connect_cmd = tokio::process::Command::new("warp-cli")
+            .args(["--accept-tos", "connect"])
+            .stdin(Stdio::null())
+            .output();
+
+        let out = match timeout(Duration::from_secs(6), connect_cmd).await {
+            Ok(res) => res?,
+            Err(_) => color_eyre::eyre::bail!("Connection attempt timed out. Ensure warp-svc daemon is running."),
+        };
+
         let msg = String::from_utf8_lossy(&out.stdout).to_string();
         if out.status.success() {
-            Ok(if msg.trim().is_empty() { "Connecting to Cloudflare WARP...".to_string() } else { msg })
+            Ok(if msg.trim().is_empty() || msg.trim().eq_ignore_ascii_case("success") {
+                "Connected to Cloudflare WARP".to_string()
+            } else {
+                msg.trim().to_string()
+            })
         } else {
             let err = String::from_utf8_lossy(&out.stderr).to_string();
             color_eyre::eyre::bail!("{err}")
@@ -126,13 +151,23 @@ impl WarpManager {
         if !Self::is_installed() {
             color_eyre::eyre::bail!("warp-cli is not installed on this system");
         }
-        let out = tokio::process::Command::new("warp-cli")
-            .arg("disconnect")
-            .output()
-            .await?;
+        let disconnect_cmd = tokio::process::Command::new("warp-cli")
+            .args(["--accept-tos", "disconnect"])
+            .stdin(Stdio::null())
+            .output();
+
+        let out = match timeout(Duration::from_secs(6), disconnect_cmd).await {
+            Ok(res) => res?,
+            Err(_) => color_eyre::eyre::bail!("Disconnection attempt timed out."),
+        };
+
         let msg = String::from_utf8_lossy(&out.stdout).to_string();
         if out.status.success() {
-            Ok(if msg.trim().is_empty() { "Disconnected from Cloudflare WARP".to_string() } else { msg })
+            Ok(if msg.trim().is_empty() || msg.trim().eq_ignore_ascii_case("success") {
+                "Disconnected from Cloudflare WARP".to_string()
+            } else {
+                msg.trim().to_string()
+            })
         } else {
             let err = String::from_utf8_lossy(&out.stderr).to_string();
             color_eyre::eyre::bail!("{err}")
@@ -157,10 +192,27 @@ impl WarpManager {
             m if m.contains("doh") => "warp",
             _ => "doh",
         };
-        let out = tokio::process::Command::new("warp-cli")
-            .args(["set-mode", new_mode])
-            .output()
-            .await?;
+
+        // Try `warp-cli --accept-tos mode <mode>` first (modern), fallback to `set-mode` (legacy)
+        let mode_cmd = tokio::process::Command::new("warp-cli")
+            .args(["--accept-tos", "mode", new_mode])
+            .stdin(Stdio::null())
+            .output();
+
+        let out = match timeout(Duration::from_secs(5), mode_cmd).await {
+            Ok(Ok(out)) if out.status.success() => out,
+            _ => {
+                let fallback_cmd = tokio::process::Command::new("warp-cli")
+                    .args(["--accept-tos", "set-mode", new_mode])
+                    .stdin(Stdio::null())
+                    .output();
+                match timeout(Duration::from_secs(5), fallback_cmd).await {
+                    Ok(res) => res?,
+                    Err(_) => color_eyre::eyre::bail!("Mode switch command timed out."),
+                }
+            }
+        };
+
         if out.status.success() {
             Ok(format!("WARP mode switched to {new_mode}"))
         } else {
