@@ -84,14 +84,17 @@ echo "Extracting binary..."
 tar -xzf "${TMP_DIR}/${ARCHIVE_NAME}.tar.gz" -C "${TMP_DIR}"
 
 # Determine install location
-INSTALL_DIR="/usr/local/bin"
+INSTALL_DIR="${INSTALL_DIR:-}"
 USE_SUDO=false
 
-if [ -w "${INSTALL_DIR}" ]; then
-    USE_SUDO=false
+if [ -n "${INSTALL_DIR}" ]; then
+    mkdir -p "${INSTALL_DIR}"
+elif [ -w "/usr/local/bin" ]; then
+    INSTALL_DIR="/usr/local/bin"
 elif [ "$(id -u)" -eq 0 ]; then
-    USE_SUDO=false
-elif command -v sudo >/dev/null 2>&1; then
+    INSTALL_DIR="/usr/local/bin"
+elif [ -t 0 ] && command -v sudo >/dev/null 2>&1; then
+    INSTALL_DIR="/usr/local/bin"
     USE_SUDO=true
 else
     INSTALL_DIR="${HOME}/.local/bin"
